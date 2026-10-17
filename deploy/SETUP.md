@@ -5,6 +5,8 @@ Create a new application in https://developers.eveonline.com/applications .
 Callback: **https://tools.areyouaspy.co.uk/auth/callback**
 Scopes (all required for each linked character):
 ```
+esi-industry.read_character_jobs.v1
+esi-characters.read_blueprints.v1
 esi-skills.read_skills.v1
 esi-skills.read_skillqueue.v1
 esi-planets.manage_planets.v1

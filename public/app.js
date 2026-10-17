@@ -96,9 +96,10 @@ const nav = [
   ["dens", "⬡", "Mercenary dens"],
   ["pi", "◎", "Planetary industry"],
   ["assets", "▦", "Asset search"],
+  ["industry", "⚒", "Industry"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>STEMP Tools · v0.3.2</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${page === "overview" ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>STEMP Tools · v0.4.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${page === "overview" ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -124,6 +125,7 @@ async function render() {
     if (page === "plans" || page === "fittings") html = await documents();
     if (page === "dens" || page === "pi") html = await operations();
     if (page === "assets") html = await assets();
+    if (page === "industry") html = await industry();
     if (page === "admin") html = await admin();
     if (run === renderId) content.innerHTML = html;
   } catch (e) {
@@ -132,7 +134,7 @@ async function render() {
   }
 }
 function overview() {
-  const synced = chars.filter((c) => c.snapshots.length === 4).length,
+  const synced = chars.filter((c) => c.snapshots.length === 5).length,
     working = chars.filter((c) => c.job).length,
     issues = chars.filter((c) => c.reconnect || c.errors.length).length;
   return (
@@ -285,6 +287,77 @@ function dens(rows) {
     ),
   );
 }
+async function industry() {
+  const rows = await api("/operations/industry");
+  const activities = {
+    1: "Manufacturing",
+    3: "TE research",
+    4: "ME research",
+    5: "Copying",
+    7: "Reverse engineering",
+    8: "Invention",
+    9: "Reaction",
+    11: "Reaction",
+  };
+  return (
+    intro(
+      "Industry",
+      "Jobs and blueprints across your characters. Updated hourly.",
+    ) +
+    rows
+      .map(
+        (c) =>
+          `<section class="panel compact"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
+            !c.data
+              ? empty("Awaiting Industry sync")
+              : `<h3>Jobs · ${c.data.jobs.length}</h3>${
+                  c.data.jobs.length
+                    ? table(
+                        [
+                          "Product / blueprint",
+                          "Activity",
+                          "Runs",
+                          "Status",
+                          "Finishes",
+                          "Location",
+                        ],
+                        c.data.jobs
+                          .sort(
+                            (a, b) =>
+                              Date.parse(a.end_date) - Date.parse(b.end_date),
+                          )
+                          .map(
+                            (j) =>
+                              `<tr><td><span class="icon-label">${eveIcon(j.product_type_id || j.blueprint_type_id)}${esc(j.name)}</span></td><td>${esc(activities[j.activity_id] || "Activity " + j.activity_id)}</td><td>${num(j.runs)}</td><td>${esc(j.status === "active" && Date.parse(j.end_date) <= Date.now() ? "Ready (estimated)" : j.status)}</td><td>${date(j.end_date)}<small>${j.status === "active" ? eta(j.end_date) : ""}</small></td><td>${esc(j.location)}</td></tr>`,
+                          ),
+                      )
+                    : "<small>No current jobs</small>"
+                }<details><summary>Blueprints · ${num(c.data.blueprints.length)}</summary><input class="blueprint-filter" aria-label="Search blueprints for ${esc(c.name)}" placeholder="Search blueprints…">${
+                  c.data.blueprints.length
+                    ? table(
+                        [
+                          "Blueprint",
+                          "Type",
+                          "Quantity",
+                          "ME",
+                          "TE",
+                          "Runs left",
+                          "Location",
+                        ],
+                        c.data.blueprints
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map(
+                            (b) =>
+                              `<tr data-blueprint="${esc(b.name.toLowerCase())}"><td><span class="icon-label">${eveIcon(b.type_id)}${esc(b.name)}</span></td><td>${b.quantity === -2 ? "Copy" : "Original"}</td><td>${num(b.quantity > 0 ? b.quantity : 1)}</td><td>${num(b.material_efficiency)}%</td><td>${num(b.time_efficiency)}%</td><td>${b.quantity === -2 ? num(b.runs) : "Unlimited"}</td><td>${esc(b.location)}</td></tr>`,
+                          ),
+                      )
+                    : "<small>No blueprints reported</small>"
+                }</details>`
+          }</section>`,
+      )
+      .join("")
+  );
+}
 async function assets() {
   const qs = new URLSearchParams({ ...assetFilters, offset: assetOffset });
   const data = await api("/assets?" + qs);
@@ -420,6 +493,16 @@ root.addEventListener("change", (e) => {
   }
 });
 root.addEventListener("input", (e) => {
+  if (e.target.classList.contains("blueprint-filter"))
+    e.target
+      .closest("details")
+      .querySelectorAll("[data-blueprint]")
+      .forEach(
+        (row) =>
+          (row.hidden = !row.dataset.blueprint.includes(
+            e.target.value.toLowerCase(),
+          )),
+      );
   if (e.target.id === "skill-filter") {
     const value = e.target.value.toLowerCase();
     document

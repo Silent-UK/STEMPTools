@@ -82,7 +82,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.3.2" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.4.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -347,7 +347,8 @@ export function createApp(config) {
     res.json(s);
   });
   app.get("/api/operations/:kind", (req, res) => {
-    if (!["pi", "dens"].includes(req.params.kind)) return res.sendStatus(404);
+    if (!["pi", "dens", "industry"].includes(req.params.kind))
+      return res.sendStatus(404);
     const chars = db
       .prepare(
         "SELECT id,name FROM characters WHERE user_id=? ORDER BY (id=(SELECT main_id FROM users WHERE id=characters.user_id)) DESC, (SELECT position FROM character_order WHERE character_id=characters.id), id",

@@ -460,7 +460,7 @@ test("sync keeps previous complete data when a source fails", () =>
       ).items.length,
       1,
     );
-    assert.equal(db.prepare("SELECT count(*) n FROM sync_errors").get().n, 4);
+    assert.equal(db.prepare("SELECT count(*) n FROM sync_errors").get().n, 5);
   }));
 test("PI identifies launchpads and flags factory capacity as estimates", () => {
   const cat = {
@@ -741,4 +741,87 @@ test("manual sync targets owned character and refreshes fresh snapshots", () =>
         .map((r) => r.character_id),
       [100],
     );
+  }));
+
+test("industry sync requires permission and publishes all blueprint pages atomically", () =>
+  fixture(async ({ db, user, request }) => {
+    const a = user(100, "Industrialist"),
+      b = user(200, "Other");
+    let failing = true,
+      industryCalls = 0;
+    const eve = {
+      get: async (path) => {
+        if (path.includes("industry/jobs")) {
+          industryCalls++;
+          return [
+            {
+              job_id: 1,
+              blueprint_type_id: 1,
+              station_id: 60000001,
+              status: "active",
+              runs: 10,
+            },
+          ];
+        }
+        throw Error("unused");
+      },
+      publicGet: async () => ({ name: "Factory" }),
+      request: async (path) => {
+        if (!path.includes("blueprints")) throw Error("unused");
+        if (path.endsWith("page=2") && failing) throw Error("page failure");
+        return {
+          pages: 2,
+          data: [
+            {
+              item_id: path.endsWith("page=2") ? 2 : 1,
+              type_id: 1,
+              location_id: 60000001,
+              quantity: -2,
+              runs: 5,
+              material_efficiency: 10,
+              time_efficiency: 20,
+            },
+          ],
+        };
+      },
+    };
+    const svc = syncService(db, eve, fakeCat);
+    svc.queue(a.uid);
+    await svc.tick();
+    assert.equal(industryCalls, 0);
+    assert.match(
+      db.prepare("SELECT message FROM sync_errors WHERE kind='industry'").get()
+        .message,
+      /Reconnect/,
+    );
+    db.prepare("UPDATE characters SET scopes=? WHERE id=100").run(
+      JSON.stringify([
+        "esi-industry.read_character_jobs.v1",
+        "esi-characters.read_blueprints.v1",
+      ]),
+    );
+    svc.queue(a.uid);
+    await svc.tick();
+    assert.equal(
+      db.prepare("SELECT count(*) n FROM snapshots WHERE kind='industry'").get()
+        .n,
+      0,
+    );
+    failing = false;
+    svc.queue(a.uid);
+    await svc.tick();
+    const data = JSON.parse(
+      db.prepare("SELECT data FROM snapshots WHERE kind='industry'").get().data,
+    );
+    assert.equal(data.blueprints.length, 2);
+    assert.equal(data.jobs.length, 1);
+    assert.equal(data.blueprints[0].location, "Factory");
+    const own = await (
+      await request("/api/operations/industry", { session: a.session })
+    ).json();
+    assert.equal(own[0].data.jobs.length, 1);
+    const other = await (
+      await request("/api/operations/industry", { session: b.session })
+    ).json();
+    assert.equal(other[0].data, null);
   }));
