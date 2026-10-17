@@ -1,0 +1,8 @@
+[Unit]
+Description=Deploy Tools updates from Git
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/stemp-tools-deploy
+TimeoutStartSec=15min
+UMask=0077

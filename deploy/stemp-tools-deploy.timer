@@ -1,0 +1,8 @@
+[Unit]
+Description=Check Tools main branch for updates
+[Timer]
+OnBootSec=120s
+OnUnitInactiveSec=120s
+Unit=stemp-tools-deploy.service
+[Install]
+WantedBy=timers.target

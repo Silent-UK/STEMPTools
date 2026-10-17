@@ -1,0 +1,21 @@
+[Unit]
+Description=STEMP Tools character management
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=gary
+Group=gary
+WorkingDirectory=/home/gary/releases/tools/current
+EnvironmentFile=/home/gary/apps/tools/.env
+ExecStart=/usr/bin/node /home/gary/releases/tools/current/server.mjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/var/lib/stemp-tools
+[Install]
+WantedBy=multi-user.target
