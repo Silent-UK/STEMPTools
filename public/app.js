@@ -1,3 +1,7 @@
+const eveIcon = (id) =>
+  Number(id) > 0
+    ? `<img class="eve-icon" loading="lazy" src="https://images.evetech.net/types/${Number(id)}/icon?size=64" alt="">`
+    : "";
 import { splitQueue, skillGroups } from "./view-models.mjs";
 const root = document.querySelector("#app"),
   dialog = document.querySelector("#dialog");
@@ -94,14 +98,14 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="/logo.svg" alt="">Tools<small>CAPSULEER COMMAND</small></div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>Tools · v0.3.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${page === "overview" ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>STEMP Tools · v0.3.1</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${page === "overview" ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
 }
 function login() {
   const invite = new URLSearchParams(location.search).get("invite");
-  root.innerHTML = `<div class="login"><section class="login-art"><div class="brand"><img src="/logo.svg" alt="">Tools</div><div class="eyebrow">YOUR CHARACTERS. ONE WORKSPACE.</div><h1>A clearer view<br>of your <em>New Eden.</em></h1><p>Train with a purpose. Keep your colonies moving. Bring every character into one private command centre.</p><div class="orbital" aria-hidden="true"></div></section><section class="loginbox"><div>${tag("INVITE-ONLY", "purple")}<h2>Your next move starts here.</h2><p class="muted">Sign in with your main character, then securely connect your alts.</p><a class="button primary" href="/auth/login${invite ? "?invite=" + encodeURIComponent(invite) : ""}">Sign in with EVE Online →</a><small>${invite ? "Your invitation will be redeemed after EVE login." : "Already a member? Sign in above. New pilots need an invitation."}</small><div class="features"><span>◇ Shared skill plans</span><span>△ Fitting skill checks</span><span>◎ All-character PI</span><span>⬡ Mercenary dens</span><span>▦ Asset search</span><span>▤ Skills & queue</span></div><p class="notice">Your character information is private. Only the plans and fittings you choose to share are visible to other members.</p></div></section></div>`;
+  root.innerHTML = `<div class="login"><section class="login-art"><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div class="eyebrow">YOUR CHARACTERS. ONE WORKSPACE.</div><h1>A clearer view<br>of your <em>New Eden.</em></h1><p>Train with a purpose. Keep your colonies moving. Bring every character into one private command centre.</p><div class="orbital" aria-hidden="true"></div></section><section class="loginbox"><div>${tag("INVITE-ONLY", "purple")}<h2>Your next move starts here.</h2><p class="muted">Sign in with your main character, then securely connect your alts.</p><a class="button primary" href="/auth/login${invite ? "?invite=" + encodeURIComponent(invite) : ""}">Sign in with EVE Online →</a><small>${invite ? "Your invitation will be redeemed after EVE login." : "Already a member? Sign in above. New pilots need an invitation."}</small><div class="features"><span>◇ Shared skill plans</span><span>△ Fitting skill checks</span><span>◎ All-character PI</span><span>⬡ Mercenary dens</span><span>▦ Asset search</span><span>▤ Skills & queue</span></div><p class="notice">Your character information is private. Only the plans and fittings you choose to share are visible to other members.</p></div></section></div>`;
 }
 async function render() {
   const run = ++renderId;
@@ -169,7 +173,7 @@ async function skills() {
             ["Skill", "Level", "Finishes", "Remaining"],
             waiting.map(
               (q) =>
-                `<tr><td>${esc(q.name)}</td><td>${q.finished_level}</td><td>${date(q.finish_date)}</td><td>${q.finish_date ? eta(q.finish_date) : "Not scheduled"}</td></tr>`,
+                `<tr><td><span class="icon-label">${eveIcon(q.skill_id)}${esc(q.name)}</span></td><td>${q.finished_level}</td><td>${date(q.finish_date)}</td><td>${q.finish_date ? eta(q.finish_date) : "Not scheduled"}</td></tr>`,
             ),
           )
         : "<small>No further skills queued</small>"
@@ -182,7 +186,7 @@ async function skills() {
             ["Skill", "Trained", "Active", "SP"],
             g.skills.map(
               (s) =>
-                `<tr data-skill="${esc(s.name.toLowerCase())}"><td>${esc(s.name)}</td><td>${s.trained_skill_level}</td><td>${s.active_skill_level}</td><td>${num(s.skillpoints_in_skill)}</td></tr>`,
+                `<tr data-skill="${esc(s.name.toLowerCase())}"><td><span class="icon-label">${eveIcon(s.skill_id)}${esc(s.name)}</span></td><td>${s.trained_skill_level}</td><td>${s.active_skill_level}</td><td>${num(s.skillpoints_in_skill)}</td></tr>`,
             ),
           )}</details>`,
       )
@@ -252,7 +256,7 @@ function planets(rows) {
     plasma: 2063,
     shattered: 30889,
   };
-  return `<small>${rows.length} of up to 6 planets occupied</small><div class="planetgrid">${rows.map((p) => `<article class="planet"><div class="planet-heading"><img src="https://images.evetech.net/types/${p.info?.type_id || types[p.planet_type] || 11}/icon?size=64" alt="${esc(p.planet_type)} planet"><div><strong>${esc(p.systemName)}</strong><small>${esc(p.info?.name || p.planet_id)} · ${esc(p.planet_type)}</small></div></div><div>${tag(p.status, p.status.includes("stopped") ? "warn" : "dim")}</div><small>${p.resetAt ? `Extractor reset: <span data-reset="${esc(p.resetAt)}">${Date.parse(p.resetAt) <= Date.now() ? "Reset needed" : eta(p.resetAt)}</span>` : "No extractor reset timer"}</small>${p.finalProducts.length ? p.finalProducts.map((r) => `<div class="planet-product"><div class="planet-product-line"><strong>${esc(r.name)}</strong><span title="Estimated hourly capacity">${num(r.perHour)}/h</span></div><small>${num(r.stored)} in launchpads</small></div>`).join("") : "<small>No final product configured</small>"}<details><summary>All production & storage</summary>${p.production.map((r) => `<div class="production"><span>${esc(r.name)}<small>${esc(r.kind)} · ${esc(r.status)}</small></span><strong>${num(r.perHour)}/h</strong></div>`).join("")}<h3>Launchpads</h3>${p.launchpads.map((l) => `<small>Pad ${l.id}</small>${l.contents.length ? l.contents.map((i) => `<div class="production"><span>${esc(i.name)}</span><strong>${num(i.amount)}</strong></div>`).join("") : "<small>Empty</small>"}`).join("")}</details></article>`).join("")}</div>`;
+  return `<small>${rows.length} of up to 6 planets occupied</small><div class="planetgrid">${rows.map((p) => `<article class="planet"><div class="planet-heading"><img src="https://images.evetech.net/types/${p.info?.type_id || types[p.planet_type] || 11}/icon?size=64" alt="${esc(p.planet_type)} planet"><div><strong>${esc(p.systemName)}</strong><small>${esc(p.info?.name || p.planet_id)} · ${esc(p.planet_type)}</small></div></div><div>${tag(p.status, p.status.includes("stopped") ? "warn" : "dim")}</div><small>${p.resetAt ? `Extractor reset: <span data-reset="${esc(p.resetAt)}">${Date.parse(p.resetAt) <= Date.now() ? "Reset needed" : eta(p.resetAt)}</span>` : "No extractor reset timer"}</small>${p.finalProducts.length ? p.finalProducts.map((r) => `<div class="planet-product"><div class="planet-product-line"><strong class="icon-label">${eveIcon(r.type_id)}${esc(r.name)}</strong><span title="Estimated hourly capacity">${num(r.perHour)}/h</span></div><small>${num(r.stored)} in launchpads</small></div>`).join("") : "<small>No final product configured</small>"}<details><summary>All production & storage</summary>${p.production.map((r) => `<div class="production"><span>${esc(r.name)}<small>${esc(r.kind)} · ${esc(r.status)}</small></span><strong>${num(r.perHour)}/h</strong></div>`).join("")}<h3>Launchpads</h3>${p.launchpads.map((l) => `<small>Pad ${l.id}</small>${l.contents.length ? l.contents.map((i) => `<div class="production"><span>${esc(i.name)}</span><strong>${num(i.amount)}</strong></div>`).join("") : "<small>Empty</small>"}`).join("")}</details></article>`).join("")}</div>`;
 }
 setInterval(
   () =>
@@ -291,13 +295,13 @@ async function assets() {
         ? data.locations
             .map(
               (l) =>
-                `<details class="asset-location compact"><summary><strong>${esc(l.name)}</strong><span class="muted"> · ${num(l.items.length)} stacks · ${num(l.items.reduce((n, a) => n + a.quantity, 0))} items</span></summary>${table(
+                `<details class="asset-location compact"><summary>${eveIcon(l.type_id)}<strong>${esc(l.name)}</strong>${l.type_name ? `<span class="location-type"> · ${esc(l.type_name)}</span>` : ""}<span class="muted"> · ${num(l.items.length)} stacks · ${num(l.items.reduce((n, a) => n + a.quantity, 0))} items</span></summary>${table(
                   ["Item", "Quantity", "Character", "Container / flag"],
                   l.items
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map(
                       (a) =>
-                        `<tr><td>${esc(a.name)}</td><td>${num(a.quantity)}</td><td>${esc(a.character)}</td><td>${a.location_id !== a.root_location_id ? "Container " + a.location_id + " · " : ""}${esc(a.location_flag)}</td></tr>`,
+                        `<tr><td><span class="icon-label">${eveIcon(a.type_id)}${esc(a.name)}</span></td><td>${num(a.quantity)}</td><td>${esc(a.character)}</td><td>${a.location_id !== a.root_location_id ? "Container " + a.location_id + " · " : ""}${esc(a.location_flag)}</td></tr>`,
                     ),
                 )}</details>`,
             )
@@ -314,7 +318,7 @@ async function admin() {
   return (
     intro(
       "Invitations",
-      "Only invited pilots can create a Tools account.",
+      "Only invited pilots can create a STEMP Tools account.",
       `<button class="primary" data-action="invite">+ Create invitation</button>`,
     ) +
     `<div id="invite-link"></div><section class="panel"><h2>Recent invitations</h2>${

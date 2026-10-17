@@ -82,7 +82,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.3.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.3.1" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -305,11 +305,9 @@ export function createApp(config) {
       ids[0] !== req.session.main_id ||
       ids.some((id) => !own.includes(id))
     )
-      return res
-        .status(400)
-        .json({
-          error: "Provide your complete character order with the main first",
-        });
+      return res.status(400).json({
+        error: "Provide your complete character order with the main first",
+      });
     transaction(db, () =>
       ids.forEach((id, index) =>
         db
@@ -414,6 +412,7 @@ export function createApp(config) {
           ...item,
           name,
           location: place,
+          location_type_id: data.locationTypes?.[item.root_location_id] || null,
           character: c.name,
           character_id: c.id,
         });
@@ -423,8 +422,21 @@ export function createApp(config) {
     for (const row of rows) {
       const key = String(row.root_location_id);
       if (!grouped.has(key))
-        grouped.set(key, { id: key, name: row.location, items: [] });
-      grouped.get(key).items.push(row);
+        grouped.set(key, {
+          id: key,
+          name: row.location,
+          type_id: row.location_type_id,
+          type_name: row.location_type_id
+            ? cat.type(row.location_type_id)?.name || null
+            : null,
+          items: [],
+        });
+      const group = grouped.get(key);
+      if (!group.type_id && row.location_type_id) {
+        group.type_id = row.location_type_id;
+        group.type_name = cat.type(row.location_type_id)?.name || null;
+      }
+      group.items.push(row);
     }
     const locations = [...grouped.values()].sort((a, b) =>
       a.name.localeCompare(b.name),
