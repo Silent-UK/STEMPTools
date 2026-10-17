@@ -693,3 +693,9 @@ dialog label input:not([type="checkbox"]) {
 .planet .production {
   padding: 6px 0;
 }
+
+.planet-product { padding: 6px 0; }
+.planet-product-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.planet-product-line strong { min-width: 0; overflow-wrap: anywhere; }
+.planet-product-line > span { flex-shrink: 0; white-space: nowrap; }
+.planet-product > small { display: block; margin-top: 3px; }
