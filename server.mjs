@@ -1,3 +1,4 @@
+import { fittingView } from "./lib/fitting-view.mjs";
 import skillGroups from "./lib/skill-groups.json" with { type: "json" };
 import express from "express";
 import helmet from "helmet";
@@ -82,7 +83,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.4.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.5.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -479,6 +480,7 @@ export function createApp(config) {
               name: cat.type(r.id)?.name || String(r.id),
             }))
           : JSON.parse(row.body),
+      fitting: row.kind === "fitting" ? fittingView(JSON.parse(row.body),cat) : null,
       mine: row.owner === req.session.user_id,
     });
   });

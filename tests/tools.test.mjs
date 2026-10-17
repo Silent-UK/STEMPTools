@@ -825,3 +825,16 @@ test("industry sync requires permission and publishes all blueprint pages atomic
     ).json();
     assert.equal(other[0].data, null);
   }));
+
+test("fitting view groups modules, loaded charges, drones and cargo",async()=>{
+ const {fittingView}=await import("../lib/fitting-view.mjs");
+ const cat=catalog("data");
+ try {
+ const fit=fittingView("[Rifter, Test]\nDamage Control II\n[Empty Low slot]\n1MN Afterburner II\n200mm AutoCannon II, EMP S\nSmall Projectile Burst Aerator I\n\nWarrior II x2\nEMP S x1000",cat);
+ assert.equal(fit.ship.name,"Rifter");
+ assert.equal(fit.groups.find(g=>g.name==="Low slots").items.length,2);
+ assert.equal(fit.groups.find(g=>g.name==="High slots").items[0].charges[0].name,"EMP S");
+ assert.equal(fit.groups.find(g=>g.name==="Drones").items[0].quantity,2);
+ assert.equal(fit.groups.find(g=>g.name==="Cargo").items[0].quantity,1000);
+ }finally{cat.close();}
+});
