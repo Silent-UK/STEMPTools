@@ -658,3 +658,38 @@ dialog label input:not([type="checkbox"]) {
     width: 100%;
   }
 }
+
+.compact td,
+.compact th {
+  padding: 5px 8px;
+}
+.compact h3 {
+  margin: 14px 0 6px;
+}
+.skill-group,
+.asset-location {
+  border-bottom: 1px solid var(--line);
+  padding: 7px 0;
+}
+.skill-group summary,
+.asset-location summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.planet-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.planet .planet-heading img {
+  width: 48px;
+  height: 48px;
+}
+.planet-heading strong,
+.planet-heading small {
+  display: block;
+}
+.planet .production {
+  padding: 6px 0;
+}

@@ -1,3 +1,4 @@
+import skillGroups from "./lib/skill-groups.json" with { type: "json" };
 import express from "express";
 import helmet from "helmet";
 import { join, resolve } from "node:path";
@@ -81,7 +82,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.1.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.2.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -305,10 +306,12 @@ export function createApp(config) {
       s.data.skills.skills = s.data.skills.skills.map((r) => ({
         ...r,
         name: cat.type(r.skill_id)?.name || String(r.skill_id),
+        group: skillGroups[cat.type(r.skill_id)?.group_id] || "Other",
       }));
       s.data.queue = s.data.queue.map((r) => ({
         ...r,
         name: cat.type(r.skill_id)?.name || String(r.skill_id),
+        group: skillGroups[cat.type(r.skill_id)?.group_id] || "Other",
       }));
     }
     res.json(s);
@@ -382,8 +385,20 @@ export function createApp(config) {
         });
       }
     }
+    const grouped = new Map();
+    for (const row of rows) {
+      const key = String(row.root_location_id);
+      if (!grouped.has(key))
+        grouped.set(key, { id: key, name: row.location, items: [] });
+      grouped.get(key).items.push(row);
+    }
+    const locations = [...grouped.values()].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
     res.json({
       total: rows.length,
+      locationCount: locations.length,
+      locations: locations.slice(offset, offset + 20),
       items: rows.slice(offset, offset + 100),
       sources,
     });
@@ -576,13 +591,11 @@ export function createApp(config) {
             ? message
             : "EVE login could not be completed. Please try again.",
         );
-    res
-      .status(status)
-      .json({
-        error: message.startsWith("SQLITE")
-          ? "Request could not be saved"
-          : message,
-      });
+    res.status(status).json({
+      error: message.startsWith("SQLITE")
+        ? "Request could not be saved"
+        : message,
+    });
   });
   return { app, db, cat, sync };
 }

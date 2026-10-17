@@ -1,3 +1,4 @@
+import { splitQueue, skillGroups } from "./view-models.mjs";
 const root = document.querySelector("#app"),
   dialog = document.querySelector("#dialog");
 const esc = (v) =>
@@ -22,17 +23,12 @@ const date = (v) =>
         minute: "2-digit",
       }) + " UTC"
     : "Not synced";
-const duration = (s) =>
-  s == null
-    ? "Unavailable"
-    : s <= 0
-      ? "Complete"
-      : Math.floor(s / 86400) +
-        "d " +
-        Math.floor((s % 86400) / 3600) +
-        "h " +
-        Math.ceil((s % 3600) / 60) +
-        "m";
+const duration = (s) => {
+ if (s == null) return "Unavailable";
+ if (s <= 0) return "Complete";
+ const minutes = Math.ceil(s/60);
+ return `${Math.floor(minutes/1440)}d ${Math.floor(minutes%1440/60)}h ${minutes%60}m`;
+};
 const eta = (v) =>
   v
     ? duration(Math.max(0, (Date.parse(v) - Date.now()) / 1000))
@@ -98,7 +94,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="/logo.svg" alt="">Tools<small>CAPSULEER COMMAND</small></div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>Tools · v0.1.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="sync">↻ Refresh data</button><a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="/logo.svg" alt="">Tools<small>CAPSULEER COMMAND</small></div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>Tools · v0.2.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="sync">↻ Refresh data</button><a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -158,44 +154,39 @@ async function skills() {
     ? await api("/characters/" + selected + "/skills")
     : { data: null };
   const data = s.data;
+  const heading = intro(
+    "Skills & training queue",
+    "Current skills and EVE’s reported training schedule.",
+    `<select id="character-select" aria-label="Character">${charOptions()}</select>`,
+  );
+  if (!data) return heading + empty("Skills have not synced yet");
+  const { current, waiting } = splitQueue(data.queue);
   return (
-    intro(
-      "Skills & training queue",
-      "Current skills and EVE’s reported training schedule.",
-      `<select id="character-select" aria-label="Character">${charOptions()}</select>`,
-    ) +
-    (data
-      ? `<div class="cards"><div class="card"><div class="label">Total skill points</div><div class="stat">${num(data.skills.total_sp)}</div></div><div class="card"><div class="label">Queued skills</div><div class="stat">${data.queue.length}</div></div><div class="card"><div class="label">Queue finishes</div><div class="stat" style="font-size:20px">${date(data.queue.at(-1)?.finish_date)}</div><small>Snapshot ${date(s.updated)}</small></div></div><section class="panel"><h2>Training queue</h2>${
-          data.queue.length
-            ? table(
-                [
-                  "Skill",
-                  "Target level",
-                  "Starts",
-                  "Finishes",
-                  "Time to finish",
-                ],
-                data.queue
-                  .sort((a, b) => a.queue_position - b.queue_position)
-                  .map(
-                    (q) =>
-                      `<tr><td>${esc(q.name)}</td><td>${q.finished_level}</td><td>${date(q.start_date)}</td><td>${date(q.finish_date)}</td><td>${q.finish_date ? eta(q.finish_date) : "Paused / not scheduled"}</td></tr>`,
-                  ),
-              )
-            : empty("Queue is empty")
-        }</section><section class="panel"><div class="panelhead"><h2>Trained skills</h2><input id="skill-filter" placeholder="Filter skills…" aria-label="Filter skills"></div>${table(
-          ["Skill", "Trained", "Active", "Skill points"],
-          data.skills.skills
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map(
+    heading +
+    `<section class="panel compact"><div class="panelhead"><h2>Currently training</h2><small>${num(data.skills.total_sp)} SP · Snapshot ${date(s.updated)}</small></div>${current ? `<div class="production"><strong>${esc(current.name)} · Level ${current.finished_level}</strong><span>${eta(current.finish_date)} remaining · ${date(current.finish_date)}</span></div>` : "<small>No active training reported</small>"}<h3>Training queue · ${waiting.length}</h3>${
+      waiting.length
+        ? table(
+            ["Skill", "Level", "Finishes", "Remaining"],
+            waiting.map(
+              (q) =>
+                `<tr><td>${esc(q.name)}</td><td>${q.finished_level}</td><td>${date(q.finish_date)}</td><td>${q.finish_date ? eta(q.finish_date) : "Not scheduled"}</td></tr>`,
+            ),
+          )
+        : "<small>No further skills queued</small>"
+    }</section><section class="panel compact"><div class="panelhead"><h2>Trained skills</h2><input id="skill-filter" placeholder="Filter skills…" aria-label="Filter skills"></div>${skillGroups(
+      data.skills.skills,
+    )
+      .map(
+        (g) =>
+          `<details class="skill-group"><summary>${esc(g.name)} <span class="muted">· ${g.skills.length} skills · ${num(g.skills.reduce((n, s) => n + s.skillpoints_in_skill, 0))} SP</span></summary>${table(
+            ["Skill", "Trained", "Active", "SP"],
+            g.skills.map(
               (s) =>
                 `<tr data-skill="${esc(s.name.toLowerCase())}"><td>${esc(s.name)}</td><td>${s.trained_skill_level}</td><td>${s.active_skill_level}</td><td>${num(s.skillpoints_in_skill)}</td></tr>`,
             ),
-        )}</section>`
-      : empty(
-          "Skills have not synced yet",
-          "Refresh data, then return here once the background job completes.",
-        ))
+          )}</details>`,
+      )
+      .join("")}</section>`
   );
 }
 async function documents() {
@@ -250,17 +241,29 @@ async function operations() {
 }
 function planets(rows) {
   if (!rows.length) return empty("No colonies reported");
-  return (
-    `<small>${rows.length} of up to 6 planets occupied</small><div class="planetgrid">` +
-    rows
-      .map(
-        (p) =>
-          `<article class="planet"><h3>${esc(p.info?.name || p.planet_id)}</h3><small>${esc(p.planet_type)} · Upgrade level ${p.upgrade_level} · ${p.num_pins} pins</small><h3 style="margin-top:20px">Production</h3>${p.production.length ? p.production.map((r) => `<div class="production"><span>${esc(r.name)}<small>${esc(r.kind)}${r.expires ? " · " + eta(r.expires) + " remaining" : ""}</small></span><strong>${num(r.perHour)}/h</strong></div>`).join("") : "<small>No extraction or factory programme</small>"}<details><summary>Launchpads · ${p.launchpads.length}</summary>${p.launchpads.map((l) => `<div class="listrow"><strong>Pad ${l.id}</strong></div>${l.contents.length ? l.contents.map((i) => `<div class="production"><span>${esc(i.name)}</span><strong>${num(i.amount)}</strong></div>`).join("") : "<small>Empty</small>"}`).join("")}</details></article>`,
-      )
-      .join("") +
-    "</div>"
-  );
+  const types = {
+    temperate: 11,
+    ice: 12,
+    gas: 13,
+    oceanic: 2014,
+    lava: 2015,
+    barren: 2016,
+    storm: 2017,
+    plasma: 2063,
+    shattered: 30889,
+  };
+  return `<small>${rows.length} of up to 6 planets occupied</small><div class="planetgrid">${rows.map((p) => `<article class="planet"><div class="planet-heading"><img src="https://images.evetech.net/types/${p.info?.type_id || types[p.planet_type] || 11}/icon?size=64" alt="${esc(p.planet_type)} planet"><div><strong>${esc(p.systemName)}</strong><small>${esc(p.info?.name || p.planet_id)} · ${esc(p.planet_type)}</small></div></div><div>${tag(p.status, p.status.includes("stopped") ? "warn" : "dim")}</div><small>${p.resetAt ? `Extractor reset: <span data-reset="${esc(p.resetAt)}">${Date.parse(p.resetAt) <= Date.now() ? "Reset needed" : eta(p.resetAt)}</span>` : "No extractor reset timer"}</small>${p.finalProducts.length ? p.finalProducts.map((r) => `<div class="production"><strong>${esc(r.name)}</strong><span>${num(r.perHour)}/h capacity<small>${num(r.stored)} in launchpads</small></span></div>`).join("") : "<small>No final product configured</small>"}<details><summary>All production & storage</summary>${p.production.map((r) => `<div class="production"><span>${esc(r.name)}<small>${esc(r.kind)} · ${esc(r.status)}</small></span><strong>${num(r.perHour)}/h</strong></div>`).join("")}<h3>Launchpads</h3>${p.launchpads.map((l) => `<small>Pad ${l.id}</small>${l.contents.length ? l.contents.map((i) => `<div class="production"><span>${esc(i.name)}</span><strong>${num(i.amount)}</strong></div>`).join("") : "<small>Empty</small>"}`).join("")}</details></article>`).join("")}</div>`;
 }
+setInterval(
+  () =>
+    document.querySelectorAll("[data-reset]").forEach((el) => {
+      el.textContent =
+        Date.parse(el.dataset.reset) <= Date.now()
+          ? "Reset needed"
+          : eta(el.dataset.reset);
+    }),
+  10000,
+);
 function dens(rows) {
   if (!rows.length) return empty("No Mercenary Dens reported");
   return table(
@@ -283,20 +286,27 @@ async function assets() {
   const data = await api("/assets?" + qs);
   return (
     intro("Asset search", "Find items across all of your linked characters.") +
-    `<form id="asset-search" class="toolbar"><input name="q" aria-label="Item name" placeholder="Search item name…" value="${esc(assetFilters.q)}"><select name="character" aria-label="Character"><option value="">All characters</option>${chars.map((c) => `<option value="${c.id}" ${String(c.id) === assetFilters.character ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select><input name="location" aria-label="Location" placeholder="Filter location…" value="${esc(assetFilters.location)}"><button class="primary">Search</button></form><section class="panel"><div class="panelhead"><h2>${num(data.total)} matching stacks</h2><small>${assetOffset + 1}–${Math.min(assetOffset + 100, data.total)}</small></div>${
-      data.items.length
-        ? table(
-            ["Item", "Quantity", "Character", "Location", "Container / flag"],
-            data.items.map(
-              (a) =>
-                `<tr><td>${esc(a.name)}</td><td>${num(a.quantity)}</td><td>${esc(a.character)}</td><td>${esc(a.location)}</td><td>${a.location_id !== a.root_location_id ? "Container " + a.location_id + " · " : ""}${esc(a.location_flag)}</td></tr>`,
-            ),
-          )
+    `<form id="asset-search" class="toolbar"><input name="q" aria-label="Item name" placeholder="Search item name…" value="${esc(assetFilters.q)}"><select name="character" aria-label="Character"><option value="">All characters</option>${chars.map((c) => `<option value="${c.id}" ${String(c.id) === assetFilters.character ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select><input name="location" aria-label="Location" placeholder="Filter location…" value="${esc(assetFilters.location)}"><button class="primary">Search</button></form><section class="panel"><div class="panelhead"><h2>${num(data.total)} matching stacks</h2><small>${data.locationCount ? assetOffset + 1 : 0}–${Math.min(assetOffset + 20, data.locationCount)} of ${num(data.locationCount)} locations</small></div>${
+      data.locations.length
+        ? data.locations
+            .map(
+              (l) =>
+                `<details class="asset-location compact"><summary><strong>${esc(l.name)}</strong><span class="muted"> · ${num(l.items.length)} stacks · ${num(l.items.reduce((n, a) => n + a.quantity, 0))} items</span></summary>${table(
+                  ["Item", "Quantity", "Character", "Container / flag"],
+                  l.items
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(
+                      (a) =>
+                        `<tr><td>${esc(a.name)}</td><td>${num(a.quantity)}</td><td>${esc(a.character)}</td><td>${a.location_id !== a.root_location_id ? "Container " + a.location_id + " · " : ""}${esc(a.location_flag)}</td></tr>`,
+                    ),
+                )}</details>`,
+            )
+            .join("")
         : empty(
             "No matching assets",
             "An empty result may mean the first asset sync has not completed.",
           )
-    }<div class="actions"><button data-page-assets="-1" ${assetOffset === 0 ? "disabled" : ""}>Previous</button><button data-page-assets="1" ${assetOffset + 100 >= data.total ? "disabled" : ""}>Next</button></div></section><section class="panel"><h2>Snapshot freshness</h2>${data.sources.map((c) => `<div class="production"><span>${esc(c.name)}</span><small>${date(c.updated)}</small></div>`).join("")}</section>`
+    }<div class="actions"><button data-page-assets="-1" ${assetOffset === 0 ? "disabled" : ""}>Previous</button><button data-page-assets="1" ${assetOffset + 20 >= data.locationCount ? "disabled" : ""}>Next</button></div></section><section class="panel"><h2>Snapshot freshness</h2>${data.sources.map((c) => `<div class="production"><span>${esc(c.name)}</span><small>${date(c.updated)}</small></div>`).join("")}</section>`
   );
 }
 async function admin() {
@@ -374,7 +384,7 @@ root.addEventListener("click", async (e) => {
     else if (b.dataset.pageAssets) {
       assetOffset = Math.max(
         0,
-        assetOffset + 100 * Number(b.dataset.pageAssets),
+        assetOffset + 20 * Number(b.dataset.pageAssets),
       );
       await render();
     } else if (b.dataset.action === "invite") {
@@ -398,6 +408,20 @@ root.addEventListener("input", (e) => {
     document
       .querySelectorAll("[data-skill]")
       .forEach((row) => (row.hidden = !row.dataset.skill.includes(value)));
+    document.querySelectorAll(".skill-group").forEach((group) => {
+      if (value && group.dataset.searching !== "1") {
+        group.dataset.wasOpen = String(group.open);
+        group.dataset.searching = "1";
+      }
+      group.hidden = ![...group.querySelectorAll("[data-skill]")].some(
+        (row) => !row.hidden,
+      );
+      if (value) group.open = !group.hidden;
+      else if (group.dataset.searching === "1") {
+        group.open = group.dataset.wasOpen === "true";
+        delete group.dataset.searching;
+      }
+    });
   }
 });
 root.addEventListener("submit", (e) => {

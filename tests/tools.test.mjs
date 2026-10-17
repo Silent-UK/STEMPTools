@@ -543,3 +543,78 @@ test("paginated assets publish only after every page succeeds", () =>
     assert.equal(data.items.length, 2);
     assert.equal(data.locations[60000001], "Station");
   }));
+
+test("queue separates active training and ignores completed entries", async () => {
+  const { splitQueue, skillGroups } = await import("../public/view-models.mjs");
+  const q = [
+    { queue_position: 0, start_date: "2026-01-01", finish_date: "2026-01-02" },
+    { queue_position: 1, start_date: "2026-01-02", finish_date: "2026-01-04" },
+    { queue_position: 2, start_date: "2026-01-04", finish_date: "2026-01-05" },
+  ];
+  const result = splitQueue(q, Date.parse("2026-01-03"));
+  assert.equal(result.current, q[1]);
+  assert.deepEqual(result.waiting, [q[2]]);
+  assert.equal(splitQueue([{ queue_position: 0 }]).current, undefined);
+  assert.deepEqual(
+    skillGroups([
+      { name: "B", group: "Shield" },
+      { name: "A", group: "Armor" },
+    ]).map((g) => g.name),
+    ["Armor", "Shield"],
+  );
+});
+test("PI combines final output and launchpad stock without intermediate products", () => {
+  const cat = {
+    type: (id) => ({ name: String(id), group_id: id === 99 ? 1030 : 0 }),
+    schematic: (id) =>
+      id === 1
+        ? {
+            cycleTime: 3600,
+            types: [
+              { _key: 10, isInput: true, quantity: 40 },
+              { _key: 20, isInput: false, quantity: 5 },
+            ],
+          }
+        : null,
+  };
+  const [p] = piSummary(
+    [
+      {
+        pins: [
+          {
+            extractor_details: {
+              product_type_id: 10,
+              cycle_time: 1800,
+              qty_per_cycle: 100,
+            },
+            expiry_time: "2026-01-01",
+          },
+          { schematic_id: 1 },
+          { schematic_id: 1 },
+          { type_id: 99, contents: [{ type_id: 20, amount: 300 }] },
+        ],
+      },
+    ],
+    cat,
+    Date.parse("2026-01-02"),
+  );
+  assert.deepEqual(p.finalProducts, [
+    { type_id: 20, name: "20", perHour: 10, stored: 300 },
+  ]);
+  assert.equal(p.status, "Extractors stopped");
+  assert.equal(p.resetAt, "2026-01-01");
+  const [factory] = piSummary([{ pins: [{ schematic_id: 1 }] }], cat);
+  assert.equal(factory.resetAt, null);
+  assert.equal(factory.status, "Production status unknown");
+});
+
+test("asset grouping keeps a station together and respects character ownership", () => fixture(async ({db,user,request}) => {
+ const owner=user(100,"Owner"), other=user(200,"Other");
+ for (const id of [100,200]) db.prepare("INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)").run(id,"assets",JSON.stringify({items:Array.from({length:125},(_,i)=>({item_id:i,type_id:1,quantity:1,location_id:6001,root_location_id:6001,location_flag:"Hangar"})),locations:{6001:"Station"}}),Date.now(),Date.now()+60000);
+ const result=await (await request("/api/assets",{session:owner.session})).json();
+ assert.equal(result.total,125); assert.equal(result.locationCount,1);
+ assert.equal(result.locations[0].items.length,125);
+ assert.ok(result.locations[0].items.every(i=>i.character_id===100));
+ const filtered=await (await request("/api/assets?location=missing",{session:owner.session})).json();
+ assert.equal(filtered.locations.length,0);
+}));
