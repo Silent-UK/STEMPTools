@@ -608,13 +608,137 @@ test("PI combines final output and launchpad stock without intermediate products
   assert.equal(factory.status, "Production status unknown");
 });
 
-test("asset grouping keeps a station together and respects character ownership", () => fixture(async ({db,user,request}) => {
- const owner=user(100,"Owner"), other=user(200,"Other");
- for (const id of [100,200]) db.prepare("INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)").run(id,"assets",JSON.stringify({items:Array.from({length:125},(_,i)=>({item_id:i,type_id:1,quantity:1,location_id:6001,root_location_id:6001,location_flag:"Hangar"})),locations:{6001:"Station"}}),Date.now(),Date.now()+60000);
- const result=await (await request("/api/assets",{session:owner.session})).json();
- assert.equal(result.total,125); assert.equal(result.locationCount,1);
- assert.equal(result.locations[0].items.length,125);
- assert.ok(result.locations[0].items.every(i=>i.character_id===100));
- const filtered=await (await request("/api/assets?location=missing",{session:owner.session})).json();
- assert.equal(filtered.locations.length,0);
-}));
+test("asset grouping keeps a station together and respects character ownership", () =>
+  fixture(async ({ db, user, request }) => {
+    const owner = user(100, "Owner"),
+      other = user(200, "Other");
+    for (const id of [100, 200])
+      db.prepare("INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)").run(
+        id,
+        "assets",
+        JSON.stringify({
+          items: Array.from({ length: 125 }, (_, i) => ({
+            item_id: i,
+            type_id: 1,
+            quantity: 1,
+            location_id: 6001,
+            root_location_id: 6001,
+            location_flag: "Hangar",
+          })),
+          locations: { 6001: "Station" },
+        }),
+        Date.now(),
+        Date.now() + 60000,
+      );
+    const result = await (
+      await request("/api/assets", { session: owner.session })
+    ).json();
+    assert.equal(result.total, 125);
+    assert.equal(result.locationCount, 1);
+    assert.equal(result.locations[0].items.length, 125);
+    assert.ok(result.locations[0].items.every((i) => i.character_id === 100));
+    const filtered = await (
+      await request("/api/assets?location=missing", { session: owner.session })
+    ).json();
+    assert.equal(filtered.locations.length, 0);
+  }));
+
+test("character order is main-first, persistent and shared with operations", () =>
+  fixture(async ({ db, user, request }) => {
+    const owner = user(500, "Z Main"),
+      outsider = user(900, "Other");
+    const add = (id, name) =>
+      db
+        .prepare("INSERT INTO characters VALUES(?,?,?,?,?,?,?,0)")
+        .run(id, owner.uid, name, "owner", "unused", "[]", 0);
+    add(700, "Z Alt");
+    add(600, "A Alt");
+    const list = async (path) =>
+      (await (await request(path, { session: owner.session })).json()).map(
+        (c) => c.id,
+      );
+    assert.deepEqual(await list("/api/characters"), [500, 700, 600]);
+    assert.equal(
+      (
+        await request("/api/characters/order", {
+          session: owner.session,
+          method: "POST",
+          body: { ids: [500, 600, 700] },
+        })
+      ).status,
+      200,
+    );
+    assert.deepEqual(await list("/api/operations/pi"), [500, 600, 700]);
+    assert.deepEqual(await list("/api/operations/dens"), [500, 600, 700]);
+    assert.equal(
+      (
+        await request("/api/characters/order", {
+          session: owner.session,
+          method: "POST",
+          body: { ids: [600, 500, 700] },
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request("/api/characters/order", {
+          session: owner.session,
+          method: "POST",
+          body: { ids: [500, 900, 700] },
+        })
+      ).status,
+      400,
+    );
+    add(800, "New Alt");
+    assert.deepEqual(await list("/api/characters"), [500, 600, 700, 800]);
+  }));
+test("manual sync targets owned character and refreshes fresh snapshots", () =>
+  fixture(async ({ db, user, request }) => {
+    const a = user(100, "A"),
+      b = user(200, "B");
+    for (const id of [100, 200])
+      db.prepare("INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)").run(
+        id,
+        "skills",
+        "{}",
+        Date.now(),
+        Date.now() + 3600000,
+      );
+    assert.notEqual(
+      (
+        await request("/api/characters/200/sync", {
+          session: a.session,
+          method: "POST",
+          body: {},
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await request("/api/characters/100/sync", {
+          session: a.session,
+          method: "POST",
+          body: {},
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      db.prepare("SELECT expires FROM snapshots WHERE character_id=100").get()
+        .expires,
+      0,
+    );
+    assert.ok(
+      db.prepare("SELECT expires FROM snapshots WHERE character_id=200").get()
+        .expires > Date.now(),
+    );
+    assert.deepEqual(
+      db
+        .prepare("SELECT character_id FROM jobs")
+        .all()
+        .map((r) => r.character_id),
+      [100],
+    );
+  }));

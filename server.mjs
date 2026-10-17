@@ -82,7 +82,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.2.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.3.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -259,7 +259,7 @@ export function createApp(config) {
   app.get("/api/characters", (req, res) => {
     const rows = db
       .prepare(
-        "SELECT id,name,reconnect FROM characters WHERE user_id=? ORDER BY name",
+        "SELECT id,name,reconnect FROM characters WHERE user_id=? ORDER BY (id=(SELECT main_id FROM users WHERE id=characters.user_id)) DESC, (SELECT position FROM character_order WHERE character_id=characters.id), id",
       )
       .all(req.session.user_id);
     res.json(
@@ -287,8 +287,40 @@ export function createApp(config) {
     db.prepare("DELETE FROM characters WHERE id=?").run(c.id);
     res.json({ ok: true });
   });
+  app.post("/api/characters/:id/sync", (req, res) => {
+    const c = ownedCharacter(db, req.session.user_id, req.params.id);
+    sync.queue(req.session.user_id, c.id, true);
+    res.json({ ok: true });
+  });
+  app.post("/api/characters/order", (req, res) => {
+    const ids = req.body.ids;
+    const own = db
+      .prepare("SELECT id FROM characters WHERE user_id=?")
+      .all(req.session.user_id)
+      .map((c) => c.id);
+    if (
+      !Array.isArray(ids) ||
+      ids.length !== own.length ||
+      new Set(ids).size !== own.length ||
+      ids[0] !== req.session.main_id ||
+      ids.some((id) => !own.includes(id))
+    )
+      return res
+        .status(400)
+        .json({
+          error: "Provide your complete character order with the main first",
+        });
+    transaction(db, () =>
+      ids.forEach((id, index) =>
+        db
+          .prepare("UPDATE character_order SET position=? WHERE character_id=?")
+          .run(index, id),
+      ),
+    );
+    res.json({ ok: true });
+  });
   app.post("/api/sync", (req, res) => {
-    sync.queue(req.session.user_id);
+    sync.queue(req.session.user_id, null, true);
     res.json({ ok: true });
   });
   function snapshot(req, kind) {
@@ -319,7 +351,9 @@ export function createApp(config) {
   app.get("/api/operations/:kind", (req, res) => {
     if (!["pi", "dens"].includes(req.params.kind)) return res.sendStatus(404);
     const chars = db
-      .prepare("SELECT id,name FROM characters WHERE user_id=? ORDER BY name")
+      .prepare(
+        "SELECT id,name FROM characters WHERE user_id=? ORDER BY (id=(SELECT main_id FROM users WHERE id=characters.user_id)) DESC, (SELECT position FROM character_order WHERE character_id=characters.id), id",
+      )
       .all(req.session.user_id);
     res.json(
       chars.map((c) => {
@@ -617,7 +651,7 @@ if (
     console.log("Tools listening on " + (process.env.PORT || 3014)),
   );
   sync.schedule();
-  setInterval(() => sync.schedule(), 900000).unref();
+  setInterval(() => sync.schedule(), 60000).unref();
   setInterval(
     () =>
       sync

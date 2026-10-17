@@ -24,10 +24,10 @@ const date = (v) =>
       }) + " UTC"
     : "Not synced";
 const duration = (s) => {
- if (s == null) return "Unavailable";
- if (s <= 0) return "Complete";
- const minutes = Math.ceil(s/60);
- return `${Math.floor(minutes/1440)}d ${Math.floor(minutes%1440/60)}h ${minutes%60}m`;
+  if (s == null) return "Unavailable";
+  if (s <= 0) return "Complete";
+  const minutes = Math.ceil(s / 60);
+  return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h ${minutes % 60}m`;
 };
 const eta = (v) =>
   v
@@ -94,7 +94,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="/logo.svg" alt="">Tools<small>CAPSULEER COMMAND</small></div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>Tools · v0.2.1</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="sync">↻ Refresh data</button><a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="/logo.svg" alt="">Tools<small>CAPSULEER COMMAND</small></div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>Tools · v0.3.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${page === "overview" ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -136,13 +136,13 @@ function overview() {
       "Your capsuleer command",
       "One place for every character, training plan and operation.",
     ) +
-    `<div class="cards"><div class="card"><div class="label">Linked characters</div><div class="stat">${chars.length}</div><small>One main. Your alts together.</small></div><div class="card"><div class="label">Complete snapshots</div><div class="stat">${synced}<span class="muted"> / ${chars.length}</span></div><small>${working ? working + " character refreshes queued" : "Background refresh every 15 minutes"}</small></div><div class="card"><div class="label">Needs attention</div><div class="stat">${issues}</div><small>Connection or data refresh issues</small></div></div><section class="panel"><div class="panelhead"><h2>Your characters</h2>${tag("PRIVATE", "purple")}</div>${
+    `<div class="cards"><div class="card"><div class="label">Linked characters</div><div class="stat">${chars.length}</div><small>One main. Your alts together.</small></div><div class="card"><div class="label">Complete snapshots</div><div class="stat">${synced}<span class="muted"> / ${chars.length}</span></div><small>${working ? working + " character refreshes queued" : "Background refresh every hour"}</small></div><div class="card"><div class="label">Needs attention</div><div class="stat">${issues}</div><small>Connection or data refresh issues</small></div></div><section class="panel"><div class="panelhead"><h2>Your characters</h2>${tag("PRIVATE", "purple")}</div>${
       chars.length
         ? table(
             ["Character", "Data status", "Last refreshed", ""],
             chars.map(
-              (c) =>
-                `<tr><td>${portrait(c)}</td><td>${c.reconnect ? tag("Reconnect required", "warn") : c.job ? tag(c.job, "purple") : c.errors.length ? tag("Refresh issue", "warn") : tag(c.snapshots.length ? "Connected" : "Awaiting first sync", "dim")}${c.errors.map((e) => `<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("")}</td><td>${date(c.snapshots.length ? Math.min(...c.snapshots.map((s) => s.updated)) : null)}</td><td><div class="actions"><a class="button" href="/auth/login?link=1">Reconnect</a>${c.main ? "" : `<button class="danger" data-unlink="${c.id}">Unlink</button>`}</div></td></tr>`,
+              (c, index) =>
+                `<tr><td>${portrait(c)}</td><td>${c.reconnect ? tag("Reconnect required", "warn") : c.job ? tag(c.job, "purple") : c.errors.length ? tag("Refresh issue", "warn") : tag(c.snapshots.length ? "Connected" : "Awaiting first sync", "dim")}${c.errors.map((e) => `<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("")}</td><td>${date(c.snapshots.length ? Math.min(...c.snapshots.map((s) => s.updated)) : null)}</td><td><div class="actions"><button data-sync-char="${c.id}">↻ Sync</button>${c.main ? "" : `<button data-move="${c.id}" data-direction="-1" aria-label="Move ${esc(c.name)} up" ${index <= 1 ? "disabled" : ""}>↑</button><button data-move="${c.id}" data-direction="1" aria-label="Move ${esc(c.name)} down" ${index === chars.length - 1 ? "disabled" : ""}>↓</button>`}<a class="button" href="/auth/login?link=1">Reconnect</a>${c.main ? "" : `<button class="danger" data-unlink="${c.id}">Unlink</button>`}</div></td></tr>`,
             ),
           )
         : empty("Add your first character")
@@ -157,7 +157,7 @@ async function skills() {
   const heading = intro(
     "Skills & training queue",
     "Current skills and EVE’s reported training schedule.",
-    `<select id="character-select" aria-label="Character">${charOptions()}</select>`,
+    `<div class="actions"><select id="character-select" aria-label="Character">${charOptions()}</select>${selected ? `<button data-sync-char="${selected}">↻ Sync character</button>` : ""}</div>`,
   );
   if (!data) return heading + empty("Skills have not synced yet");
   const { current, waiting } = splitQueue(data.queue);
@@ -234,7 +234,7 @@ async function operations() {
     rows
       .map(
         (c) =>
-          `<section class="panel"><div class="panelhead">${portrait(c)}<small>${date(c.updated)}</small></div>${c.error ? `<div class="notice error">${esc(c.error)}</div>` : ""}${!c.data ? empty("Awaiting first sync") : kind === "pi" ? planets(c.data) : dens(c.data)}</section>`,
+          `<section class="panel"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)}</div>` : ""}${!c.data ? empty("Awaiting first sync") : kind === "pi" ? planets(c.data) : dens(c.data)}</section>`,
       )
       .join("")
   );
@@ -306,7 +306,7 @@ async function assets() {
             "No matching assets",
             "An empty result may mean the first asset sync has not completed.",
           )
-    }<div class="actions"><button data-page-assets="-1" ${assetOffset === 0 ? "disabled" : ""}>Previous</button><button data-page-assets="1" ${assetOffset + 20 >= data.locationCount ? "disabled" : ""}>Next</button></div></section><section class="panel"><h2>Snapshot freshness</h2>${data.sources.map((c) => `<div class="production"><span>${esc(c.name)}</span><small>${date(c.updated)}</small></div>`).join("")}</section>`
+    }<div class="actions"><button data-page-assets="-1" ${assetOffset === 0 ? "disabled" : ""}>Previous</button><button data-page-assets="1" ${assetOffset + 20 >= data.locationCount ? "disabled" : ""}>Next</button></div></section><section class="panel"><h2>Snapshot freshness</h2>${data.sources.map((c) => `<div class="production"><span>${esc(c.name)}</span><div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync</button></div></div>`).join("")}</section>`
   );
 }
 async function admin() {
@@ -366,6 +366,19 @@ root.addEventListener("click", async (e) => {
     if (b.dataset.nav) {
       page = b.dataset.nav;
       assetOffset = 0;
+      await render();
+    } else if (b.dataset.syncChar) {
+      b.disabled = true;
+      await api("/characters/" + b.dataset.syncChar + "/sync", {});
+      toast("Character refresh queued. EVE cache times are respected.");
+      await render();
+    } else if (b.dataset.move) {
+      const ids = chars.map((c) => c.id),
+        index = ids.indexOf(Number(b.dataset.move)),
+        target = index + Number(b.dataset.direction);
+      if (index < 1 || target < 1 || target >= ids.length) return;
+      [ids[index], ids[target]] = [ids[target], ids[index]];
+      await api("/characters/order", { ids });
       await render();
     } else if (b.dataset.action === "sync") {
       await api("/sync", {});
