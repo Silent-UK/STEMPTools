@@ -873,3 +873,14 @@ test("linked plan adds effective-use requirements to fitting readiness",()=>fixt
  assert.notEqual((await request("/api/documents/fit/plan",{session:a.session,method:"POST",body:{plan:"private"}})).status,200);
  const plan=await(await request("/api/documents/plan",{session:a.session})).json();assert.equal(plan.readiness[0].ready,false);
 }, {...fakeCat,named:()=>99,type:id=>id===99?{id:99,name:"Test ship",category_id:6,attributes:{182:1,277:3}}:fakeCat.type(id)}));
+
+test("main and alt groups preserve login ownership and forbid cross-account or cyclic assignments",()=>fixture(async({db,user,request})=>{
+ const a=user(100,"Login Main"),b=user(900,"Other");
+ for(const [id,name] of [[200,"Second Main"],[300,"Alt"]])db.prepare("INSERT INTO characters VALUES(?,?,?,?,?,?,?,0)").run(id,a.uid,name,"owner","unused","[]",0);
+ const assign=(id,parent_id)=>request(`/api/characters/${id}/group`,{session:a.session,method:"POST",body:{parent_id}});
+ assert.equal((await assign(200,200)).status,200);assert.equal((await assign(300,200)).status,200);
+ let rows=await(await request("/api/characters",{session:a.session})).json();assert.equal(rows.find(c=>c.id===300).parent_id,200);assert.equal(rows.find(c=>c.id===200).main,false);
+ assert.equal((await assign(200,300)).status,400);assert.equal((await assign(100,200)).status,400);assert.notEqual((await assign(300,900)).status,200);
+ assert.equal((await assign(200,100)).status,200);
+ rows=await(await request("/api/characters",{session:a.session})).json();assert.equal(rows.find(c=>c.id===300).parent_id,100);
+}));

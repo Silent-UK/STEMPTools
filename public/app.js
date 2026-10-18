@@ -83,31 +83,40 @@ async function api(path, body, method = "POST") {
 const tag = (text, style = "") =>
   `<span class="tag ${style}">${esc(text)}</span>`;
 const portrait = (c) =>
-  `<div class="pilot"><img class="portrait" alt="" src="https://images.evetech.net/characters/${Number(c.id)}/portrait?size=64"><div><strong>${esc(c.name)}</strong><small>${c.main ? "Main character" : "Linked alt"}</small></div></div>`;
+  `<div class="pilot"><img class="portrait" alt="" src="https://images.evetech.net/characters/${Number(c.id)}/portrait?size=64"><div><strong>${esc(c.name)}</strong><small>${(chars.find(x=>x.id===c.id)?.parent_id||c.parent_id)===c.id ? "Main character" : "Alt"}</small></div></div>`;
 const empty = (title, text = "") =>
   `<div class="empty"><strong>${esc(title)}</strong>${esc(text)}</div>`;
 const table = (heads, rows) =>
   `<div class="tablewrap"><table><thead><tr>${heads.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
-const charOptions = () =>
-  chars
-    .map(
-      (c) =>
-        `<option value="${c.id}" ${Number(selected) === c.id ? "selected" : ""}>${esc(c.name)}</option>`,
-    )
-    .join("");
+const expandedAltGroups = new Set();
+function characterGroups(rows) {
+ const byId=new Map(rows.map(c=>[c.id,c]));
+ return chars.filter(c=>c.parent_id===c.id).map(main=>({main:byId.get(main.id),name:main.name,id:main.id,alts:chars.filter(c=>c.id!==main.id&&c.parent_id===main.id).map(c=>byId.get(c.id)).filter(Boolean)})).filter(g=>g.main||g.alts.length);
+}
+function groupedCharacters(rows,renderCharacter) {
+ return characterGroups(rows).map(g=>`<div class="character-group">${g.main?renderCharacter(g.main):`<strong>${esc(g.name)}</strong>`}${g.alts.length?`<details class="alt-group" data-alt-group="${g.id}" ${expandedAltGroups.has(g.id)?'open':''}><summary>Alts · ${g.alts.length} · ${esc(g.name)}</summary><div class="alt-members">${g.alts.map(renderCharacter).join('')}</div></details>`:''}</div>`).join('');
+}
+document.addEventListener('toggle',e=>{if(e.target.isConnected && e.target.matches?.('[data-alt-group]')){const id=Number(e.target.dataset.altGroup);e.target.open?expandedAltGroups.add(id):expandedAltGroups.delete(id);}},true);
+function characterOptions(value=selected) {return characterGroups(chars).map(g=>`<optgroup label="${esc(g.name)}"><option value="${g.id}" ${Number(value)===g.id?'selected':''}>${esc(g.name)} · Main</option>${g.alts.map(c=>`<option value="${c.id}" ${Number(value)===c.id?'selected':''}>${esc(c.name)} · Alt</option>`).join('')}</optgroup>`).join('');}
+const charOptions=()=>characterOptions();
+function canMoveCharacter(c,direction) {
+ const siblings=chars.filter(x=>c.parent_id===c.id?x.parent_id===x.id:x.id!==x.parent_id&&x.parent_id===c.parent_id);
+ const target=siblings[siblings.indexOf(c)+direction];return !!target&&!target.main;
+}
+function groupControl(c) {return `<select data-group-char="${c.id}" aria-label="Main or alt group for ${esc(c.name)}" ${c.main?'disabled':''}><option value="${c.id}" ${c.parent_id===c.id?'selected':''}>Main</option>${chars.filter(m=>m.parent_id===m.id&&m.id!==c.id).map(m=>`<option value="${m.id}" ${c.parent_id===m.id?'selected':''}>Alt of ${esc(m.name)}</option>`).join('')}</select>`;}
 const nav = [
   ["overview", "◈", "Overview"],
   ["skills", "▤", "Skills & queue"],
   ["clones", "◉", "Clones"],
-  ["plans", "◇", "Skill plans"],
   ["industry", "⚒", "Industry"],
+  ["plans", "◇", "Skill plans"],
   ["fittings", "△", "Fittings"],
   ["dens", "⬡", "Mercenary dens"],
   ["pi", "◎", "Planetary industry"],
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.11.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.12.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -151,15 +160,9 @@ function overview() {
       "Your capsuleer command",
       "One place for every character, training plan and operation.",
     ) +
-    `<div class="cards"><div class="card"><div class="label">Linked characters</div><div class="stat">${chars.length}</div><small>One main. Your alts together.</small></div><div class="card"><div class="label">Complete snapshots</div><div class="stat">${synced}<span class="muted"> / ${chars.length}</span></div><small>${working ? working + " character refreshes queued" : "Background refresh every hour"}</small></div><div class="card"><div class="label">Needs attention</div><div class="stat">${issues}</div><small>Connection or data refresh issues</small></div></div><section class="panel"><div class="panelhead"><h2>Your characters</h2>${tag("PRIVATE", "purple")}</div>${
+    `<div class="cards"><div class="card"><div class="label">Linked characters</div><div class="stat">${chars.length}</div><small>Your mains and their alts.</small></div><div class="card"><div class="label">Complete snapshots</div><div class="stat">${synced}<span class="muted"> / ${chars.length}</span></div><small>${working ? working + " character refreshes queued" : "Background refresh every hour"}</small></div><div class="card"><div class="label">Needs attention</div><div class="stat">${issues}</div><small>Connection or data refresh issues</small></div></div><section class="panel"><div class="panelhead"><h2>Your characters</h2>${tag("PRIVATE", "purple")}</div>${
       chars.length
-        ? table(
-            ["Character", "Data status", "Last refreshed", ""],
-            chars.map(
-              (c, index) =>
-                `<tr><td>${portrait(c)}</td><td>${c.reconnect ? tag("Reconnect required", "warn") : c.job ? tag(c.job, "purple") : c.errors.length ? tag("Refresh issue", "warn") : tag(c.snapshots.length ? "Connected" : "Awaiting first sync", "dim")}${c.errors.map((e) => `<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("")}</td><td>${date(c.snapshots.length ? Math.min(...c.snapshots.map((s) => s.updated)) : null)}</td><td><div class="actions"><button data-sync-char="${c.id}">↻ Sync</button>${c.main ? "" : `<button data-move="${c.id}" data-direction="-1" aria-label="Move ${esc(c.name)} up" ${index <= 1 ? "disabled" : ""}>↑</button><button data-move="${c.id}" data-direction="1" aria-label="Move ${esc(c.name)} down" ${index === chars.length - 1 ? "disabled" : ""}>↓</button>`}<a class="button" href="/auth/login?link=1">Reconnect</a>${c.main ? "" : `<button class="danger" data-unlink="${c.id}">Unlink</button>`}</div></td></tr>`,
-            ),
-          )
+        ? groupedCharacters(chars,c=>table(["Character","Data status","Last refreshed",""],[`<tr><td>${portrait(c)}${groupControl(c)}</td><td>${c.reconnect ? tag("Reconnect required", "warn") : c.job ? tag(c.job, "purple") : c.errors.length ? tag("Refresh issue", "warn") : tag(c.snapshots.length ? "Connected" : "Awaiting first sync", "dim")}${c.errors.map((e) => `<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("")}</td><td>${date(c.snapshots.length ? Math.min(...c.snapshots.map((s) => s.updated)) : null)}</td><td><div class="actions"><button data-sync-char="${c.id}">↻ Sync</button>${c.main ? "" : `<button data-move="${c.id}" data-direction="-1" aria-label="Move ${esc(c.name)} up" ${!canMoveCharacter(c,-1) ? "disabled" : ""}>↑</button><button data-move="${c.id}" data-direction="1" aria-label="Move ${esc(c.name)} down" ${!canMoveCharacter(c,1) ? "disabled" : ""}>↓</button>`}<a class="button" href="/auth/login?link=1">Reconnect</a>${c.main ? "" : `<button class="danger" data-unlink="${c.id}">Unlink</button>`}</div></td></tr>`]))
         : empty("Add your first character")
     }</section><div class="split"><section class="panel"><h2>Build your next pilot</h2><p class="muted">Create a skill plan, share it with your group, and compare it against any of your characters.</p><button data-nav="plans">Open skill plans →</button></section><section class="panel"><h2>Keep the operation moving</h2><p class="muted">Check available MTOs, extractor programmes and stored materials across all your alts.</p><button data-nav="pi">Open planetary industry →</button></section></div>`
   );
@@ -167,7 +170,7 @@ function overview() {
 let trainingOverview=[], selectedTrainingKey="";
 function trainingKey(row) {const q=splitQueue(row?.queue||[]).current;return q ? `${q.queue_position}:${q.skill_id}:${q.finish_date}` : "none";}
 function trainingCards() {
- return trainingOverview.map(c=>{const current=splitQueue(c.queue).current;return `<button class="training-card" data-select-char="${c.id}" aria-pressed="${Number(selected)===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.total_sp==null ? "Awaiting sync" : num(c.total_sp)+" SP"}</small><span class="training-skill">${current ? `${esc(current.name)} · ${current.finished_level}` : c.updated ? "No scheduled training" : "Queue unavailable"}</span><small>${current ? eta(current.finish_date)+" remaining" : ""}</small></span></button>`;}).join("");
+ return groupedCharacters(trainingOverview,c=>{const current=splitQueue(c.queue).current;return `<button class="training-card" data-select-char="${c.id}" aria-pressed="${Number(selected)===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.total_sp==null ? "Awaiting sync" : num(c.total_sp)+" SP"}</small><span class="training-skill">${current ? `${esc(current.name)} · ${current.finished_level}` : c.updated ? "No scheduled training" : "Queue unavailable"}</span><small>${current ? eta(current.finish_date)+" remaining" : ""}</small></span></button>`;});
 }
 setInterval(()=>{
  if(page!=="skills" || !document.querySelector("#training-overview"))return;
@@ -259,12 +262,10 @@ async function operations() {
         : "Every linked character’s dens and available tactical operations.",
     ) +
     `<div class="notice">${kind === "pi" ? "Rates are estimates from extractor programmes or factory capacity, not guaranteed actual output. Launchpads show the last EVE snapshot; idle factories and routing shortages can reduce production." : "EVE provides available MTOs and expiry times, but no next-spawn countdown. Anarchy is shown as EVE’s reported level and score."}</div>` +
-    rows
-      .map(
+    groupedCharacters(rows,
         (c) =>
           `<section class="panel"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)}</div>` : ""}${!c.data ? empty("Awaiting first sync") : kind === "pi" ? planets(c.data) : dens(c.data)}</section>`,
       )
-      .join("")
   );
 }
 function planets(rows) {
@@ -336,7 +337,7 @@ function cloneLocations(clones) {
 }
 async function clonesPage() {
  const chars=await api("/operations/clones");
- return intro("Clones","Jump clones sorted by location. Readiness is estimated from the last EVE snapshot.")+'<small>Switching clones within the same Upwell structure can bypass the jump cooldown. Destination access and other in-game restrictions still apply.</small>'+chars.map(c=>`<section class="panel compact"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>`:""}${!c.data?empty("Awaiting clone sync"):`<div class="clone-readiness"><strong>Next Clone Jump</strong> - <span data-clone-ready="${esc(c.data.ready_at||"")}">${cloneTimer(c.data.ready_at)}</span></div><details class="clone-active asset-location" open><summary>Active clone · ${c.data.active_implants.length} implants</summary><div class="clone-implants">${implantList(c.data.active_implants)}</div></details>${cloneLocations(c.data.clones)}`}</section>`).join("");
+ return intro("Clones","Jump clones sorted by location. Readiness is estimated from the last EVE snapshot.")+'<small>Switching clones within the same Upwell structure can bypass the jump cooldown. Destination access and other in-game restrictions still apply.</small>'+groupedCharacters(chars,c=>`<section class="panel compact"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>`:""}${!c.data?empty("Awaiting clone sync"):`<div class="clone-readiness"><strong>Next Clone Jump</strong> - <span data-clone-ready="${esc(c.data.ready_at||"")}">${cloneTimer(c.data.ready_at)}</span></div><details class="clone-active asset-location" open><summary>Active clone · ${c.data.active_implants.length} implants</summary><div class="clone-implants">${implantList(c.data.active_implants)}</div></details>${cloneLocations(c.data.clones)}`}</section>`);
 }
 setInterval(()=>document.querySelectorAll("[data-clone-ready]").forEach(el=>el.textContent=cloneTimer(el.dataset.cloneReady)),10000);
 async function industry() {
@@ -357,8 +358,7 @@ async function industry() {
       "Jobs and blueprints across your characters. Updated hourly.",
     ) +
     `<div class="toolbar"><input class="blueprint-filter" aria-label="Search blueprints across all characters" placeholder="Search blueprints across all characters…"><small id="blueprint-results" role="status"></small></div>` +
-    rows
-      .map(
+    groupedCharacters(rows,
         (c) =>
           `<section class="panel compact industry-character"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
             !c.data
@@ -392,35 +392,30 @@ async function industry() {
                 }</details>`
           }</section>`,
       )
-      .join("")
   );
+}
+function assetCharacterGroups(items) {
+ const owners=chars.filter(c=>items.some(a=>a.character_id===c.id));
+ return groupedCharacters(owners,c=>`<strong>${esc(c.name)}</strong>${table(["Item","Quantity","Container / flag"],items.filter(a=>a.character_id===c.id).sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<tr><td><span class="icon-label">${eveIcon(a.type_id)}${esc(a.name)}</span></td><td>${num(a.quantity)}</td><td>${a.location_id!==a.root_location_id?'Container '+a.location_id+' · ':''}${esc(a.location_flag)}</td></tr>`))}`);
 }
 async function assets() {
   const qs = new URLSearchParams({ ...assetFilters, offset: assetOffset });
   const data = await api("/assets?" + qs);
   return (
     intro("Asset search", "Find items across all of your linked characters.") +
-    `<form id="asset-search" class="toolbar"><input name="q" aria-label="Item name" placeholder="Search item name…" value="${esc(assetFilters.q)}"><select name="character" aria-label="Character"><option value="">All characters</option>${chars.map((c) => `<option value="${c.id}" ${String(c.id) === assetFilters.character ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select><input name="location" aria-label="Location" placeholder="Filter location…" value="${esc(assetFilters.location)}"><button class="primary">Search</button></form><section class="panel"><div class="panelhead"><h2>${num(data.total)} matching stacks</h2><small>${data.locationCount ? assetOffset + 1 : 0}–${Math.min(assetOffset + 20, data.locationCount)} of ${num(data.locationCount)} locations</small></div>${
+    `<form id="asset-search" class="toolbar"><input name="q" aria-label="Item name" placeholder="Search item name…" value="${esc(assetFilters.q)}"><select name="character" aria-label="Character"><option value="">All characters</option>${characterOptions(assetFilters.character)}</select><input name="location" aria-label="Location" placeholder="Filter location…" value="${esc(assetFilters.location)}"><button class="primary">Search</button></form><section class="panel"><div class="panelhead"><h2>${num(data.total)} matching stacks</h2><small>${data.locationCount ? assetOffset + 1 : 0}–${Math.min(assetOffset + 20, data.locationCount)} of ${num(data.locationCount)} locations</small></div>${
       data.locations.length
         ? data.locations
             .map(
               (l) =>
-                `<details class="asset-location compact"><summary>${eveIcon(l.type_id)}<strong>${esc(l.name)}</strong>${l.type_name ? `<span class="location-type"> · ${esc(l.type_name)}</span>` : ""}<span class="muted"> · ${num(l.items.length)} stacks · ${num(l.items.reduce((n, a) => n + a.quantity, 0))} items</span></summary>${table(
-                  ["Item", "Quantity", "Character", "Container / flag"],
-                  l.items
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map(
-                      (a) =>
-                        `<tr><td><span class="icon-label">${eveIcon(a.type_id)}${esc(a.name)}</span></td><td>${num(a.quantity)}</td><td>${esc(a.character)}</td><td>${a.location_id !== a.root_location_id ? "Container " + a.location_id + " · " : ""}${esc(a.location_flag)}</td></tr>`,
-                    ),
-                )}</details>`,
+                `<details class="asset-location compact"><summary>${eveIcon(l.type_id)}<strong>${esc(l.name)}</strong>${l.type_name ? `<span class="location-type"> · ${esc(l.type_name)}</span>` : ""}<span class="muted"> · ${num(l.items.length)} stacks · ${num(l.items.reduce((n, a) => n + a.quantity, 0))} items</span></summary>${assetCharacterGroups(l.items)}</details>`,
             )
             .join("")
         : empty(
             "No matching assets",
             "An empty result may mean the first asset sync has not completed.",
           )
-    }<div class="actions"><button data-page-assets="-1" ${assetOffset === 0 ? "disabled" : ""}>Previous</button><button data-page-assets="1" ${assetOffset + 20 >= data.locationCount ? "disabled" : ""}>Next</button></div></section><section class="panel"><h2>Snapshot freshness</h2>${data.sources.map((c) => `<div class="production"><span>${esc(c.name)}</span><div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync</button></div></div>`).join("")}</section>`
+    }<div class="actions"><button data-page-assets="-1" ${assetOffset === 0 ? "disabled" : ""}>Previous</button><button data-page-assets="1" ${assetOffset + 20 >= data.locationCount ? "disabled" : ""}>Next</button></div></section><section class="panel"><h2>Snapshot freshness</h2>${groupedCharacters(data.sources,(c) => `<div class="production"><span>${esc(c.name)}</span><div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync</button></div></div>`)}</section>`
   );
 }
 async function admin() {
@@ -473,7 +468,7 @@ function renderFitting(fit) {
  return `<div class="fit-layout"><div class="fit-ship"><img src="https://images.evetech.net/types/${fit.ship.id}/render?size=512" alt="${esc(fit.ship.name)}"><h2>${esc(fit.ship.name)}</h2><small>Saved loadout · skill checks below</small></div><div class="fit-slots">${fit.groups.filter(g=>g.items.length || ["High slots","Mid slots","Low slots","Rigs"].includes(g.name)).map(g=>`<section><h3>${esc(g.name)} <small>· ${g.items.length}</small></h3>${g.items.length ? g.items.map(i=>`<div class="fit-module ${i.empty?'muted':''}">${i.empty ? '<span class="empty-slot">○</span>' : eveIcon(i.id)}<div>${esc(i.name)}${i.quantity>1?` × ${num(i.quantity)}`:""}${(i.charges||[]).map(c=>`<small class="fit-charge">${eveIcon(c.id)}${esc(c.name)}</small>`).join("")}</div></div>`).join("") : '<small>No modules listed</small>'}</section>`).join("")}</div></div><p class="muted">Loadout view only; damage, tank, capacitor and fitting capacity are not simulated.</p>`;
 }
 function fittingPilots(rows) {
- return `<section class="fitting-pilots"><h3>Connected characters</h3>${rows.map(c=>`<article class="fitting-pilot">${c.ready===false ? `<details><summary class="pilot-status-line"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><strong>${esc(c.name)}</strong><span>-</span><span class="pilot-missing">Missing Skills</span></summary>${c.missing.map(r=>`<div class="missing-skill"><strong>${esc(r.name)}</strong><small>Level ${r.active} → ${r.required}${r.trained>=r.required?' · Trained but inactive':''}</small></div>`).join('')}</details>` : `<div class="pilot-status-line"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><strong>${esc(c.name)}</strong><span>-</span><span class="${c.ready?'pilot-ready':'muted'}">${c.ready?'Ready':'Skills not synced'}</span></div>`}</article>`).join('')}</section>`;
+ return `<section class="fitting-pilots"><h3>Connected characters</h3>${groupedCharacters(rows,c=>`<article class="fitting-pilot">${c.ready===false ? `<details><summary class="pilot-status-line"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><strong>${esc(c.name)}</strong><span>-</span><span class="pilot-missing">Missing Skills</span></summary>${c.missing.map(r=>`<div class="missing-skill"><strong>${esc(r.name)}</strong><small>Level ${r.active} → ${r.required}${r.trained>=r.required?' · Trained but inactive':''}</small></div>`).join('')}</details>` : `<div class="pilot-status-line"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><strong>${esc(c.name)}</strong><span>-</span><span class="${c.ready?'pilot-ready':'muted'}">${c.ready?'Ready':'Skills not synced'}</span></div>`}</article>`)}</section>`;
 }
 async function showDocument(id) {
   const d = await api("/documents/" + id);
@@ -509,11 +504,12 @@ root.addEventListener("click", async (e) => {
       toast("Character refresh queued. EVE cache times are respected.");
       await render();
     } else if (b.dataset.move) {
-      const ids = chars.map((c) => c.id),
-        index = ids.indexOf(Number(b.dataset.move)),
-        target = index + Number(b.dataset.direction);
-      if (index < 1 || target < 1 || target >= ids.length) return;
-      [ids[index], ids[target]] = [ids[target], ids[index]];
+      const c=chars.find(c=>c.id===Number(b.dataset.move));
+      const siblings=chars.filter(x=>c.parent_id===c.id ? x.parent_id===x.id : x.id!==x.parent_id && x.parent_id===c.parent_id);
+      const index=siblings.indexOf(c),target=index+Number(b.dataset.direction);
+      if(target<0 || target>=siblings.length || siblings[target].main)return;
+      const ids=chars.map(c=>c.id),left=ids.indexOf(c.id),right=ids.indexOf(siblings[target].id);
+      [ids[left],ids[right]]=[ids[right],ids[left]];
       await api("/characters/order", { ids });
       await render();
     } else if (b.dataset.action === "sync") {
@@ -549,6 +545,10 @@ root.addEventListener("click", async (e) => {
     toast(e.message);
   }
 });
+root.addEventListener("change",async e=>{
+ if(!e.target.dataset.groupChar)return;
+ try{await api("/characters/"+e.target.dataset.groupChar+"/group",{parent_id:Number(e.target.value)});await render();}catch(err){toast(err.message);await render();}
+});
 root.addEventListener("change", (e) => {
   if (e.target.id === "character-select") {
     selected = e.target.value;
@@ -560,7 +560,7 @@ root.addEventListener("input", (e) => {
     const value=e.target.value.trim().toLowerCase();
     const container=document.querySelector("#content");
     container.querySelectorAll("[data-blueprint]").forEach(row=>row.hidden=!row.dataset.blueprint.includes(value));
-    container.querySelectorAll(".blueprint-station, .blueprint-inventory").forEach(station=>{
+    container.querySelectorAll(".blueprint-station, .blueprint-inventory, .alt-group").forEach(station=>{
       if(value && !station.dataset.searching){station.dataset.wasOpen=String(station.open);station.dataset.searching="1";}
       station.hidden=![...station.querySelectorAll("[data-blueprint]")].some(row=>!row.hidden);
       if(value)station.open=!station.hidden;

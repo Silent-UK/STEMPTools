@@ -842,3 +842,11 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 .pilot-status-line .portrait { width:28px; height:28px; }
 .pilot-status-line .pilot-ready { display:inline; margin:0; }
 .fitting-pilot { padding:6px 0; }
+
+.character-group { min-width:0; margin-bottom:10px; }
+.alt-group { margin:6px 0 12px; border-left:2px solid var(--line); padding-left:10px; }
+.alt-group > summary { cursor:pointer; color:var(--purple); font-size:12px; padding:6px 0; }
+.alt-members > .panel { margin:8px 0; }
+.training-overview .training-card { width:100%; }
+.training-overview .alt-members { display:grid; gap:6px; }
+[data-group-char] { margin-top:6px; font-size:11px; padding:4px 6px; }

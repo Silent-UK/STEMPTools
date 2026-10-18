@@ -83,7 +83,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.11.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.12.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -267,6 +267,7 @@ export function createApp(config) {
       rows.map((c) => ({
         ...c,
         main: c.id === req.session.main_id,
+        parent_id: db.prepare("SELECT parent_id FROM character_groups WHERE character_id=?").get(c.id)?.parent_id || req.session.main_id,
         job:
           db.prepare("SELECT status FROM jobs WHERE character_id=?").get(c.id)
             ?.status || null,
@@ -280,6 +281,18 @@ export function createApp(config) {
           .all(c.id),
       })),
     );
+  });
+  app.post("/api/characters/:id/group",(req,res)=>{
+    const c=ownedCharacter(db,req.session.user_id,req.params.id);
+    const parent=ownedCharacter(db,req.session.user_id,req.body.parent_id);
+    if(c.id===req.session.main_id && parent.id!==c.id)return res.status(400).json({error:"The login main must remain a main"});
+    const parentGroup=db.prepare("SELECT parent_id FROM character_groups WHERE character_id=?").get(parent.id)?.parent_id || req.session.main_id;
+    if(parent.id!==c.id && parentGroup!==parent.id)return res.status(400).json({error:"Choose a main character"});
+    transaction(db,()=>{
+      if(parent.id!==c.id)db.prepare("UPDATE character_groups SET parent_id=? WHERE parent_id=? AND character_id<>?").run(parent.id,c.id,c.id);
+      db.prepare("INSERT INTO character_groups VALUES(?,?) ON CONFLICT(character_id) DO UPDATE SET parent_id=excluded.parent_id").run(c.id,parent.id);
+    });
+    res.json({ok:true});
   });
   app.delete("/api/characters/:id", (req, res) => {
     const c = ownedCharacter(db, req.session.user_id, req.params.id);
@@ -369,6 +382,7 @@ export function createApp(config) {
         return {
           ...c,
           main: c.id === req.session.main_id,
+        parent_id: db.prepare("SELECT parent_id FROM character_groups WHERE character_id=?").get(c.id)?.parent_id || req.session.main_id,
           updated: r?.updated || null,
           error:
             db
