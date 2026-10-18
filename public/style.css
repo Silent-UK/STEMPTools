@@ -797,3 +797,11 @@ button.primary,.button.primary { background:var(--purple); color:#111621; }
 .clone-implants {display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:6px;}
 .clone-implant {display:inline-flex; align-items:center; gap:4px; font-size:11px;}
 .clone-implant .eve-icon {width:20px;height:20px;}
+
+.training-queue-scroll { max-height:360px; overflow:auto; scrollbar-gutter:stable; border:1px solid var(--line); border-radius:6px; }
+.training-queue-scroll .tablewrap { overflow:visible; }
+.training-queue-scroll table { margin:0; }
+.training-queue-scroll td,.training-queue-scroll th { padding:2px 7px; font-size:11px; line-height:16px; white-space:nowrap; }
+.training-queue-scroll th { position:sticky; top:0; background:var(--theme-panel); z-index:1; }
+.training-queue-scroll .eve-icon { width:16px; height:16px; }
+.training-queue-scroll .icon-label { gap:5px; vertical-align:middle; }
