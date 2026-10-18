@@ -887,3 +887,6 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 .overview-character-list{min-width:1050px}.overview-character-row{grid-template-columns:minmax(290px,2fr) minmax(145px,1fr) minmax(110px,0.85fr) minmax(130px,1fr) minmax(280px,1.35fr)}
 .subscription-cell{display:flex;flex-direction:column;align-items:flex-start;gap:3px}.subscription-cell input{width:140px;padding:4px 6px;font-size:11px;color-scheme:dark}.subscription-status{font-size:12px}.subscription-save{font-size:10px}.subscription-save:empty{display:none}
 #add-character-parent[hidden]{display:none}#add-character-form select{display:block;width:100%;margin-top:6px}
+
+.overview-alt-rows[hidden]{display:none}.overview-alt-toggle{display:inline;padding:0;border:0;background:transparent;color:var(--purple);font-size:11px;white-space:nowrap}.overview-view-toggle button{font-size:11px;padding:6px 10px}.overview-view-toggle button[aria-pressed="true"]{border-color:var(--purple);background:var(--theme-active)}
+.overview-character-identity .pilot>div{white-space:nowrap}.overview-character-row{grid-template-columns:minmax(370px,2fr) minmax(145px,1fr) minmax(110px,0.85fr) minmax(130px,1fr) minmax(280px,1.35fr)}.overview-character-list{min-width:1100px}
