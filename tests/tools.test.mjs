@@ -838,3 +838,11 @@ test("fitting view groups modules, loaded charges, drones and cargo",async()=>{
  assert.equal(fit.groups.find(g=>g.name==="Cargo").items[0].quantity,1000);
  }finally{cat.close();}
 });
+
+test("training overview exposes only owned characters and compact skill data",()=>fixture(async({db,user,request})=>{
+ const a=user(100,"Main"),b=user(200,"Other");
+ db.prepare("INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)").run(100,"skills",JSON.stringify({skills:{total_sp:12345,skills:[{skill_id:1}]},queue:[{skill_id:1,queue_position:0}]}),Date.now(),Date.now()+3600000);
+ const result=await(await request("/api/skills/overview",{session:a.session})).json();
+ assert.equal(result.length,1);assert.equal(result[0].id,100);assert.equal(result[0].total_sp,12345);assert.equal(result[0].queue.length,1);assert.equal(result[0].skills,undefined);
+ const other=await(await request("/api/skills/overview",{session:b.session})).json();assert.equal(other[0].total_sp,null);
+}));

@@ -781,3 +781,12 @@ button.primary,.button.primary { background:var(--purple); color:#111621; }
 .theme-options button { display:flex; gap:8px; align-items:center; width:100%; border:0; text-align:left; padding:8px; background:transparent; }
 .theme-options button[aria-pressed="true"] { outline:1px solid var(--purple); }
 .theme-swatch { width:12px; height:12px; border-radius:50%; background:var(--swatch); }
+
+.training-overview { display:grid; grid-template-columns:repeat(auto-fit,minmax(235px,1fr)); gap:8px; margin-bottom:8px; }
+.training-card { display:flex; align-items:center; gap:10px; padding:10px; text-align:left; background:var(--theme-panel); min-width:0; }
+.training-card[aria-pressed="true"] { border-color:var(--purple); box-shadow:inset 3px 0 var(--purple); }
+.training-card > span { min-width:0; }
+.training-card strong,.training-card small,.training-skill { display:block; }
+.training-card strong { color:var(--purple); }
+.training-skill { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.training-note { display:block; margin-bottom:14px; }

@@ -83,7 +83,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.6.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.7.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -331,6 +331,10 @@ export function createApp(config) {
       ? { updated: r.updated, data: JSON.parse(r.data) }
       : { updated: null, data: null };
   }
+  app.get("/api/skills/overview", (req,res) => {
+    const rows=db.prepare("SELECT c.id,c.name,s.data,s.updated FROM characters c LEFT JOIN snapshots s ON s.character_id=c.id AND s.kind='skills' WHERE c.user_id=? ORDER BY (c.id=?) DESC,(SELECT position FROM character_order WHERE character_id=c.id),c.id").all(req.session.user_id,req.session.main_id);
+    res.json(rows.map(c=>{const data=c.data?JSON.parse(c.data):null;return {id:c.id,name:c.name,updated:c.updated,total_sp:data?.skills.total_sp ?? null,queue:data?.queue.map(q=>({...q,name:cat.type(q.skill_id)?.name||String(q.skill_id)}))||[]};}));
+  });
   app.get("/api/characters/:id/skills", (req, res) => {
     const s = snapshot(req, "skills");
     if (s.data) {

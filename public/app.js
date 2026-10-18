@@ -106,7 +106,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.6.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.7.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -162,7 +162,20 @@ function overview() {
     }</section><div class="split"><section class="panel"><h2>Build your next pilot</h2><p class="muted">Create a skill plan, share it with your group, and compare it against any of your characters.</p><button data-nav="plans">Open skill plans →</button></section><section class="panel"><h2>Keep the operation moving</h2><p class="muted">Check available MTOs, extractor programmes and stored materials across all your alts.</p><button data-nav="pi">Open planetary industry →</button></section></div>`
   );
 }
+let trainingOverview=[], selectedTrainingKey="";
+function trainingKey(row) {const q=splitQueue(row?.queue||[]).current;return q ? `${q.queue_position}:${q.skill_id}:${q.finish_date}` : "none";}
+function trainingCards() {
+ return trainingOverview.map(c=>{const current=splitQueue(c.queue).current;return `<button class="training-card" data-select-char="${c.id}" aria-pressed="${Number(selected)===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.total_sp==null ? "Awaiting sync" : num(c.total_sp)+" SP"}</small><span class="training-skill">${current ? `${esc(current.name)} · ${current.finished_level}` : c.updated ? "No scheduled training" : "Queue unavailable"}</span><small>${current ? eta(current.finish_date)+" remaining" : ""}</small></span></button>`;}).join("");
+}
+setInterval(()=>{
+ if(page!=="skills" || !document.querySelector("#training-overview"))return;
+ document.querySelector("#training-overview").innerHTML=trainingCards();
+ const key=trainingKey(trainingOverview.find(c=>c.id===Number(selected)));
+ if(key!==selectedTrainingKey){selectedTrainingKey=key;render();}
+},10000);
 async function skills() {
+  trainingOverview = await api("/skills/overview");
+  selectedTrainingKey=trainingKey(trainingOverview.find(c=>c.id===Number(selected)));
   const s = selected
     ? await api("/characters/" + selected + "/skills")
     : { data: null };
@@ -171,7 +184,7 @@ async function skills() {
     "Skills & training queue",
     "Current skills and EVE’s reported training schedule.",
     `<div class="actions"><select id="character-select" aria-label="Character">${charOptions()}</select>${selected ? `<button data-sync-char="${selected}">↻ Sync character</button>` : ""}</div>`,
-  );
+  ) + `<div id="training-overview" class="training-overview">${trainingCards()}</div><small class="training-note">Training follows the saved EVE schedule between syncs. SP totals are from the last snapshot.</small>`;
   if (!data) return heading + empty("Skills have not synced yet");
   const { current, waiting } = splitQueue(data.queue);
   return (
@@ -450,7 +463,10 @@ root.addEventListener("click", async (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   try {
-    if (b.dataset.theme) {
+    if (b.dataset.selectChar) {
+      selected=Number(b.dataset.selectChar);
+      await render();
+    } else if (b.dataset.theme) {
       applyTheme(b.dataset.theme);
       document.querySelectorAll("[data-theme]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.theme===b.dataset.theme)));
       b.closest("details").open=false;
