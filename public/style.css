@@ -881,3 +881,5 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 
 .overview-character-row{font-size:12px}.overview-character-row .actions button,.overview-character-row .actions .button{font-size:11px;padding:7px 9px}.overview-character-identity [data-group-char]{width:112px;flex-basis:112px}
 .overview-character-row .actions{display:grid;grid-template-columns:60px 30px 30px 76px 52px;gap:6px}.overview-character-row .actions .button{grid-column:4}.overview-character-row .actions button,.overview-character-row .actions .button{padding:7px 4px;text-align:center}
+
+.missing-copy{margin:8px 0}.missing-copy button{font-size:11px;padding:6px 9px}.missing-copy small{display:block;margin-top:4px}.copy-fallback{min-height:130px;font-size:12px}

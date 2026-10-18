@@ -939,3 +939,9 @@ test("anarchy rings use progress within the next stage's thresholds",async()=>{
  assert.equal(anarchyProgress({level:'Unspecified',amount:0}),null);
  assert.equal(anarchyProgress({level:'Level1'}),null);
 });
+
+test('missing skill export includes intermediate levels and excludes trained but inactive skills',async()=>{
+ const {missingSkillText}=await import('../public/skill-export.mjs');
+ assert.equal(missingSkillText([{name:'Gunnery',current:3,level:5},{name:'Motion Prediction',trained:0,required:2},{name:'Gunnery',trained:3,required:5},{name:'Inactive skill',current:5,active:0,level:5}]),'Gunnery IV\nGunnery V\nMotion Prediction I\nMotion Prediction II');
+ assert.equal(missingSkillText([]),'');
+});
