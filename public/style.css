@@ -884,6 +884,6 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 
 .missing-copy{margin:8px 0}.missing-copy button{font-size:11px;padding:6px 9px}.missing-copy small{display:block;margin-top:4px}.copy-fallback{min-height:130px;font-size:12px}
 
-.overview-character-list{min-width:1050px}.overview-character-row{grid-template-columns:minmax(290px,1fr) 145px 110px 130px 280px}
+.overview-character-list{min-width:1050px}.overview-character-row{grid-template-columns:minmax(290px,2fr) minmax(145px,1fr) minmax(110px,0.85fr) minmax(130px,1fr) minmax(280px,1.35fr)}
 .subscription-cell{display:flex;flex-direction:column;align-items:flex-start;gap:3px}.subscription-cell input{width:140px;padding:4px 6px;font-size:11px;color-scheme:dark}.subscription-status{font-size:12px}.subscription-save{font-size:10px}.subscription-save:empty{display:none}
 #add-character-parent[hidden]{display:none}#add-character-form select{display:block;width:100%;margin-top:6px}
