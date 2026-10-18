@@ -85,7 +85,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.14.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.14.1" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -94,6 +94,17 @@ export function createApp(config) {
       return res
         .status(401)
         .send("Sign in with your main before linking an alt.");
+    const groupMode = linking ? req.query.group : null;
+    let groupParent = null;
+    if(groupMode != null) {
+      if(!["main","alt"].includes(groupMode))return res.status(400).send("Choose Main or Alt");
+      if(groupMode === "alt") {
+        const parent=ownedCharacter(db,req.session.user_id,req.query.parent);
+        const parentId=db.prepare("SELECT parent_id FROM character_groups WHERE character_id=?").get(parent.id)?.parent_id || req.session.main_id;
+        if(parentId!==parent.id)return res.status(400).send("Choose a main character for this alt");
+        groupParent=parent.id;
+      }
+    }
     const invite =
       typeof req.query.invite === "string" ? hash(req.query.invite) : null;
     const state = random(),
@@ -108,6 +119,7 @@ export function createApp(config) {
       verifier,
       Date.now() + 600000,
     );
+    if(groupMode)db.prepare("INSERT INTO oauth_character_groups VALUES(?,?,?)").run(hash(state),groupMode,groupParent);
     res.cookie("tools_oauth", browser, { ...cookieOptions, maxAge: 600000 });
     const url = new URL("https://login.eveonline.com/v2/oauth/authorize");
     for (const [k, v] of Object.entries({
@@ -130,6 +142,7 @@ export function createApp(config) {
       .get(hash(state), hash(browser), Date.now());
     if (!flow)
       return res.status(400).send("Login expired or invalid. Start again.");
+    const grouping=db.prepare("SELECT mode,parent_id FROM oauth_character_groups WHERE state=?").get(hash(state));
     db.prepare("DELETE FROM oauth WHERE state=?").run(hash(state));
     res.clearCookie("tools_oauth", cookieOptions);
     if (flow.user_id && req.session?.user_id !== flow.user_id)
@@ -214,6 +227,16 @@ export function createApp(config) {
         JSON.stringify(id.scopes),
         id.expires,
       );
+      if(flow.user_id && grouping && !existing) {
+        const parent=grouping.mode==="main"?id.id:grouping.parent_id;
+        if(grouping.mode==="alt") {
+          const main=ownedCharacter(db,uid,parent);
+          const loginMain=db.prepare("SELECT main_id FROM users WHERE id=?").get(uid).main_id;
+          if((db.prepare("SELECT parent_id FROM character_groups WHERE character_id=?").get(main.id)?.parent_id||loginMain)!==main.id)
+            throw Object.assign(Error("The selected main changed. Add the character again."),{status:400});
+        }
+        db.prepare("INSERT INTO character_groups VALUES(?,?)").run(id.id,parent);
+      }
       return uid;
     });
     const session = random();

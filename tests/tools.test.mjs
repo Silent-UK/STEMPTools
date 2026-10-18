@@ -969,3 +969,20 @@ test('subscription dates persist per owner, validate input and can be cleared',(
  assert.equal((await save(100,null)).status,200);
  assert.equal(db.prepare('SELECT count(*) n FROM character_subscriptions').get().n,0);
 }));
+
+test('adding a character carries Main or Alt selection through the bound OAuth flow',async()=>{
+ for(const mode of ['main','alt'])await fixture(async({db,user,request,identity})=>{
+  const a=user(100,'A');user(200,'Other account');
+  assert.equal((await request('/auth/login?link=1&group=alt&parent=200',{session:a.session})).status,404);
+  const start=await request('/auth/login?link=1&group='+mode+'&parent=100',{session:a.session});
+  assert.equal(start.status,302);
+  const state=new URL(start.headers.get('location')).searchParams.get('state');
+  const browser=start.headers.get('set-cookie').match(/tools_oauth=([^;]+)/)[1];
+  identity({id:300,name:'New pilot',owner:'owner-300',expires:Date.now()+3600000,scopes:[]});
+  const result=await request('/auth/callback?code=test&state='+state,{cookie:'tools_oauth='+browser+'; tools_session='+a.session});
+  assert.equal(result.status,302);
+  assert.equal(db.prepare('SELECT parent_id FROM character_groups WHERE character_id=300').get().parent_id,mode==='main'?300:100);
+  assert.equal(db.prepare('SELECT main_id FROM users WHERE id=?').get(a.uid).main_id,100);
+  assert.equal(db.prepare('SELECT count(*) n FROM oauth_character_groups').get().n,0);
+ });
+});

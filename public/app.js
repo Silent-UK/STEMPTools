@@ -119,7 +119,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.14.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.14.1</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -507,7 +507,9 @@ root.addEventListener("click", async (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   try {
-    if (b.dataset.selectChar) {
+    if (b.dataset.action === "add-character") {
+      openDialog(`<h2>Add character</h2><form id="add-character-form" action="/auth/login" method="get"><input type="hidden" name="link" value="1"><label>Add as<select name="group" id="add-character-group"><option value="main">Main</option><option value="alt">Alt</option></select></label><label id="add-character-parent" hidden>Connected to<select name="parent" disabled>${chars.filter(c=>c.parent_id===c.id).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><p class="muted">Choose the character on EVE’s login screen. An already-linked character keeps its current group.</p><button class="primary">Continue to EVE login</button></form>`);
+    } else if (b.dataset.selectChar) {
       selected=Number(b.dataset.selectChar);
       await render();
     } else if (b.dataset.theme) {
@@ -737,7 +739,13 @@ async function documentClick(e) {
 dialog.addEventListener("click",documentClick);
 root.addEventListener("click",e=>{if(e.target.closest(".inline-fitting"))documentClick(e);});
 
+dialog.addEventListener("change",e=>{
+ if(e.target.id!=="add-character-group")return;
+ const label=dialog.querySelector('#add-character-parent'),alt=e.target.value==='alt';
+ label.hidden=!alt;label.querySelector('select').disabled=!alt;
+});
 async function documentSubmit(e) {
+  if(e.target.id === "add-character-form")return;
   if(e.target.id === "link-fitting-plan") {
     e.preventDefault();
     try {await api("/documents/"+e.target.dataset.document+"/plan",{plan:new FormData(e.target).get("plan")});await showDocument(e.target.dataset.document);}catch(err){toast(err.message);}

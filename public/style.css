@@ -886,3 +886,4 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 
 .overview-character-list{min-width:1050px}.overview-character-row{grid-template-columns:minmax(290px,1fr) 145px 110px 130px 280px}
 .subscription-cell{display:flex;flex-direction:column;align-items:flex-start;gap:3px}.subscription-cell input{width:140px;padding:4px 6px;font-size:11px;color-scheme:dark}.subscription-status{font-size:12px}.subscription-save{font-size:10px}.subscription-save:empty{display:none}
+#add-character-parent[hidden]{display:none}#add-character-form select{display:block;width:100%;margin-top:6px}
