@@ -945,3 +945,27 @@ test('missing skill export includes intermediate levels and excludes trained but
  assert.equal(missingSkillText([{name:'Gunnery',current:3,level:5},{name:'Motion Prediction',trained:0,required:2},{name:'Gunnery',trained:3,required:5},{name:'Inactive skill',current:5,active:0,level:5}]),'Gunnery IV\nGunnery V\nMotion Prediction I\nMotion Prediction II');
  assert.equal(missingSkillText([]),'');
 });
+
+test('subscription countdown uses UTC calendar dates and the requested colour thresholds',async()=>{
+ const {subscriptionStatus,validSubscriptionDate}=await import('../public/subscription.mjs');
+ const now=Date.parse('2026-10-18T23:59:59Z');
+ for(const [date,days] of [['2026-11-18',31],['2026-11-17',30],['2026-10-28',10],['2026-10-18',0],['2026-10-17',-1]])assert.equal(subscriptionStatus(date,now).days,days);
+ assert.equal(subscriptionStatus('2026-10-17',now).label,'Expired');
+ assert.equal(subscriptionStatus('2026-11-17',now).color,'rgb(91,211,145)');
+ assert.equal(subscriptionStatus('2026-10-28',now).color,'rgb(245,165,65)');
+ assert.equal(subscriptionStatus('2026-10-18',now).color,'rgb(245,85,85)');
+ assert.equal(subscriptionStatus(null,now).label,'Not set');
+ assert.equal(validSubscriptionDate('2026-02-30'),false);assert.equal(validSubscriptionDate('2028-02-29'),true);
+});
+test('subscription dates persist per owner, validate input and can be cleared',()=>fixture(async({request,user,db})=>{
+ const a=user(100,'A'),b=user(200,'B');
+ const save=(id,value,session=a.session)=>request('/api/characters/'+id+'/subscription',{session,method:'POST',body:{expires_on:value}});
+ assert.equal((await save(100,'2026-11-30')).status,200);
+ assert.equal((await (await request('/api/characters',{session:a.session})).json())[0].subscription_end,'2026-11-30');
+ assert.equal((await save(100,'2026-12-01',b.session)).status,404);
+ assert.equal((await save(100,'2026-02-30')).status,400);
+ assert.equal(db.prepare('SELECT expires_on FROM character_subscriptions WHERE character_id=100').get().expires_on,'2026-11-30');
+ assert.equal((await (await request('/api/characters',{session:b.session})).json())[0].subscription_end,null);
+ assert.equal((await save(100,null)).status,200);
+ assert.equal(db.prepare('SELECT count(*) n FROM character_subscriptions').get().n,0);
+}));

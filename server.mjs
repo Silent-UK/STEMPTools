@@ -1,3 +1,4 @@
+import {validSubscriptionDate} from "./public/subscription.mjs";
 import { fittingView } from "./lib/fitting-view.mjs";
 import skillGroups from "./lib/skill-groups.json" with { type: "json" };
 import express from "express";
@@ -84,7 +85,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.13.5" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.14.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -268,6 +269,7 @@ export function createApp(config) {
       rows.map((c) => ({
         ...c,
         main: c.id === req.session.main_id,
+        subscription_end: db.prepare("SELECT expires_on FROM character_subscriptions WHERE character_id=?").get(c.id)?.expires_on || null,
         parent_id: db.prepare("SELECT parent_id FROM character_groups WHERE character_id=?").get(c.id)?.parent_id || req.session.main_id,
         job:
           db.prepare("SELECT status FROM jobs WHERE character_id=?").get(c.id)
@@ -282,6 +284,13 @@ export function createApp(config) {
           .all(c.id),
       })),
     );
+  });
+  app.post("/api/characters/:id/subscription",(req,res)=>{
+    const c=ownedCharacter(db,req.session.user_id,req.params.id), value=req.body.expires_on;
+    if(value!==null && value!=="" && !validSubscriptionDate(value))return res.status(400).json({error:"Choose a valid subscription expiry date"});
+    if(value)db.prepare("INSERT INTO character_subscriptions VALUES(?,?) ON CONFLICT(character_id) DO UPDATE SET expires_on=excluded.expires_on").run(c.id,value);
+    else db.prepare("DELETE FROM character_subscriptions WHERE character_id=?").run(c.id);
+    res.json({expires_on:value||null});
   });
   app.post("/api/characters/:id/group",(req,res)=>{
     const c=ownedCharacter(db,req.session.user_id,req.params.id);
