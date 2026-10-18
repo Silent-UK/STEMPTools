@@ -99,7 +99,7 @@ const nav = [
   ["industry", "⚒", "Industry"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>STEMP Tools · v0.5.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>STEMP Tools · v0.5.1</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -287,6 +287,20 @@ function dens(rows) {
     ),
   );
 }
+function blueprintStations(blueprints) {
+ const stations=new Map();
+ for(const b of blueprints) {
+   const key=String(b.root_location_id || b.location || b.location_id);
+   if(!stations.has(key)) stations.set(key,{name:b.location || "Location "+b.location_id,items:[]});
+   stations.get(key).items.push(b);
+ }
+ return [...stations.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(station=>{
+ const items=station.items.sort((a,b)=>Number(a.quantity===-2)-Number(b.quantity===-2)||a.name.localeCompare(b.name));
+ const originals=items.filter(b=>b.quantity!==-2).reduce((n,b)=>n+(b.quantity>0?b.quantity:1),0);
+ const copies=items.filter(b=>b.quantity===-2).length;
+ return `<details class="blueprint-station asset-location compact"><summary><strong>${esc(station.name)}</strong><span class="muted"> · ${num(originals)} originals · ${num(copies)} copies</span></summary>${table(["Blueprint","Type","Quantity","ME","TE","Runs left"],items.map(b=>`<tr data-blueprint="${esc((b.name+" "+station.name).toLowerCase())}"><td><span class="icon-label">${eveIcon(b.type_id)}${esc(b.name)}</span></td><td>${b.quantity===-2?"Copy":"Original"}</td><td>${num(b.quantity>0?b.quantity:1)}</td><td>${num(b.material_efficiency)}%</td><td>${num(b.time_efficiency)}%</td><td>${b.quantity===-2?num(b.runs):"Unlimited"}</td></tr>`))}</details>`;
+ }).join("");
+}
 async function industry() {
   const rows = await api("/operations/industry");
   const activities = {
@@ -334,23 +348,7 @@ async function industry() {
                     : "<small>No current jobs</small>"
                 }<details><summary>Blueprints · ${num(c.data.blueprints.length)}</summary><input class="blueprint-filter" aria-label="Search blueprints for ${esc(c.name)}" placeholder="Search blueprints…">${
                   c.data.blueprints.length
-                    ? table(
-                        [
-                          "Blueprint",
-                          "Type",
-                          "Quantity",
-                          "ME",
-                          "TE",
-                          "Runs left",
-                          "Location",
-                        ],
-                        c.data.blueprints
-                          .sort((a, b) => a.name.localeCompare(b.name))
-                          .map(
-                            (b) =>
-                              `<tr data-blueprint="${esc(b.name.toLowerCase())}"><td><span class="icon-label">${eveIcon(b.type_id)}${esc(b.name)}</span></td><td>${b.quantity === -2 ? "Copy" : "Original"}</td><td>${num(b.quantity > 0 ? b.quantity : 1)}</td><td>${num(b.material_efficiency)}%</td><td>${num(b.time_efficiency)}%</td><td>${b.quantity === -2 ? num(b.runs) : "Unlimited"}</td><td>${esc(b.location)}</td></tr>`,
-                          ),
-                      )
+                    ? blueprintStations(c.data.blueprints)
                     : "<small>No blueprints reported</small>"
                 }</details>`
           }</section>`,
@@ -497,16 +495,17 @@ root.addEventListener("change", (e) => {
   }
 });
 root.addEventListener("input", (e) => {
-  if (e.target.classList.contains("blueprint-filter"))
-    e.target
-      .closest("details")
-      .querySelectorAll("[data-blueprint]")
-      .forEach(
-        (row) =>
-          (row.hidden = !row.dataset.blueprint.includes(
-            e.target.value.toLowerCase(),
-          )),
-      );
+  if (e.target.classList.contains("blueprint-filter")) {
+    const value=e.target.value.toLowerCase();
+    const container=e.target.closest("details");
+    container.querySelectorAll("[data-blueprint]").forEach(row=>row.hidden=!row.dataset.blueprint.includes(value));
+    container.querySelectorAll(".blueprint-station").forEach(station=>{
+      if(value && !station.dataset.searching){station.dataset.wasOpen=String(station.open);station.dataset.searching="1";}
+      station.hidden=![...station.querySelectorAll("[data-blueprint]")].some(row=>!row.hidden);
+      if(value)station.open=!station.hidden;
+      else if(station.dataset.searching){station.open=station.dataset.wasOpen==="true";delete station.dataset.searching;}
+    });
+  }
   if (e.target.id === "skill-filter") {
     const value = e.target.value.toLowerCase();
     document
