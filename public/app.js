@@ -99,7 +99,7 @@ const nav = [
   ["industry", "⚒", "Industry"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>STEMP Tools · v0.5.1</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account">SIGNED IN AS<strong>${esc(me.name)}</strong><button data-action="logout">Sign out</button><p>STEMP Tools · v0.5.2</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -318,10 +318,11 @@ async function industry() {
       "Industry",
       "Jobs and blueprints across your characters. Updated hourly.",
     ) +
+    `<div class="toolbar"><input class="blueprint-filter" aria-label="Search blueprints across all characters" placeholder="Search blueprints across all characters…"><small id="blueprint-results" role="status"></small></div>` +
     rows
       .map(
         (c) =>
-          `<section class="panel compact"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
+          `<section class="panel compact industry-character"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
             !c.data
               ? empty("Awaiting Industry sync")
               : `<h3>Jobs · ${c.data.jobs.length}</h3>${
@@ -346,7 +347,7 @@ async function industry() {
                           ),
                       )
                     : "<small>No current jobs</small>"
-                }<details><summary>Blueprints · ${num(c.data.blueprints.length)}</summary><input class="blueprint-filter" aria-label="Search blueprints for ${esc(c.name)}" placeholder="Search blueprints…">${
+                }<details class="blueprint-inventory"><summary>Blueprints · ${num(c.data.blueprints.length)}</summary>${
                   c.data.blueprints.length
                     ? blueprintStations(c.data.blueprints)
                     : "<small>No blueprints reported</small>"
@@ -496,15 +497,21 @@ root.addEventListener("change", (e) => {
 });
 root.addEventListener("input", (e) => {
   if (e.target.classList.contains("blueprint-filter")) {
-    const value=e.target.value.toLowerCase();
-    const container=e.target.closest("details");
+    const value=e.target.value.trim().toLowerCase();
+    const container=document.querySelector("#content");
     container.querySelectorAll("[data-blueprint]").forEach(row=>row.hidden=!row.dataset.blueprint.includes(value));
-    container.querySelectorAll(".blueprint-station").forEach(station=>{
+    container.querySelectorAll(".blueprint-station, .blueprint-inventory").forEach(station=>{
       if(value && !station.dataset.searching){station.dataset.wasOpen=String(station.open);station.dataset.searching="1";}
       station.hidden=![...station.querySelectorAll("[data-blueprint]")].some(row=>!row.hidden);
       if(value)station.open=!station.hidden;
       else if(station.dataset.searching){station.open=station.dataset.wasOpen==="true";delete station.dataset.searching;}
     });
+  }
+  if (e.target.classList.contains("blueprint-filter")) {
+    const searching=!!e.target.value.trim();
+    document.querySelectorAll(".industry-character").forEach(section=>section.hidden=searching && ![...section.querySelectorAll("[data-blueprint]")].some(row=>!row.hidden));
+    const count=[...document.querySelectorAll("[data-blueprint]")].filter(row=>!row.hidden).length;
+    document.querySelector("#blueprint-results").textContent=searching ? `${count} matching blueprint entries across your characters` : "";
   }
   if (e.target.id === "skill-filter") {
     const value = e.target.value.toLowerCase();
