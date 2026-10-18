@@ -869,3 +869,15 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 
 .den-level.anarchy .progress-ring{border:0;padding:2px;box-sizing:border-box;background:conic-gradient(#ffb36b var(--progress),var(--line) 0);color:#ffcb98}
 .den-level .progress-ring i{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:var(--theme-panel,#161d29);font-style:normal;font-size:10px}
+
+.overview-character-scroll{overflow-x:auto}.overview-character-list{min-width:880px}
+.overview-character-row{display:grid;grid-template-columns:minmax(290px,1fr) 110px 130px 280px;gap:12px;align-items:center;padding:10px 8px;border-bottom:1px solid var(--line)}
+.overview-character-head{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.overview-character-identity{display:flex;align-items:center;gap:12px;min-width:0}
+.overview-character-identity [data-group-char]{width:125px;flex:0 0 125px;margin:0}
+.overview-character-row .actions{display:flex;align-items:center;flex-wrap:nowrap;gap:6px}
+.overview-character-group>details>summary{padding:8px;font-size:11px}
+.overview-character-row>div{min-width:0}.overview-character-row small{overflow-wrap:anywhere}
+
+.overview-character-row{font-size:12px}.overview-character-row .actions button,.overview-character-row .actions .button{font-size:11px;padding:7px 9px}.overview-character-identity [data-group-char]{width:112px;flex-basis:112px}
+.overview-character-row .actions{display:grid;grid-template-columns:60px 30px 30px 76px 52px;gap:6px}.overview-character-row .actions .button{grid-column:4}.overview-character-row .actions button,.overview-character-row .actions .button{padding:7px 4px;text-align:center}
