@@ -805,3 +805,6 @@ button.primary,.button.primary { background:var(--purple); color:#111621; }
 .training-queue-scroll th { position:sticky; top:0; background:var(--theme-panel); z-index:1; }
 .training-queue-scroll .eve-icon { width:16px; height:16px; }
 .training-queue-scroll .icon-label { gap:5px; vertical-align:middle; }
+
+.clone-readiness { font-size:12px; margin:8px 0; }
+.clone-location-entry { padding:7px 0 7px 14px; }
