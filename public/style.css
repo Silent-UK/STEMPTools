@@ -758,3 +758,26 @@ dialog label input:not([type="checkbox"]) {
 .fit-charge .eve-icon { width:16px; height:16px; }
 .empty-slot { width:24px; text-align:center; }
 @media(max-width:650px) { .fit-layout { grid-template-columns:1fr; } .fit-ship > img { max-width:180px; } }
+
+:root { --theme-bg:#0d1018; --theme-panel:#171d29; --theme-side:#111621; --theme-input:#101520; --theme-active:#29253f; }
+:root[data-theme="caldari"] { --theme-bg:#09141d; --theme-panel:#122330; --theme-side:#0b1b27; --theme-input:#0b1823; --theme-active:#183d54; --purple:#73c8ff; --line:#2a485b; --muted:#9eb8ca; }
+:root[data-theme="amarr"] { --theme-bg:#17140d; --theme-panel:#252218; --theme-side:#1d1a12; --theme-input:#18160f; --theme-active:#463c22; --purple:#e7c477; --line:#51482f; --muted:#c0b69c; }
+:root[data-theme="gallente"] { --theme-bg:#0b1714; --theme-panel:#152820; --theme-side:#0f201a; --theme-input:#0d1c17; --theme-active:#214536; --purple:#76dbb0; --line:#305444; --muted:#9ebfaf; }
+:root[data-theme="minmatar"] { --theme-bg:#1a1110; --theme-panel:#2c1e1b; --theme-side:#211613; --theme-input:#1c1311; --theme-active:#513029; --purple:#f1a184; --line:#5b3b32; --muted:#c4aaa0; }
+html { background:var(--theme-bg); }
+aside { background:var(--theme-side); }
+.panel,.card,.planet,dialog { background:var(--theme-panel); }
+input,select,textarea { background:var(--theme-input); }
+nav button.active, .theme-options, .notice:not(.error) { background:var(--theme-active); }
+button.primary,.button.primary { background:var(--purple); color:#111621; }
+.account-person { display:flex; align-items:center; gap:9px; }
+.account-person strong { margin:0; min-width:0; }
+.account-controls { display:flex; justify-content:flex-end; gap:6px; margin-top:8px; }
+.account-icon,.theme-picker > summary { display:flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; border:1px solid var(--line); border-radius:7px; cursor:pointer; background:var(--theme-panel); color:var(--purple); }
+.theme-picker { position:relative; margin:0; }
+.theme-picker summary { list-style:none; }
+.theme-picker summary::-webkit-details-marker { display:none; }
+.theme-options { position:absolute; bottom:40px; left:0; min-width:180px; border:1px solid var(--line); border-radius:8px; padding:6px; z-index:10; box-shadow:0 8px 24px #0008; }
+.theme-options button { display:flex; gap:8px; align-items:center; width:100%; border:0; text-align:left; padding:8px; background:transparent; }
+.theme-options button[aria-pressed="true"] { outline:1px solid var(--purple); }
+.theme-swatch { width:12px; height:12px; border-radius:50%; background:var(--swatch); }
