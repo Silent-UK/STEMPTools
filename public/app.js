@@ -117,7 +117,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.13.1</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.13.2</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -255,6 +255,8 @@ async function documents() {
 async function operations() {
   const kind = page === "pi" ? "pi" : "dens",
     rows = await api("/operations/" + kind);
+  const populated = rows.filter(c => Array.isArray(c.data) && c.data.length > 0);
+  const pending = rows.filter(c => !Array.isArray(c.data) || c.error).length;
   if(kind==="dens") denPrice=await api("/market/keys").catch(()=>({price:null}));
   return (
     intro(
@@ -265,10 +267,11 @@ async function operations() {
     ) +
     (kind==="dens" ? denOverview(rows) : "") +
     `<div class="notice">${kind === "pi" ? "Rates are estimates from extractor programmes or factory capacity, not guaranteed actual output. Launchpads show the last EVE snapshot; idle factories and routing shortages can reduce production." : "Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data."}</div>` +
-    groupedCharacters(rows,
+    (pending ? `<div class="notice">${pending} character${pending === 1 ? '' : 's'} awaiting a successful sync. Use Refresh all characters to retry.</div>` : '') +
+    (populated.length ? groupedCharacters(populated,
         (c) =>
           `<section class="panel"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)}</div>` : ""}${!c.data ? empty("Awaiting first sync") : kind === "pi" ? planets(c.data) : dens(c.data)}</section>`,
-      )
+      ) : empty(kind === "pi" ? "No planetary colonies reported" : "No Mercenary Dens reported", pending ? "Some characters still need a successful sync." : "None of your synced characters have any."))
   );
 }
 function planets(rows) {
