@@ -924,3 +924,5 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 .subscription-status.subscription-days-28{color:rgb(106,206,137)}
 .subscription-status.subscription-days-29{color:rgb(99,209,141)}
 .subscription-status.subscription-days-30{color:rgb(91,211,145)}
+
+.training-visibility{display:flex;justify-content:flex-end;margin-bottom:8px}.training-visibility button{font-size:11px;padding:6px 10px}.training-overview{align-items:stretch}.training-overview>.training-card{height:100%;min-height:82px;justify-content:flex-start}
