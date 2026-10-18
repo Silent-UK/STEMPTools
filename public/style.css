@@ -890,3 +890,4 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 
 .overview-alt-rows[hidden]{display:none}.overview-alt-toggle{display:inline;padding:0;border:0;background:transparent;color:var(--purple);font-size:11px;white-space:nowrap}.overview-view-toggle button{font-size:11px;padding:6px 10px}.overview-view-toggle button[aria-pressed="true"]{border-color:var(--purple);background:var(--theme-active)}
 .overview-character-identity .pilot>div{white-space:nowrap}.overview-character-row{grid-template-columns:minmax(370px,2fr) minmax(145px,1fr) minmax(110px,0.85fr) minmax(130px,1fr) minmax(280px,1.35fr)}.overview-character-list{min-width:1100px}
+.training-card>span>small:last-child{min-height:1.3em;line-height:1.3}
