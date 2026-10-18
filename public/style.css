@@ -864,3 +864,5 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 .skill-import{margin:8px 0 12px}.skill-import textarea{min-height:110px;font-size:12px}.skill-import .actions{flex-wrap:wrap}.skill-import small{white-space:normal}
 @media(max-width:1000px){.den-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.den-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.den-stats strong{font-size:16px}}
+
+.fitting-name{display:inline-flex;align-items:center;gap:9px}.fitting-list-ship{width:40px;height:40px;object-fit:contain;border-radius:6px;flex-shrink:0}

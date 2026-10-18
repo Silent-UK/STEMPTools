@@ -84,7 +84,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.13.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.13.1" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -490,10 +490,20 @@ export function createApp(config) {
     res.json(
       db
         .prepare(
-          "SELECT d.id,d.owner,d.kind,d.name,d.shared,d.updated,u.name author FROM documents d JOIN users u ON u.id=d.owner WHERE d.owner=? OR d.shared=1 ORDER BY d.updated DESC",
+          "SELECT d.id,d.owner,d.kind,d.name,d.shared,d.updated,CASE WHEN d.kind='fitting' THEN d.body END fitting_body,u.name author FROM documents d JOIN users u ON u.id=d.owner WHERE d.owner=? OR d.shared=1 ORDER BY d.updated DESC",
         )
         .all(req.session.user_id)
-        .map((r) => ({ ...r, mine: r.owner === req.session.user_id })),
+        .map(({fitting_body,...r}) => {
+          let ship=null;
+          if(fitting_body) {
+            try {
+              const header=JSON.parse(fitting_body).trim().match(/^\[([^,]+),/);
+              const type=header && cat.type(cat.named(header[1].trim()));
+              if(type?.category_id===6) ship={id:type.id,name:type.name};
+            } catch { /* Keep older fittings visible if their hull cannot be resolved. */ }
+          }
+          return {...r,ship,mine:r.owner===req.session.user_id};
+        }),
     ),
   );
   function linkedPlan(row,user) {
