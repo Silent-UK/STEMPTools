@@ -40,3 +40,11 @@ Tests cover account isolation, CSRF, invites, OAuth replay, alt ownership, main 
 - https://esi.evetech.net/meta/openapi.json?compatibility_date=2026-10-17
 - https://developers.eveonline.com/docs/services/static-data/
 - https://developers.eveonline.com/docs/guides/staticdata/
+
+
+### Skill list import and Mercenary Dens (0.13.0)
+New and edited skill plans support clipboard/text import: one English skill name and Roman numeral I–V (or number 1–5) per line. Repeated skills merge at the highest requested level; existing entries are preserved. Invalid lines reject the import without changing the editor. Saving still expands prerequisites.
+
+Dens show totals across all linked characters, stored Infomorph Decryption Keys, EVE market-average estimated values (before fees), anarchy/development levels, workforce reduction and named MTOs with expiry timers. Prices are cached using ESI expiry headers; unavailable prices remain unknown rather than zero. MTO service failures no longer prevent den inventory syncing and are labelled incomplete. These are last-sync snapshots, not live inventory. Future spawn timestamps are not exposed by the currently supported ESI schema; no guessed spawn timer is presented as fact.
+
+Workforce mapping: levels 0/1 = 0%, 2 = 10%, 3 = 20%, 4 = 40%, per [official Mercenary Den patch notes](https://www.eveonline.com/news/view/patch-notes-version-22-02). MTO names and effects come from the [official SDE](https://developers.eveonline.com/docs/guides/staticdata/).

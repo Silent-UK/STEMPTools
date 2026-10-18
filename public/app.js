@@ -1,3 +1,4 @@
+import {denLevel,workforceImpact,activeOperations,denTotals} from "./den-model.mjs";
 const themes = {nebula:"Nebula", caldari:"Caldari blue", amarr:"Amarr gold", gallente:"Gallente green", minmatar:"Minmatar rust"};
 function applyTheme(name) {
  document.documentElement.dataset.theme = Object.hasOwn(themes,name) ? name : "nebula";
@@ -116,7 +117,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.12.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.13.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<a class="button primary" href="/auth/login?link=1">+ Add character</a></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -254,6 +255,7 @@ async function documents() {
 async function operations() {
   const kind = page === "pi" ? "pi" : "dens",
     rows = await api("/operations/" + kind);
+  if(kind==="dens") denPrice=await api("/market/keys").catch(()=>({price:null}));
   return (
     intro(
       kind === "pi" ? "Planetary industry" : "Mercenary dens",
@@ -261,7 +263,8 @@ async function operations() {
         ? "Your colonies, production programmes and launchpad inventory."
         : "Every linked character’s dens and available tactical operations.",
     ) +
-    `<div class="notice">${kind === "pi" ? "Rates are estimates from extractor programmes or factory capacity, not guaranteed actual output. Launchpads show the last EVE snapshot; idle factories and routing shortages can reduce production." : "EVE provides available MTOs and expiry times, but no next-spawn countdown. Anarchy is shown as EVE’s reported level and score."}</div>` +
+    (kind==="dens" ? denOverview(rows) : "") +
+    `<div class="notice">${kind === "pi" ? "Rates are estimates from extractor programmes or factory capacity, not guaranteed actual output. Launchpads show the last EVE snapshot; idle factories and routing shortages can reduce production." : "Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data."}</div>` +
     groupedCharacters(rows,
         (c) =>
           `<section class="panel"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)}</div>` : ""}${!c.data ? empty("Awaiting first sync") : kind === "pi" ? planets(c.data) : dens(c.data)}</section>`,
@@ -293,22 +296,22 @@ setInterval(
     }),
   10000,
 );
+let denPrice={price:null};
+function denOverview(rows) {
+ const t=denTotals(rows), complete=rows.every(c=>c.data && !c.error), mtoComplete=rows.every(c=>(c.data||[]).every(d=>!d.operations_error));
+ const cards=[["Dens",num(t.count),`${t.active} running`],["Stored keys",num(t.keys),"Infomorph Decryption Keys"],["Estimated value",denPrice.price==null?"Unavailable":num(t.keys*denPrice.price)+" ISK",denPrice.price==null?"Market price unavailable":num(denPrice.price)+" ISK / key"],["MTOs ready",num(t.ready),t.next?"Next expiry: "+eta(t.next):"No active expiry"],["Workforce impact",num(t.impacting),"Dens reducing workforce"]];
+ return `<div class="den-toolbar"><small>${complete&&mtoComplete?'All linked characters':'Partial totals · some data is missing or needs a sync'}</small><button data-action="sync">↻ Sync all characters</button></div><div class="den-stats">${cards.map(([label,value,detail])=>`<article><small>${label}</small><strong>${value}</strong><small>${detail}</small></article>`).join('')}</div>`;
+}
+function denMeter(stat,anarchy=false) {
+ const level=denLevel(stat?.level);
+ return `<div class="den-level ${anarchy?'anarchy':''}" aria-label="Level ${level??'unknown'}">${[1,2,3,4].map(n=>`<span class="${level!==null&&n<=level?'filled':''}">${n}</span>`).join('')}</div><small>${level===null?'Unknown':`Level ${level} · ${num(stat?.amount)} / 100`}</small>`;
+}
 function dens(rows) {
-  if (!rows.length) return empty("No Mercenary Dens reported");
-  return table(
-    [
-      "Den / planet",
-      "State",
-      "Stored infomorphs",
-      "Anarchy",
-      "Development",
-      "MTO",
-    ],
-    rows.map(
-      (d) =>
-        `<tr><td><strong>${esc(d.planet?.name || d.skyhook.planet_id)}</strong><small>Den ${d.id}</small>${d.reinforcement_timer ? `<small>Reinforced until ${date(d.reinforcement_timer.end)}</small>` : ""}</td><td>${tag(d.state, d.state === "Running" ? "" : "warn")}</td><td>${num(d.infomorphs?.amount)}</td><td>${esc(d.evolution?.anarchy?.level)}<small>${num(d.evolution?.anarchy?.amount)} / 100</small></td><td>${esc(d.evolution?.development?.level)}<small>${num(d.evolution?.development?.amount)} / 100</small></td><td>${d.operations.length ? d.operations.map((o) => `${tag(o.state, "purple")}<small>Expires ${date(o.expires)} · ${eta(o.expires)}</small>${o.definition ? `<small>Anarchy ${num(o.definition.anarchyImpact)} · Development ${num(o.definition.developmentImpact)}</small>` : ""}`).join("<br>") : "<small>No available operation.<br>Next spawn not provided by EVE.</small>"}</td></tr>`,
-    ),
-  );
+ if(!rows.length)return empty("No Mercenary Dens reported");
+ return `<div class="den-table">${table(["Den / planet","State","Keys / estimated ISK","Development","Anarchy","Workforce","Operations"],rows.map(d=>{
+ const impact=workforceImpact(d), ops=activeOperations(d);
+ return `<tr><td><strong class="icon-label">${eveIcon(d.type_id)}${esc(d.planet?.name||d.skyhook?.planet_id)}</strong><small>Den ${esc(d.id)}</small>${d.reinforcement_timer?`<small class="pilot-missing">Reinforced · ${date(d.reinforcement_timer.end)}</small>`:''}</td><td>${tag(d.state,d.state==='Running'?'':'warn')}</td><td><strong>${num(d.infomorphs?.amount)}</strong><small>${denPrice.price==null?'Value unavailable':num((d.infomorphs?.amount||0)*denPrice.price)+' ISK'}</small></td><td>${denMeter(d.evolution?.development)}</td><td>${denMeter(d.evolution?.anarchy,true)}</td><td>${tag(impact==null?'Unknown':impact===0?'No impact':'−'+impact+'%',impact>0?'warn':'')}<small>${impact>0?'Workforce reduction':''}</small></td><td>${d.operations_error?`<small class="pilot-missing">${esc(d.operations_error)}</small>`:''}${ops.length?ops.map(o=>`<details class="den-operation"><summary>${esc(o.definition?.name?.en||'Tactical operation')} · ${esc(o.state)}<small><span data-den-expiry="${esc(o.expires)}">Expires in ${eta(o.expires)}</span></small></summary><small>${date(o.expires)} UTC</small>${o.definition?`<p>${esc(o.definition.description?.en||'')}</p><small>Anarchy ${num(o.definition.anarchyImpact)} · Development +${num(o.definition.developmentImpact)}</small>`:''}</details>`).join(''):d.operations_error?'':'<small>No active MTOs reported</small>'}</td></tr>`;
+ }))}</div>`;
 }
 function blueprintStations(blueprints) {
  const stations=new Map();
@@ -452,7 +455,7 @@ let planEntries = [],
 function createDocument(kind, body) {
   planEntries = [];
   openDialog(
-    `<h2>${kind === "plan" ? "New skill plan" : "New fitting"}</h2><form id="document-form" data-kind="${kind}"><label>Name<input name="name" required maxlength="150" placeholder="${kind === "plan" ? "Avatar pilot" : "Fleet setup"}"></label>${kind === "plan" ? `<div class="formrow"><input id="catalog-query" aria-label="Search catalogue" placeholder="Search a skill or ship…"><select id="catalog-mode" aria-label="Search category"><option value="skills">Skills</option><option value="ships">Ships</option></select><button type="button" data-action="catalog">Find</button></div><div id="catalog-results"></div><div id="plan-entries"></div>` : `<label>EFT fitting<textarea name="eft" required placeholder="[Avatar, Fleet setup]&#10;Damage Control II&#10;&#10;">${esc(body || "")}</textarea></label><small>Paste an EFT export from EVE or Pyfa. Unknown items are reported before saving.</small>`}<label><input type="checkbox" name="shared"> Share with signed-in Tools members</label><button class="primary">Save ${kind}</button></form>`,
+    `<h2>${kind === "plan" ? "New skill plan" : "New fitting"}</h2><form id="document-form" data-kind="${kind}"><label>Name<input name="name" required maxlength="150" placeholder="${kind === "plan" ? "Avatar pilot" : "Fleet setup"}"></label>${kind === "plan" ? `<div class="formrow"><input id="catalog-query" aria-label="Search catalogue" placeholder="Search a skill or ship…"><select id="catalog-mode" aria-label="Search category"><option value="skills">Skills</option><option value="ships">Ships</option></select><button type="button" data-action="catalog">Find</button></div><div id="catalog-results"></div><details class="skill-import"><summary>Import from clipboard / text</summary><label>Skill list<textarea id="skill-import-text" rows="6" maxlength="100000" placeholder="Motion Prediction III&#10;Motion Prediction V&#10;Gunnery V"></textarea></label><div class="actions"><button type="button" data-action="paste-skills">Paste clipboard</button><button type="button" data-action="import-skills">Import skills</button><small id="skill-import-status" role="status">Repeated skills use the highest level. Existing skills are kept.</small></div></details><div id="plan-entries"></div>` : `<label>EFT fitting<textarea name="eft" required placeholder="[Avatar, Fleet setup]&#10;Damage Control II&#10;&#10;">${esc(body || "")}</textarea></label><small>Paste an EFT export from EVE or Pyfa. Unknown items are reported before saving.</small>`}<label><input type="checkbox" name="shared"> Share with signed-in Tools members</label><button class="primary">Save ${kind}</button></form>`,
   );
 }
 function showEntries() {
@@ -607,7 +610,19 @@ async function documentClick(e) {
   if (!b) return;
   try {
     if (b.dataset.action === "close") dialog.close();
-    else if (b.dataset.action === "catalog") {
+    else if (b.dataset.action === "paste-skills") {
+      try {document.querySelector("#skill-import-text").value = await navigator.clipboard.readText();}
+      catch {document.querySelector("#skill-import-status").textContent="Clipboard access unavailable. Paste into the box with Ctrl+V.";}
+    } else if (b.dataset.action === "import-skills") {
+      const status=document.querySelector("#skill-import-status");
+      try {
+        const imported=await api("/skill-plan/import",{text:document.querySelector("#skill-import-text").value});
+        const merged=new Map(planEntries.map(r=>[r.id,r]));
+        for(const r of imported) {const old=merged.get(r.id);merged.set(r.id,{...r,level:Math.max(r.level,old?.level||0)});}
+        planEntries=[...merged.values()];showEntries();
+        status.textContent=`Imported ${imported.length} skills. Review below, then save the plan.`;
+      } catch(error) {status.textContent=error.message;}
+    } else if (b.dataset.action === "catalog") {
       const q = document.querySelector("#catalog-query").value,
         mode = document.querySelector("#catalog-mode").value;
       searchResults = await api(
@@ -749,3 +764,7 @@ try {
 } catch {
   login();
 }
+
+setInterval(()=>document.querySelectorAll("[data-den-expiry]").forEach(el=>{
+ el.textContent=Date.parse(el.dataset.denExpiry)<=Date.now()?"Expired · sync to refresh":"Expires in "+eta(el.dataset.denExpiry);
+}),10000);

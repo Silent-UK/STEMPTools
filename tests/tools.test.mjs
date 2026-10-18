@@ -884,3 +884,49 @@ test("main and alt groups preserve login ownership and forbid cross-account or c
  assert.equal((await assign(200,100)).status,200);
  rows=await(await request("/api/characters",{session:a.session})).json();assert.equal(rows.find(c=>c.id===300).parent_id,100);
 }));
+
+
+test("clipboard skill lists merge repeated levels and reject invalid lines atomically", async () => {
+  const {importSkillText}=await import("../lib/plans.mjs");
+  const types={1:{id:1,name:"Motion Prediction",category_id:16},2:{id:2,name:"Gunnery",category_id:16},3:{id:3,name:"Rifter",category_id:6}};
+  const cat={named:n=>Object.values(types).find(t=>t.name.toLowerCase()===n.toLowerCase())?.id,type:id=>types[id]};
+  assert.deepEqual(importSkillText("Motion Prediction III\r\nMotion Prediction IV\nMotion Prediction V\nGunnery V\n",cat),[{id:1,name:"Motion Prediction",level:5},{id:2,name:"Gunnery",level:5}]);
+  assert.equal(importSkillText("gunnery 4",cat)[0].level,4);
+  for(const text of ["Gunnery V\nTypo III","Gunnery VI","Rifter I","","Gunnery 0"])
+    assert.throws(()=>importSkillText(text,cat));
+  await fixture(async({request,user})=>{
+    const a=user(100,"A");
+    const r=await request("/api/skill-plan/import",{session:a.session,method:"POST",body:{text:"Gunnery V"}});
+    assert.equal(r.status,200);
+    assert.equal((await r.json())[0].level,5);
+    const bad=await request("/api/skill-plan/import",{session:a.session,method:"POST",body:{text:"Gunnery VI"}});
+    assert.equal(bad.status,400);
+  },cat);
+});
+
+test("den totals include all owners, exclude expired MTOs and distinguish unknown anarchy",async()=>{
+  const {denTotals,workforceImpact}=await import("../public/den-model.mjs");
+  const make=(level,amount)=>({state:"Running",infomorphs:{amount},evolution:{anarchy:{level}},operations:[]});
+  const a=make("Level1",100), b=make("Level4",250), now=Date.now();
+  a.operations=[{state:"Available",expires:new Date(now+60000).toISOString()},{state:"Available",expires:new Date(now-1).toISOString()},{state:"Completed",expires:new Date(now+60000).toISOString()}];
+  assert.equal(workforceImpact(a),0);assert.equal(workforceImpact(b),40);assert.equal(workforceImpact(make("Unspecified",0)),null);
+  const total=denTotals([{data:[a]},{data:[b]},{data:null}],now);
+  assert.equal(total.count,2);assert.equal(total.keys,350);assert.equal(total.ready,1);assert.equal(total.impacting,1);
+});
+
+
+test("dens still sync when MTO service fails and report the partial status",()=>fixture(async({db,user})=>{
+ const a=user(100,"A");
+ const svc=syncService(db,{
+   async get(path){
+    if(path.endsWith("/structures/mercenary-dens"))return {mercenary_dens:[{id:123,planet_id:456}]};
+    if(path.endsWith("/structures/mercenary-dens/123"))return {id:123,state:"Running",infomorphs:{amount:4567}};
+    throw Error("temporary outage");
+   },
+   async publicGet(){return {name:"Example planet"};}
+ },fakeCat);
+ svc.queue(a.uid);await svc.tick();
+ const snap=JSON.parse(db.prepare("SELECT data FROM snapshots WHERE character_id=100 AND kind='dens'").get().data);
+ assert.equal(snap[0].infomorphs.amount,4567);
+ assert.match(snap[0].operations_error,/incomplete/);
+}));

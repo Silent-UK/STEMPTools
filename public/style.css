@@ -850,3 +850,17 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 .training-overview .training-card { width:100%; }
 .training-overview .alt-members { display:grid; gap:6px; }
 [data-group-char] { margin-top:6px; font-size:11px; padding:4px 6px; }
+
+/* Compact den command view and clipboard import. */
+.den-toolbar{display:flex;justify-content:space-between;align-items:center;margin:12px 0}
+.den-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:12px 0 16px}
+.den-stats article{padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(135deg,var(--theme-panel),var(--theme-bg));border-top:2px solid var(--purple)}
+.den-stats strong{display:block;font-size:20px;margin:7px 0;color:var(--text)}
+.den-stats small{display:block;font-size:11px}
+.den-table td{padding:9px 10px;font-size:12px;vertical-align:top}.den-table th{font-size:10px}.den-table small{font-size:10px}
+.den-level{display:flex;gap:4px;margin-bottom:4px}.den-level span{border:1px solid var(--line);border-radius:50%;width:19px;height:19px;display:grid;place-items:center;font-size:10px;color:var(--muted)}
+.den-level .filled{background:#3979c9;color:white;border-color:#689ce3}.den-level.anarchy .filled{background:#aa5b32;border-color:#d88b50}
+.den-operation{padding:4px 0;min-width:165px}.den-operation summary{font-size:11px}.den-operation p{font-size:11px;max-width:280px}
+.skill-import{margin:8px 0 12px}.skill-import textarea{min-height:110px;font-size:12px}.skill-import .actions{flex-wrap:wrap}.skill-import small{white-space:normal}
+@media(max-width:1000px){.den-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.den-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.den-stats strong{font-size:16px}}

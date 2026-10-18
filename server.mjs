@@ -22,6 +22,7 @@ import { catalog } from "./lib/catalog.mjs";
 import { SCOPES, exchange, verifyToken, eveClient } from "./lib/eve.mjs";
 import { syncService, piSummary } from "./lib/sync.mjs";
 import {
+  importSkillText,
   expandPlan,
   comparePlan,
   parseFitting,
@@ -83,7 +84,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.12.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.13.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -364,6 +365,14 @@ export function createApp(config) {
     }
     res.json(s);
   });
+  app.get("/api/market/keys", async (req,res) => {
+    try {
+      const id=cat.named("Infomorph Decryption Key");
+      const prices=await eve.publicGet("/markets/prices");
+      const price=prices.find(p=>p.type_id===id)?.average_price;
+      res.json({type_id:id,price:Number.isFinite(price)&&price>0?price:null,source:"EVE market average"});
+    } catch {res.json({price:null,source:"EVE market average"});}
+  });
   app.get("/api/operations/:kind", (req, res) => {
     if (!["pi", "dens", "industry", "clones"].includes(req.params.kind))
       return res.sendStatus(404);
@@ -633,6 +642,10 @@ export function createApp(config) {
       ),
       updated: snap.updated,
     });
+  });
+  app.post("/api/skill-plan/import", (req,res) => {
+    try {res.json(importSkillText(req.body.text,cat));}
+    catch(error) {res.status(400).json({error:error.message});}
   });
   app.post("/api/ship-plan", (req, res) => {
     const ship = cat.type(req.body.ship);
