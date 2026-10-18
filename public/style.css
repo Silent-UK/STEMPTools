@@ -823,3 +823,14 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 .missing-skill { padding:5px 0; }
 .missing-skill small { display:block; }
 @media(max-width:900px) { .fitting-workspace { grid-template-columns:1fr; } .fitting-pilots { border-left:0; border-top:1px solid var(--line); padding-left:0; } }
+
+/* Dense skill-plan editor. */
+#document-form[data-kind="plan"] { font-size:12px; }
+#document-form[data-kind="plan"] input,
+#document-form[data-kind="plan"] select,
+#document-form[data-kind="plan"] button { font-size:12px; padding:5px 8px; min-height:28px; }
+#document-form[data-kind="plan"] label { margin:8px 0; }
+#document-form[data-kind="plan"] .formrow { gap:6px; margin:8px 0; }
+#document-form[data-kind="plan"] .listrow { padding:3px 0; gap:8px; min-height:30px; font-size:12px; }
+#document-form[data-kind="plan"] .listrow button { padding:3px 7px; min-height:24px; font-size:11px; }
+#plan-entries { margin:6px 0 10px; }
