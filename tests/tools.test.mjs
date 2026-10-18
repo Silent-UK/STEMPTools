@@ -37,7 +37,7 @@ const fakeCat = {
     return null;
   },
 };
-async function fixture(fn) {
+async function fixture(fn, fixtureCat = fakeCat) {
   const dir = mkdtempSync(join(tmpdir(), "tools-test-")),
     db = openStore(dir);
   let identity = {
@@ -52,7 +52,7 @@ async function fixture(fn) {
     data: dir,
     key,
     db,
-    cat: fakeCat,
+    cat: fixtureCat,
     owner: 100,
     client: "test",
     secret: "test",
@@ -858,3 +858,18 @@ test("clones calculate cooldown, sort locations and preserve implants",()=>fixtu
  const result=JSON.parse(db.prepare("SELECT data FROM snapshots WHERE kind='clones'").get().data);
  assert.equal(result.ready_at,"2026-10-18T19:00:00.000Z");assert.deepEqual(result.clones.map(c=>c.location),["Alpha","Zulu"]);assert.equal(result.active_implants.length,1);assert.equal(result.clones[1].implants.length,1);
 }));
+
+test("linked plan adds effective-use requirements to fitting readiness",()=>fixture(async({db,user,request})=>{
+ const a=user(100,"Main"),b=user(200,"Other");
+ const insert=db.prepare("INSERT INTO documents VALUES(?,?,?,?,?,?,?)");
+ insert.run("fit",a.uid,"fitting","Ship",JSON.stringify("[Test ship, Test]"),0,0);
+ insert.run("plan",a.uid,"plan","Extra skills",JSON.stringify([{id:1,level:5}]),0,0);
+ insert.run("private",b.uid,"plan","Private",JSON.stringify([{id:1,level:5}]),0,0);
+ db.prepare("INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)").run(100,"skills",JSON.stringify({skills:{skills:[{skill_id:1,active_skill_level:3,trained_skill_level:3}]}}),0,0);
+ const get=async()=>await(await request("/api/documents/fit",{session:a.session})).json();
+ assert.equal((await get()).readiness[0].ready,true);
+ assert.equal((await request("/api/documents/fit/plan",{session:a.session,method:"POST",body:{plan:"plan"}})).status,200);
+ const linked=await get();assert.equal(linked.readiness[0].ready,false);assert.equal(linked.readiness[0].missing[0].required,5);
+ assert.notEqual((await request("/api/documents/fit/plan",{session:a.session,method:"POST",body:{plan:"private"}})).status,200);
+ const plan=await(await request("/api/documents/plan",{session:a.session})).json();assert.equal(plan.readiness[0].ready,false);
+}, {...fakeCat,named:()=>99,type:id=>id===99?{id:99,name:"Test ship",category_id:6,attributes:{182:1,277:3}}:fakeCat.type(id)}));

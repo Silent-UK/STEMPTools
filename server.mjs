@@ -83,7 +83,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.9.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.10.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -473,20 +473,40 @@ export function createApp(config) {
         .map((r) => ({ ...r, mine: r.owner === req.session.user_id })),
     ),
   );
+  function linkedPlan(row,user) {
+    const link=db.prepare("SELECT plan_id FROM fitting_plans WHERE user_id=? AND fitting_id=?").get(user,row.id);
+    return link ? visibleDocument(db,user,link.plan_id) : null;
+  }
+  function documentRequirements(row,user) {
+    if(row.kind==="plan")return expandPlan(JSON.parse(row.body),cat);
+    const plan=linkedPlan(row,user);
+    return expandPlan([...parseFitting(JSON.parse(row.body),cat).requirements,...(plan?JSON.parse(plan.body):[])],cat);
+  }
+  app.post("/api/documents/:id/plan",(req,res)=>{
+    const fitting=visibleDocument(db,req.session.user_id,req.params.id);
+    if(fitting.kind!=="fitting")return res.status(400).json({error:"Select a fitting"});
+    if(req.body.plan){
+      const plan=visibleDocument(db,req.session.user_id,req.body.plan);
+      if(plan.kind!=="plan")return res.status(400).json({error:"Select a skill plan"});
+      db.prepare("INSERT INTO fitting_plans VALUES(?,?,?) ON CONFLICT(user_id,fitting_id) DO UPDATE SET plan_id=excluded.plan_id").run(req.session.user_id,fitting.id,plan.id);
+    }else db.prepare("DELETE FROM fitting_plans WHERE user_id=? AND fitting_id=?").run(req.session.user_id,fitting.id);
+    res.json({ok:true});
+  });
   app.get("/api/documents/:id", (req, res) => {
     const row = visibleDocument(db, req.session.user_id, req.params.id);
-    const readiness = row.kind === "fitting" ? (() => {
-      const required = parseFitting(JSON.parse(row.body),cat).requirements;
+    const readiness = (() => {
+      const required = documentRequirements(row,req.session.user_id);
       return db.prepare("SELECT c.id,c.name,s.data,s.updated FROM characters c LEFT JOIN snapshots s ON s.character_id=c.id AND s.kind='skills' WHERE c.user_id=? ORDER BY (c.id=?) DESC,(SELECT position FROM character_order WHERE character_id=c.id),c.id").all(req.session.user_id,req.session.main_id).map(c=>{
         if(!c.data)return {id:c.id,name:c.name,updated:null,ready:null,missing:[]};
         const trained=new Map(JSON.parse(c.data).skills.skills.map(s=>[s.skill_id,s]));
         const missing=required.filter(r=>(trained.get(r.id)?.active_skill_level||0)<r.level).map(r=>({id:r.id,name:cat.type(r.id)?.name||String(r.id),required:r.level,active:trained.get(r.id)?.active_skill_level||0,trained:trained.get(r.id)?.trained_skill_level||0}));
         return {id:c.id,name:c.name,updated:c.updated,ready:missing.length===0,missing};
       });
-    })() : null;
+    })();
     res.json({
       ...row,
       readiness,
+      linkedPlan: row.kind === "fitting" ? linkedPlan(row,req.session.user_id)?.id || null : null,
       body:
         row.kind === "plan"
           ? JSON.parse(row.body).map((r) => ({
@@ -587,7 +607,7 @@ export function createApp(config) {
     const data = JSON.parse(snap.data),
       body = JSON.parse(row.body),
       entries =
-        row.kind === "plan" ? body : parseFitting(body, cat).requirements;
+        documentRequirements(row,req.session.user_id);
     res.json({
       ...comparePlan(
         entries,
