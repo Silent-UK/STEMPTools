@@ -834,3 +834,11 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 #document-form[data-kind="plan"] .listrow { padding:3px 0; gap:8px; min-height:30px; font-size:12px; }
 #document-form[data-kind="plan"] .listrow button { padding:3px 7px; min-height:24px; font-size:11px; }
 #plan-entries { margin:6px 0 10px; }
+
+.fitting-expansion > td { white-space:normal; padding:14px; }
+.inline-fitting { white-space:normal; text-align:left; }
+.inline-fitting .toolbar { flex-wrap:wrap; }
+.pilot-status-line { display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer; }
+.pilot-status-line .portrait { width:28px; height:28px; }
+.pilot-status-line .pilot-ready { display:inline; margin:0; }
+.fitting-pilot { padding:6px 0; }
