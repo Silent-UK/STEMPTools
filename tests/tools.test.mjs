@@ -460,7 +460,7 @@ test("sync keeps previous complete data when a source fails", () =>
       ).items.length,
       1,
     );
-    assert.equal(db.prepare("SELECT count(*) n FROM sync_errors").get().n, 5);
+    assert.equal(db.prepare("SELECT count(*) n FROM sync_errors").get().n, 6);
   }));
 test("PI identifies launchpads and flags factory capacity as estimates", () => {
   const cat = {
@@ -845,4 +845,16 @@ test("training overview exposes only owned characters and compact skill data",()
  const result=await(await request("/api/skills/overview",{session:a.session})).json();
  assert.equal(result.length,1);assert.equal(result[0].id,100);assert.equal(result[0].total_sp,12345);assert.equal(result[0].queue.length,1);assert.equal(result[0].skills,undefined);
  const other=await(await request("/api/skills/overview",{session:b.session})).json();assert.equal(other[0].total_sp,null);
+}));
+
+test("clones calculate cooldown, sort locations and preserve implants",()=>fixture(async({db,user})=>{
+ const a=user(100,"Main");db.prepare("UPDATE characters SET scopes=? WHERE id=100").run(JSON.stringify(["esi-clones.read_clones.v1","esi-clones.read_implants.v1"]));
+ const eve={get:async path=>{
+ if(path.endsWith("/clones"))return {last_clone_jump_date:"2026-10-18T00:00:00Z",jump_clones:[{jump_clone_id:1,name:"Combat",location_id:2,location_type:"station",implants:[1]},{jump_clone_id:2,name:"Training",location_id:1,location_type:"station",implants:[]}]};
+ if(path.endsWith("/implants"))return [1];
+ if(path.endsWith("/skills"))return {skills:[{skill_id:33399,active_skill_level:5}]};
+ throw Error("unused");},publicGet:async path=>({name:path.endsWith("/1")?"Alpha":"Zulu"}),request:async()=>{throw Error("unused");}};
+ const svc=syncService(db,eve,fakeCat);svc.queue(a.uid);await svc.tick();
+ const result=JSON.parse(db.prepare("SELECT data FROM snapshots WHERE kind='clones'").get().data);
+ assert.equal(result.ready_at,"2026-10-18T19:00:00.000Z");assert.deepEqual(result.clones.map(c=>c.location),["Alpha","Zulu"]);assert.equal(result.active_implants.length,1);assert.equal(result.clones[1].implants.length,1);
 }));

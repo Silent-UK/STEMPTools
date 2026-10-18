@@ -790,3 +790,10 @@ button.primary,.button.primary { background:var(--purple); color:#111621; }
 .training-card strong { color:var(--purple); }
 .training-skill { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .training-note { display:block; margin-bottom:14px; }
+
+.clone-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr)); gap:8px; margin-top:10px; }
+.clone-card { padding:10px; border:1px solid var(--line); border-radius:8px; }
+.clone-card > strong,.clone-card > small {display:block;}
+.clone-implants {display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:6px;}
+.clone-implant {display:inline-flex; align-items:center; gap:4px; font-size:11px;}
+.clone-implant .eve-icon {width:20px;height:20px;}
