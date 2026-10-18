@@ -811,3 +811,15 @@ button.primary,.button.primary { background:var(--purple); color:#111621; }
 
 /* Clone implants read vertically within each expanded clone. */
 .clone-implants { flex-direction: column; align-items: flex-start; gap: 4px; }
+
+dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
+.fitting-workspace { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:24px; }
+.fitting-pilots { border-left:1px solid var(--line); padding-left:18px; margin-top:16px; }
+.fitting-pilot { border-bottom:1px solid var(--line); padding:10px 0; font-size:12px; }
+.fitting-pilot .portrait { width:36px; height:36px; }
+.fitting-pilot > small { display:block; margin-top:5px; }
+.pilot-ready { display:block; color:var(--green); margin-top:6px; }
+.pilot-missing { color:#f0c27a; cursor:pointer; }
+.missing-skill { padding:5px 0; }
+.missing-skill small { display:block; }
+@media(max-width:900px) { .fitting-workspace { grid-template-columns:1fr; } .fitting-pilots { border-left:0; border-top:1px solid var(--line); padding-left:0; } }
