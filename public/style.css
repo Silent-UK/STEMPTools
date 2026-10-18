@@ -866,3 +866,6 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 @media(max-width:600px){.den-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.den-stats strong{font-size:16px}}
 
 .fitting-name{display:inline-flex;align-items:center;gap:9px}.fitting-list-ship{width:40px;height:40px;object-fit:contain;border-radius:6px;flex-shrink:0}
+
+.den-level.anarchy .progress-ring{border:0;padding:2px;box-sizing:border-box;background:conic-gradient(#ffb36b var(--progress),var(--line) 0);color:#ffcb98}
+.den-level .progress-ring i{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:var(--theme-panel,#161d29);font-style:normal;font-size:10px}

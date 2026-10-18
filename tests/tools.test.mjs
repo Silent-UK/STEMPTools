@@ -930,3 +930,12 @@ test("dens still sync when MTO service fails and report the partial status",()=>
  assert.equal(snap[0].infomorphs.amount,4567);
  assert.match(snap[0].operations_error,/incomplete/);
 }));
+
+test("anarchy rings use progress within the next stage's thresholds",async()=>{
+ const {anarchyProgress}=await import('../public/den-model.mjs');
+ for(const [level,amount,next,percent] of [[0,10,1,50],[1,20,2,0],[1,30,2,50],[2,55,3,50],[3,85,4,50],[3,100,4,100]])
+   assert.deepEqual(anarchyProgress({level:'Level'+level,amount}),{next,percent});
+ assert.equal(anarchyProgress({level:'Level4',amount:100}),null);
+ assert.equal(anarchyProgress({level:'Unspecified',amount:0}),null);
+ assert.equal(anarchyProgress({level:'Level1'}),null);
+});

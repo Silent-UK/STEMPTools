@@ -18,3 +18,10 @@ export function denTotals(rows,now=Date.now()) {
     ready:ops.filter(o=>o.state==="Available").length,
     next:ops.sort((a,b)=>Date.parse(a.expires)-Date.parse(b.expires))[0]?.expires || null};
 }
+
+export function anarchyProgress(stat) {
+  const level=denLevel(stat?.level), amount=stat?.amount;
+  if(level===null || level===4 || typeof amount!=="number" || !Number.isFinite(amount)) return null;
+  const thresholds=[0,20,40,70,100];
+  return {next:level+1,percent:Math.max(0,Math.min(100,(amount-thresholds[level])/(thresholds[level+1]-thresholds[level])*100))};
+}
