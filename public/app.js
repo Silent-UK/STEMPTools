@@ -119,7 +119,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.14.4</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch" style="--swatch:${({nebula:'#aea1ff',caldari:'#73c8ff',amarr:'#e7c477',gallente:'#76dbb0',minmatar:'#f1a184'})[id]}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.14.5</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions">${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -154,9 +154,12 @@ async function render() {
       content.innerHTML = `<div class="notice error">${esc(e.message)}</div>`;
   }
 }
+function subscriptionColorClass(state) {
+ return state.days===null?'':`subscription-days-${Math.max(0,Math.min(30,state.days))}`;
+}
 function subscriptionCell(c) {
  const state=subscriptionStatus(c.subscription_end);
- return `<div class="subscription-cell"><input type="date" data-subscription-char="${c.id}" value="${esc(c.subscription_end||'')}" aria-label="Subscription expiry for ${esc(c.name)}" title="Manually recorded expiry date · EVE / UTC"><strong class="subscription-status" ${state.color?`style="color:${state.color}"`:''}>${state.label}</strong><small class="subscription-save" role="status"></small></div>`;
+ return `<div class="subscription-cell"><input type="date" data-subscription-char="${c.id}" value="${esc(c.subscription_end||'')}" aria-label="Subscription expiry for ${esc(c.name)}" title="Manually recorded expiry date · EVE / UTC"><strong class="subscription-status ${subscriptionColorClass(state)}">${state.label}</strong><small class="subscription-save" role="status"></small></div>`;
 }
 let overviewExpanded=false;
 try {overviewExpanded=localStorage.getItem('stemp-overview-expanded')==='true';}catch{}
@@ -591,7 +594,7 @@ root.addEventListener("change",async e=>{
   const saved=await api('/characters/'+input.dataset.subscriptionChar+'/subscription',{expires_on:input.value||null});
   if(character)character.subscription_end=saved.expires_on;
   const status=subscriptionStatus(saved.expires_on), label=cell.querySelector('.subscription-status');
-  label.textContent=status.label;label.style.color=status.color||'';feedback.textContent='Saved';
+  label.textContent=status.label;label.className='subscription-status '+subscriptionColorClass(status);feedback.textContent='Saved';
  }catch(error){input.value=character?.subscription_end||'';feedback.textContent='Not saved';toast(error.message);}
  finally{input.disabled=false;}
 });

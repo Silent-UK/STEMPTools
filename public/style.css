@@ -891,3 +891,36 @@ dialog.fitting-dialog { width:min(1280px,96vw); max-width:96vw; }
 .overview-alt-rows[hidden]{display:none}.overview-alt-toggle{display:inline;padding:0;border:0;background:transparent;color:var(--purple);font-size:11px;white-space:nowrap}.overview-view-toggle button{font-size:11px;padding:6px 10px}.overview-view-toggle button[aria-pressed="true"]{border-color:var(--purple);background:var(--theme-active)}
 .overview-character-identity .pilot>div{white-space:nowrap}.overview-character-row{grid-template-columns:minmax(370px,2fr) minmax(145px,1fr) minmax(110px,0.85fr) minmax(130px,1fr) minmax(280px,1.35fr)}.overview-character-list{min-width:1100px}
 .training-card>span>small:last-child{min-height:1.3em;line-height:1.3}
+
+/* External classes keep subscription colours compatible with the strict CSP. */
+.subscription-status.subscription-days-0{color:rgb(245,85,85)}
+.subscription-status.subscription-days-1{color:rgb(245,93,83)}
+.subscription-status.subscription-days-2{color:rgb(245,101,81)}
+.subscription-status.subscription-days-3{color:rgb(245,109,79)}
+.subscription-status.subscription-days-4{color:rgb(245,117,77)}
+.subscription-status.subscription-days-5{color:rgb(245,125,75)}
+.subscription-status.subscription-days-6{color:rgb(245,133,73)}
+.subscription-status.subscription-days-7{color:rgb(245,141,71)}
+.subscription-status.subscription-days-8{color:rgb(245,149,69)}
+.subscription-status.subscription-days-9{color:rgb(245,157,67)}
+.subscription-status.subscription-days-10{color:rgb(245,165,65)}
+.subscription-status.subscription-days-11{color:rgb(237,167,69)}
+.subscription-status.subscription-days-12{color:rgb(230,170,73)}
+.subscription-status.subscription-days-13{color:rgb(222,172,77)}
+.subscription-status.subscription-days-14{color:rgb(214,174,81)}
+.subscription-status.subscription-days-15{color:rgb(207,177,85)}
+.subscription-status.subscription-days-16{color:rgb(199,179,89)}
+.subscription-status.subscription-days-17{color:rgb(191,181,93)}
+.subscription-status.subscription-days-18{color:rgb(183,183,97)}
+.subscription-status.subscription-days-19{color:rgb(176,186,101)}
+.subscription-status.subscription-days-20{color:rgb(168,188,105)}
+.subscription-status.subscription-days-21{color:rgb(160,190,109)}
+.subscription-status.subscription-days-22{color:rgb(153,193,113)}
+.subscription-status.subscription-days-23{color:rgb(145,195,117)}
+.subscription-status.subscription-days-24{color:rgb(137,197,121)}
+.subscription-status.subscription-days-25{color:rgb(130,200,125)}
+.subscription-status.subscription-days-26{color:rgb(122,202,129)}
+.subscription-status.subscription-days-27{color:rgb(114,204,133)}
+.subscription-status.subscription-days-28{color:rgb(106,206,137)}
+.subscription-status.subscription-days-29{color:rgb(99,209,141)}
+.subscription-status.subscription-days-30{color:rgb(91,211,145)}
