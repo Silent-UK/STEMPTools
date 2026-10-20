@@ -1,4 +1,5 @@
-import {CORP_SCOPES,verifyCorporation} from "./lib/corp.mjs";
+import {corporationService} from "./lib/corp-management.mjs";
+import {CORP_SCOPES,STEMP_ID,verifyCorporation} from "./lib/corp.mjs";
 import {defaultPISettings,validatePISettings,combinedProduction,jitaPricing} from "./lib/pi.mjs";
 import {validSubscriptionDate} from "./public/subscription.mjs";
 import { fittingView } from "./lib/fitting-view.mjs";
@@ -36,7 +37,11 @@ export function createApp(config) {
     cat = config.cat || catalog(config.data),
     box = cryptoBox(config.key),
     eve = config.eve || eveClient(db, box, config),
-    sync = syncService(db, eve, cat);
+    sync = syncService(db, eve, cat),
+    corp = corporationService(db,box,config,cat,eve);
+  const ownerUser=db.prepare("SELECT id FROM users WHERE main_id=?").get(config.owner);
+  const legacy=db.prepare("SELECT * FROM corporation_connections WHERE corporation_id=?").get(STEMP_ID);
+  if(ownerUser&&legacy)db.prepare("INSERT OR IGNORE INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(ownerUser.id,legacy.character_id,legacy.character_name,legacy.owner_hash,STEMP_ID,legacy.tokens,JSON.stringify(["esi-characters.read_corporation_roles.v1"]),0,legacy.role,0);
   const app = express();
   app.disable("x-powered-by");
   app.use(
@@ -87,12 +92,12 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.17.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.18.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
     const corporation=req.query.corporation === "1";
-    if(corporation && req.session?.main_id!==config.owner)return res.sendStatus(403);
+    if(corporation && !req.session)return res.sendStatus(401);
     const linking = corporation || req.query.link === "1";
     if (linking && !req.session)
       return res
@@ -148,7 +153,7 @@ export function createApp(config) {
     if (!flow)
       return res.status(400).send("Login expired or invalid. Start again.");
     const corporation=!!db.prepare("SELECT 1 FROM oauth_corporations WHERE state=?").get(hash(state));
-    if(corporation && req.session?.main_id!==config.owner)return res.sendStatus(403);
+    if(corporation && !req.session)return res.sendStatus(401);
     const grouping=db.prepare("SELECT mode,parent_id FROM oauth_character_groups WHERE state=?").get(hash(state));
     db.prepare("DELETE FROM oauth WHERE state=?").run(hash(state));
     res.clearCookie("tools_oauth", cookieOptions);
@@ -170,9 +175,13 @@ export function createApp(config) {
         corporation?CORP_SCOPES:SCOPES,
       );
     if(corporation) {
-      const corp=await (config.verifyCorporation||verifyCorporation)(token.access_token,id.id);
-      db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(corp.id,corp.name,id.id,id.name,id.owner,box.seal(token),Date.now(),corp.role);
-      return res.redirect("/#corp");
+      const verifiedCorp=await (config.verifyCorporation||verifyCorporation)(token.access_token,id.id,config.corpNetwork||fetch);
+      if(verifiedCorp.id!==STEMP_ID||!["CEO","Director"].includes(verifiedCorp.role))throw Object.assign(Error("Corporation Management is for Sacred Templars CEOs and Directors."),{status:403});
+      db.prepare("INSERT INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,corporation_id=excluded.corporation_id,tokens=excluded.tokens,scopes=excluded.scopes,expires=excluded.expires,role=excluded.role,verified=excluded.verified").run(req.session.user_id,id.id,id.name,id.owner,verifiedCorp.id,box.seal(token),JSON.stringify(id.scopes),id.expires,verifiedCorp.role,Date.now());
+      corp.connected(req.session.user_id);
+      const corpInfo=verifiedCorp;
+      if(req.session.main_id===config.owner)db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(corpInfo.id,corpInfo.name,id.id,id.name,id.owner,box.seal(token),Date.now(),corpInfo.role);
+      return res.redirect("/#corp-structures");
     }
     const user = transaction(db, () => {
       const existing = db
@@ -283,13 +292,13 @@ export function createApp(config) {
     }
     next();
   });
-  app.get("/api/me", (req, res) =>
-    res.json({
-      name: req.session.name,
-      main_id: req.session.main_id,
-      admin: req.session.main_id===config.owner,
-    }),
-  );
+  app.get("/api/me", async (req,res)=>res.json({name:req.session.name,main_id:req.session.main_id,admin:req.session.main_id===config.owner,corporation:await corp.access(req.session.user_id)}));
+  app.use("/api/corporation",async(req,res,next)=>{
+    if(!await corp.access(req.session.user_id))return res.status(403).json({error:"Sacred Templars CEO or Director access is required. Connect corporation access again."});
+    next();
+  });
+  app.get("/api/corporation/structures",(req,res)=>res.json(corp.snapshot()));
+  app.post("/api/corporation/sync",(req,res)=>{corp.queue();res.json({ok:true});});
   app.post("/api/logout", (req, res) => {
     db.prepare("DELETE FROM sessions WHERE id=?").run(req.session.id);
     res.clearCookie("tools_session", cookieOptions);
@@ -797,7 +806,7 @@ export function createApp(config) {
         : message,
     });
   });
-  return { app, db, cat, sync };
+  return { app, db, cat, sync, corp };
 }
 if (
   process.argv[1] &&
@@ -812,11 +821,14 @@ if (
     owner: Number(process.env.OWNER_CHARACTER_ID || 122543287),
     contact: process.env.ESI_CONTACT || "tools.areyouaspy.co.uk",
   };
-  const { app, sync } = createApp(config);
+  const { app, sync, corp } = createApp(config);
   app.listen(Number(process.env.PORT || 3014), "127.0.0.1", () =>
     console.log("Tools listening on " + (process.env.PORT || 3014)),
   );
   sync.schedule();
+  corp.schedule();
+  setInterval(()=>corp.schedule(),60000).unref();
+  setInterval(()=>corp.tick().catch(()=>console.error("Corporation sync failed")),5000).unref();
   setInterval(() => sync.schedule(), 60000).unref();
   setInterval(
     () =>

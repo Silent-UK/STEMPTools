@@ -47,7 +47,7 @@ async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
     expires: Date.now() + 3600000,
     scopes: [],
   };
-  const { app } = createApp({
+  const { app, corp } = createApp({
     base: "http://127.0.0.1",
     data: dir,
     key,
@@ -103,7 +103,7 @@ async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
     return { uid, session };
   };
   try {
-    await fn({ db, request, user, identity: (v) => (identity = v) });
+    await fn({ db, request, user, corp, identity: (v) => (identity = v) });
   } finally {
     await new Promise((r) => server.close(r));
     db.close();
@@ -1075,7 +1075,7 @@ test("administration is restricted to configured owner even if another account h
   const result=await (await request("/api/admin/users",{session:owner.session})).json();
   assert.equal(result.length,2);assert.equal(result[0].characters.length,1);
   assert.ok(!JSON.stringify(result).includes("tokens"));assert.ok(!JSON.stringify(result).includes("owner_hash"));
-  assert.equal((await request("/auth/login?corporation=1",{session:other.session})).status,403);
+  assert.equal((await request("/auth/login?corporation=1",{session:other.session})).status,302);
  });
 });
 test("buckets persist, enqueue once per UTC slot and manual refresh does not move schedule",async()=>{
@@ -1104,25 +1104,105 @@ test("corporation OAuth remains separate, session-bound and stores encrypted cre
   const original=db.prepare("SELECT tokens FROM characters WHERE id=100").get().tokens;
   const begin=await request("/auth/login?corporation=1",{session:u.session});
   const url=new URL(begin.headers.get("location"));
-  assert.equal(url.searchParams.get("scope"),"esi-characters.read_corporation_roles.v1");
+  assert.ok(url.searchParams.get("scope").includes("esi-corporations.read_structures.v1"));
   const cookie=begin.headers.get("set-cookie").split(";")[0];
   const callback="/auth/callback?code=fake&state="+url.searchParams.get("state");
   assert.equal((await request(callback,{cookie:cookie+"; tools_session="+u.session})).status,302);
   const corp=db.prepare("SELECT * FROM corporation_connections").get();
-  assert.equal(corp.corporation_id,300);assert.equal(corp.role,"Director");
+  assert.equal(corp.corporation_id,668298004);assert.equal(corp.role,"Director");
   assert.ok(!corp.tokens.includes("fake"));
   assert.equal(db.prepare("SELECT tokens FROM characters WHERE id=100").get().tokens,original);
   assert.equal((await request(callback,{cookie:cookie+"; tools_session="+u.session})).status,400);
   const rows=await (await request("/api/admin/corporations",{session:u.session})).json();assert.ok(!("tokens" in rows[0]));
- },fakeCat,{verifyCorporation:async()=>({id:300,name:"Example Corp",role:"Director"})});
+ },fakeCat,{verifyCorporation:async()=>({id:668298004,name:"Sacred Templars",role:"Director"})});
 });
 test("corporation validation rejects ordinary members and accepts only CEO or Director",async()=>{
  const {verifyCorporation}=await import("../lib/corp.mjs");
  const original=globalThis.fetch;let roles=[],ceo=999;
- globalThis.fetch=async url=>({ok:true,json:async()=>url.includes("/roles/")?{roles}:url.includes("/corporations/")?{name:"Corp",ceo_id:ceo}:{corporation_id:300}});
+ globalThis.fetch=async url=>({ok:true,json:async()=>url.includes("/affiliation")?[{character_id:100,corporation_id:300}]:url.includes("/roles/")?{roles}:url.includes("/corporations/")?{name:"Corp",ceo_id:ceo}:{corporation_id:300}});
  try {
   await assert.rejects(()=>verifyCorporation("token",100),/CEO or Director/);
   roles=["Director"];assert.equal((await verifyCorporation("token",100)).role,"Director");
   roles=[];ceo=100;assert.equal((await verifyCorporation("token",100)).role,"CEO");
  }finally{globalThis.fetch=original;}
+});
+
+function connectCorpFixture(db,user,id=100,corp=668298004) {
+ db.prepare("INSERT INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(user,id,"Director","owner-a",corp,cryptoBox(key).seal({access_token:"corp-secret",refresh_token:"refresh"}),JSON.stringify(["esi-characters.read_corporation_roles.v1","esi-corporations.read_structures.v1","esi-assets.read_corporation_assets.v1","esi-corporations.read_starbases.v1"]),Date.now()+3600000,"Director",Date.now());
+}
+test("corporation endpoints deny admins without STEMP roles and allow verified non-admin directors",async()=>{
+ let role="Director",corpId=668298004;
+ await fixture(async({db,user,request,corp})=>{
+  const owner=user(100,"Owner"),director=user(200,"Director"),outsider=user(300,"Member");
+  assert.equal((await request("/api/corporation/structures",{session:owner.session})).status,403);
+  connectCorpFixture(db,director.uid,200);
+  assert.equal((await request("/api/corporation/structures",{session:director.session})).status,200);
+  assert.equal((await request("/api/admin/users",{session:director.session})).status,403);
+  assert.equal((await request("/api/corporation/structures",{session:outsider.session})).status,403);
+  assert.equal((await request("/api/corporation/sync",{session:director.session,method:"POST",body:{},origin:"https://evil.test"})).status,403);
+  role="Member";assert.equal(await corp.access(director.uid,true),false);
+  assert.equal((await request("/api/corporation/structures",{session:director.session})).status,403);
+  role="Director";corpId=999;assert.equal(await corp.access(director.uid,true),false);
+ },fakeCat,{verifyCorporation:async()=>({id:corpId,role})});
+});
+test("corporation login rejects non-STEMP CEOs without overwriting saved authorization",async()=>{
+ await fixture(async({db,user,request})=>{
+  const u=user(100,"Owner");connectCorpFixture(db,u.uid);
+  const begin=await request("/auth/login?corporation=1",{session:u.session});
+  const url=new URL(begin.headers.get("location")),cookie=begin.headers.get("set-cookie").split(";")[0]+"; tools_session="+u.session;
+  const result=await request("/auth/callback?code=fake&state="+url.searchParams.get("state"),{cookie});
+  assert.equal(result.status,403);assert.equal(db.prepare("SELECT corporation_id FROM corp_authorizations").get().corporation_id,668298004);
+ },fakeCat,{verifyCorporation:async()=>({id:999,name:"Other",role:"CEO"})});
+});
+test("moon collections compare each resource, retain partial collections and ignore initial or repeated snapshots",async()=>{
+ const {moonHistory}=await import("../lib/corp-fuel.mjs");
+ const old={inventory_at:100,materials:[{type_id:1,quantity:100,name:"A"},{type_id:2,quantity:20,name:"B"}],history:[]};
+ assert.deepEqual(moonHistory(null,[],200),[]);
+ const next=[{type_id:1,quantity:30,name:"A"},{type_id:2,quantity:500,name:"B"}];
+ const history=moonHistory(old,next,200);assert.equal(history[0].items[0].quantity,70);assert.equal(history[0].emptied,false);
+ assert.equal(moonHistory(old,[],200)[0].emptied,true);assert.deepEqual(moonHistory(old,[],100),[]);
+});
+test("Fuel-derived rates distinguish offline, unknown and online module fuel",async()=>{
+ const {structureRate}=await import("../lib/corp-fuel.mjs");
+ const row={id:1,kind:"Structure",type_name:"Raitaru",services:[{name:"Manufacturing",state:"online"}]};
+ const assets=[{item_id:11,location_id:1,location_flag:"ServiceSlot0",type_id:10}];
+ const type=()=>({name:"Standup Manufacturing Plant I",attributes:{2109:12}});
+ assert.equal(structureRate(row,assets,type,false),9);assert.equal(structureRate(row,assets,type,true),8);
+ assert.equal(structureRate(row,[],type,false),null);assert.equal(structureRate(row,assets,type,null),null);
+ assert.equal(structureRate({...row,services:[]},assets,type,false),0);
+ assert.equal(structureRate({...row,services:[],fuel_expires:new Date(Date.now()+3600000).toISOString()},assets,type,false),null);
+ assert.equal(structureRate({kind:"POS",state:"online",type_name:"Caldari Control Tower Small"},[],type,false),10);
+ assert.equal(structureRate({kind:"POS",state:"online",type_name:"Unknown Tower"},[],type,false),null);
+});
+test("corporation inventory commits atomically and failed pages cannot invent moon collections",async()=>{
+ let fail=false,amount=100,stamp=Date.now();
+ const network=async url=>{
+  const u=new URL(url),path=u.pathname;let data=[],pages=1;
+  if(path.endsWith("/structures"))data=[{structure_id:123,type_id:81826,corporation_id:668298004,system_id:3001,name:"Test drill",state:"shield_vulnerable",services:[{name:"Metenox Moon Drill",state:"online"}]}];
+  if(path.endsWith("/assets")){pages=2;if(u.searchParams.get("page")==="2"){if(fail)return {ok:false,status:503,headers:new Headers()};data=[];}else data=[{item_id:5,type_id:1,location_id:123,location_flag:"MoonMaterialBay",quantity:amount},{item_id:6,type_id:4051,location_id:123,location_flag:"StructureFuel",quantity:50},{item_id:7,type_id:81143,location_id:123,location_flag:"StructureFuel",quantity:2000},{item_id:8,type_id:4051,location_id:123,location_flag:"CorpSAG1",quantity:9999}];}
+  return {ok:true,headers:new Headers({'x-pages':String(pages),'last-modified':new Date(stamp).toUTCString()}),json:async()=>data};
+ };
+ await fixture(async({db,user,corp})=>{
+  const u=user(100,"Owner");connectCorpFixture(db,u.uid);
+  corp.queue();await corp.tick();let snapshot=corp.snapshot();assert.equal(snapshot.job.status,"idle");assert.equal(snapshot.structures[0].fuel,50);assert.equal(snapshot.structures[0].gas,2000);assert.equal(snapshot.structures[0].history.length,0);
+  const before=snapshot.updated;fail=true;amount=0;stamp+=3600000;
+  db.prepare("UPDATE corp_jobs SET attempted=0").run();corp.queue();await corp.tick();snapshot=corp.snapshot();assert.equal(snapshot.job.status,"failed");assert.equal(snapshot.updated,before);assert.equal(snapshot.structures[0].materials[0].quantity,100);
+  fail=false;db.prepare("UPDATE corp_jobs SET attempted=0").run();corp.queue();await corp.tick();snapshot=corp.snapshot();assert.equal(snapshot.job.status,"idle");assert.equal(snapshot.structures[0].history[0].emptied,true);
+ },{...fakeCat,type:id=>({name:id===81826?"Metenox Moon Drill":"Resource",attributes:{2109:5}})},{corpNetwork:network,verifyCorporation:async()=>({id:668298004,role:"Director"}),eve:{publicGet:async path=>path==="/sovereignty/systems"?{solar_systems:[]}:path.startsWith("/corporations")?{alliance_id:1}:{name:"Test system"}}});
+});
+
+test("a signed-in non-admin can authorize STEMP without modifying the owner's connection",async()=>{
+ await fixture(async({db,user,request,identity})=>{
+  const u=user(200,"Director");
+  const {CORP_SCOPES}=await import("../lib/corp.mjs");
+  identity({id:200,name:"Director",owner:"owner-200",expires:Date.now()+3600000,scopes:CORP_SCOPES});
+  const start=await request("/auth/login?corporation=1",{session:u.session});
+  const url=new URL(start.headers.get("location"));
+  const cookie=start.headers.get("set-cookie").split(";")[0]+"; tools_session="+u.session;
+  assert.equal((await request("/auth/callback?code=fake&state="+url.searchParams.get("state"),{cookie})).status,302);
+  assert.equal(db.prepare("SELECT count(*) n FROM corporation_connections").get().n,0);
+  assert.equal(db.prepare("SELECT user_id FROM corp_authorizations").get().user_id,u.uid);
+  assert.equal((await (await request("/api/me",{session:u.session})).json()).corporation,true);
+  assert.equal((await request("/api/admin/corporations",{session:u.session})).status,403);
+ },fakeCat,{verifyCorporation:async()=>({id:668298004,name:"Sacred Templars",role:"Director"})});
 });
