@@ -57,3 +57,14 @@ Overview includes account-owned SP and wallet totals. Wallet sync requests `esi-
 Background sync completion offers an Update view button instead of rebuilding the page. Training countdowns update in place and advance through the cached EVE schedule. Clone capacity counts stored jump-clone slots from active Infomorph Psychology, Advanced Infomorph Psychology and Elite Infomorph Psychology levels; the active body is excluded. Older clone snapshots gain capacity after the next sync.
 
 Industry and Assets use character selectors; Industry's blueprint search still covers all linked characters. Corp plans is the display label for plans shared with signed-in Tools members; it does not introduce corporation-based access restrictions. Skills-at-level counts include injected skills reported by ESI, with level 0 meaning injected but untrained.
+
+
+## v0.16.0 Planetary Industry
+
+PI Settings stores per-account extraction thresholds (18,000 perfect / 16,000 critical by default) and up to eight ordered P3/P4 targets. Schema creation is automatic; no new ESI scope or manual migration is required. The trained-skill group rows are also tighter.
+
+Extractor averages sum each cycle using the [EVE developer PI formula](https://developers.eveonline.com/docs/guides/pi/) and divide by the complete programme duration. Use the **current ESI schema's seconds** for `extractor_details.cycle_time` (the guide's old C# API conversion comment describes minutes). Missing programme fields remain unknown; expired programmes retain their last average but show Reset needed. Factory rates remain nominal configured capacity, not guaranteed live output.
+
+Goals sum launchpad, storage and command-centre contents across owned characters. They exclude factory input buffers and future extraction. SDE recipes expand lower-tier ingredients as needed, obey whole batches and limiting ingredients, reserve existing selected finished products, then allocate remaining stock in configured priority order. Finished targets and shared stock are never double-counted. Target order is an allocation choice, not an optimisation for maximum profit.
+
+Valuation uses the lowest sell order at Jita IV–4 station 60003760, across all pages for the target type in The Forge. Quotes obey ESI expiry and incomplete fetches are not cached. Values include existing selected end products plus additional producible output, before fees, hauling or market-depth effects. Missing prices are shown explicitly; a partial stock warning appears if any linked character is missing a PI snapshot or has a sync error. EVE can require viewing a colony in-game before its reported contents are recalculated.

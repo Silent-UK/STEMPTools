@@ -1,3 +1,4 @@
+import {defaultPISettings,validatePISettings,combinedProduction,jitaPricing} from "./lib/pi.mjs";
 import {validSubscriptionDate} from "./public/subscription.mjs";
 import { fittingView } from "./lib/fitting-view.mjs";
 import skillGroups from "./lib/skill-groups.json" with { type: "json" };
@@ -85,7 +86,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.15.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.16.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -398,6 +399,27 @@ export function createApp(config) {
       }));
     }
     res.json(s);
+  });
+  const piRecipes=()=>cat.piRecipes?.()||[];
+  const piSettings=user=>JSON.parse(db.prepare("SELECT data FROM pi_settings WHERE user_id=?").get(user)?.data||"null")||defaultPISettings();
+  const pricePI=jitaPricing(db,eve);
+  app.post("/api/pi/settings",(req,res)=>{
+    try{
+      const settings=validatePISettings(req.body,piRecipes());
+      db.prepare("INSERT INTO pi_settings VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data").run(req.session.user_id,JSON.stringify(settings));
+      res.json(settings);
+    }catch(e){res.status(400).json({error:e.message});}
+  });
+  app.get("/api/pi/prices",async(req,res)=>res.json(await pricePI(piSettings(req.session.user_id).targets)));
+  app.get("/api/pi/dashboard",(req,res)=>{
+    const settings=piSettings(req.session.user_id),recipes=piRecipes(),stock=new Map();
+    const rows=db.prepare("SELECT c.id,s.data,s.updated,(SELECT message FROM sync_errors WHERE character_id=c.id AND kind='pi') error FROM characters c LEFT JOIN snapshots s ON s.character_id=c.id AND s.kind='pi' WHERE c.user_id=?").all(req.session.user_id);
+    for(const row of rows)for(const planet of row.data?piSummary(JSON.parse(row.data),cat):[])for(const store of planet.storage)for(const item of store.contents){
+      const current=stock.get(item.type_id)||{type_id:item.type_id,name:item.name,amount:0};
+      if(Number.isFinite(item.amount)&&item.amount>0)current.amount+=item.amount;
+      stock.set(item.type_id,current);
+    }
+    res.json({settings,products:recipes.filter(r=>[3,4].includes(r.tier)).sort((a,b)=>a.name.localeCompare(b.name)),targets:combinedProduction([...stock.values()],settings.targets,recipes),partial:rows.some(r=>!r.data||r.error),updated:rows.length&&rows.every(r=>r.updated)?Math.min(...rows.map(r=>r.updated)):null});
   });
   app.get("/api/market/keys", async (req,res) => {
     try {

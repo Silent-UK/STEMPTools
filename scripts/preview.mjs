@@ -61,27 +61,18 @@ for (const [id, name] of [
       charisma: 17,
     },
   };
-  const pi = [
-    {
-      planet_id: 40000001,
-      info: { name: "Example system IV" },
-      planet_type: "temperate",
-      upgrade_level: 5,
-      num_pins: 18,
-      pins: [
-        {
-          pin_id: 1,
-          type_id: 2256,
-          extractor_details: {
-            product_type_id: 2268,
-            qty_per_cycle: 4500,
-            cycle_time: 1800,
-          },
-          expiry_time: new Date(Date.now() + 86400000).toISOString(),
-        },
-        { pin_id: 2, type_id: 2257, schematic_id: 65 },
-      ],
-    },
+  const start=new Date(Date.now()-86400000).toISOString(),end=new Date(Date.now()+86400000).toISOString();
+  const ex=(pin,id,qty)=>({pin_id:pin,type_id:2848,install_time:start,expiry_time:end,extractor_details:{product_type_id:id,qty_per_cycle:qty,cycle_time:1800}});
+  const pad=(contents)=>({pin_id:90,type_id:2544,contents:contents.map(([type_id,amount])=>({type_id,amount}))});
+  let factoryId=40;
+  const factory=(schematic)=>({pin_id:factoryId++,type_id:2470,schematic_id:schematic,last_cycle_start:new Date().toISOString()});
+  const pi=[
+   {planet_id:40000001,solar_system_id:30000142,info:{name:'Example system I'},planet_type:'barren',pins:[ex(1,2267,9500),ex(2,2270,7200),factory(126),factory(127),factory(73),pad([[3689,805]])]},
+   {planet_id:40000002,solar_system_id:30000142,info:{name:'Example system II'},planet_type:'lava',pins:[ex(1,2272,8000),ex(2,2306,6000),factory(128),factory(129),factory(76),pad([[9836,750]])]},
+   {planet_id:40000003,solar_system_id:30000142,info:{name:'Example system III'},planet_type:'barren',pins:[ex(1,2267,7500),factory(126),pad([[2398,800]])]},
+   {planet_id:40000004,solar_system_id:30000142,info:{name:'Example system IV'},planet_type:'gas',pins:[ex(1,2267,6800),pad([[2267,100000]])]},
+   {planet_id:40000005,solar_system_id:30000142,info:{name:'Example system V'},planet_type:'temperate',pins:[factory(97),pad([[9848,24],[3689,100],[9836,90]])]},
+   {planet_id:40000006,solar_system_id:30000142,info:{name:'Example system VI'},planet_type:'temperate',pins:[factory(119),pad([[2876,10],[2349,60],[2358,54],[2367,72]])]}
   ];
   const dens = [
     {
@@ -137,6 +128,7 @@ for (const [id, name] of [
       Date.now() + 3600000,
     );
 }
+db.prepare("INSERT INTO pi_settings VALUES(1,?)").run(JSON.stringify({perfect:18000,critical:16000,targets:[9848,2876]}));
 db.prepare("INSERT INTO sessions VALUES(?,1,?)").run(
   hash("local-preview"),
   Date.now() + 3600000,
@@ -148,7 +140,7 @@ const { app } = createApp({
   base: "http://127.0.0.1:3014",
   key: "ab".repeat(32),
   owner: 1000001,
-  eve: {},
+  eve: {request:async path=>{const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
 });
 const server = http.createServer((req, res) => {
   req.headers.cookie = "tools_session=local-preview";

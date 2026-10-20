@@ -1006,3 +1006,58 @@ test("wallet sync isolates balances, preserves failures and distinguishes zero f
  db.prepare("INSERT INTO snapshots VALUES(100,'skills',?,1,1,NULL)").run(JSON.stringify({skills:{total_sp:98765}}));
  assert.equal((await list(a.session))[0].total_sp,98765);assert.equal((await list(b.session))[0].total_sp,null);
 }));
+import {extractionProgramme,combinedProduction,validatePISettings,jitaPricing} from '../lib/pi.mjs';
+
+test('PI programme average sums declining cycles in ESI seconds',()=>{
+ const pin={install_time:'2026-01-01T00:00:00Z',expiry_time:'2026-01-02T23:30:00Z',extractor_details:{qty_per_cycle:6965,cycle_time:1800}};
+ const r=extractionProgramme(pin);
+ assert.equal(r.cycles,95);assert.equal(r.hours,47.5);assert.equal(r.total,789314);assert.ok(Math.abs(r.perHour-16617.136842105265)<.0001);
+ assert.equal(extractionProgramme({...pin,install_time:undefined}),null);
+ assert.equal(extractionProgramme({...pin,extractor_details:{...pin.extractor_details,cycle_time:0}}),null);
+ assert.equal(extractionProgramme({...pin,extractor_details:{...pin.extractor_details,qty_per_cycle:0}}).total,0);
+ const cat={type:()=>({attributes:{}}),schematic:()=>null};
+ const [p]=piSummary([{pins:[{...pin,extractor_details:{...pin.extractor_details,product_type_id:2267}}]}],cat,Date.parse('2026-02-01'));
+ assert.equal(p.production[0].perHour,0);assert.equal(p.production[0].averagePerHour,r.perHour);assert.equal(p.mode,'Extraction only');
+});
+
+test('PI combining observes limiting ingredients, intermediate recipes and shared-stock priority',()=>{
+ const cat=catalog('data');try{
+ const recipes=cat.piRecipes();
+ const result=combinedProduction([{type_id:3689,amount:100},{type_id:9836,amount:90},{type_id:9848,amount:6}],[9848],recipes)[0];
+ assert.equal(result.additional,27);assert.equal(result.existing,6);
+ assert.equal(combinedProduction([{type_id:3689,amount:9},{type_id:9836,amount:100}],[9848],recipes)[0].additional,0);
+ const recursive=combinedProduction([{type_id:2398,amount:80},{type_id:2399,amount:80},{type_id:9836,amount:10}],[9848],recipes)[0];
+ assert.equal(recursive.additional,3);
+ }finally{cat.close();}
+ const recipes=[{id:10,name:'A',tier:3,quantity:3,inputs:[{id:1,quantity:10}]},{id:20,name:'B',tier:4,quantity:1,inputs:[{id:1,quantity:5}]}];
+ const result=combinedProduction([{type_id:1,amount:25}],[10,20],recipes);
+ assert.deepEqual(result.map(r=>r.additional),[6,1]);
+ assert.deepEqual(combinedProduction([{type_id:1,amount:25}],[20,10],recipes).map(r=>r.additional),[5,0]);
+ assert.throws(()=>validatePISettings({perfect:16000,critical:18000,targets:[]},recipes));
+ assert.throws(()=>validatePISettings({perfect:18000,critical:16000,targets:[10,10]},recipes));
+ assert.throws(()=>validatePISettings({perfect:18000,critical:16000,targets:[1]},recipes));
+});
+
+test('PI settings and stock summaries are private to the account',()=>fixture(async({db,user,request})=>{
+ const a=user(100,'A'),b=user(200,'B');
+ const get=async session=>(await(await request('/api/pi/dashboard',{session})).json());
+ assert.equal((await get(a.session)).settings.perfect,18000);
+ const body={perfect:20000,critical:17000,targets:[9848]};
+ assert.equal((await request('/api/pi/settings',{session:a.session,method:'POST',body})).status,200);
+ assert.deepEqual((await get(a.session)).settings,body);assert.deepEqual((await get(b.session)).settings.targets,[]);
+ const snapshot=id=>JSON.stringify([{pins:[{type_id:99,contents:[{type_id:3689,amount:id},{type_id:9836,amount:id}]}]}]);
+ for(const [id,qty] of [[100,20],[200,10000]])db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,'pi',snapshot(qty),1,1);
+ const data=await get(a.session);assert.equal(data.targets[0].additional,6);assert.equal(data.targets[0].ingredients[0].stored,20);
+ assert.equal((await request('/api/pi/settings',{session:a.session,method:'POST',body:{...body,targets:[666]}})).status,400);
+ assert.deepEqual((await get(a.session)).settings,body);
+}, {...fakeCat,type:id=>({name:String(id),group_id:id===99?1030:0}),piRecipes:()=>[{id:9848,name:'Robotics',tier:3,quantity:3,inputs:[{id:3689,name:'Mechanical Parts',quantity:10},{id:9836,name:'Consumer Electronics',quantity:10}]}]}));
+
+test('Jita valuation reads every page, excludes other stations and never caches partial results',()=>fixture(async({db})=>{
+ let fail=false,calls=0;
+ const eve={request:async path=>{calls++;const page=Number(new URL('https://esi.evetech.net'+path).searchParams.get('page'));if(fail&&page===2)throw Error('outage');return {pages:2,expires:Date.now()+60000,data:page===1?[{type_id:9848,location_id:60003760,is_buy_order:false,volume_remain:2,price:100},{type_id:9848,location_id:123,is_buy_order:false,volume_remain:2,price:1}]:[{type_id:9848,location_id:60003760,is_buy_order:false,volume_remain:2,price:80},{type_id:9848,location_id:60003760,is_buy_order:true,volume_remain:2,price:2}]};}};
+ const price=jitaPricing(db,eve);
+ assert.equal((await price([9848]))[0].price,80);assert.equal(calls,2);
+ await price([9848]);assert.equal(calls,2);
+ db.prepare('DELETE FROM public_cache').run();fail=true;
+ assert.equal((await price([9848]))[0].price,null);assert.equal(db.prepare('SELECT count(*) n FROM public_cache').get().n,0);
+}));

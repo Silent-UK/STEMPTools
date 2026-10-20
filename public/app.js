@@ -1,3 +1,4 @@
+import {extractionRows,piDashboardView,piSettingsView,piTargetList} from "./pi-view.mjs";
 import {subscriptionStatus} from "./subscription.mjs";
 import {missingSkillText} from "./skill-export.mjs";
 import {anarchyProgress,denLevel,workforceImpact,activeOperations,denTotals} from "./den-model.mjs";
@@ -119,7 +120,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.15.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.16.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -156,6 +157,7 @@ async function render() {
     if (run === renderId) {
       content.innerHTML = html;
       renderedPage=page;
+      if(page==="pi"&&piDashboard?.targets.length)refreshPIPrices(run);
       if(samePage) window.scrollTo({top:scrollY,behavior:"instant"});
     }
   } catch (e) {
@@ -298,11 +300,28 @@ async function documents() {
     }</section>`
   );
 }
+let piDashboard=null,piDraftTargets=[];
+async function refreshPIPrices(run){
+ const prices=await api("/pi/prices").catch(()=>[]);
+ if(page!=="pi"||renderId!==run)return;
+ let total=0,missing=false;
+ for(const t of piDashboard.targets){
+  const quote=prices.find(p=>p.id===t.id),amount=t.existing+t.additional;
+  const value=amount===0?0:quote?.price!=null?amount*quote.price:null;
+  if(value===null)missing=true;else total+=value;
+  const cell=document.querySelector(`[data-pi-value="${t.id}"]`),note=document.querySelector(`[data-pi-price="${t.id}"]`);
+  if(cell)cell.textContent=value===null?"Unavailable":num(value)+" ISK";
+  if(note)note.textContent=quote?.price!=null?`${num(quote.price)} ISK / unit · Jita IV–4 · ${date(quote.updated)}`:"Jita sell price unavailable";
+ }
+ const grand=document.querySelector('#pi-combined-value');
+ if(grand)grand.textContent=missing?"Incomplete pricing":num(total)+" ISK";
+}
 async function operations() {
   const kind = page === "pi" ? "pi" : "dens",
     rows = await api("/operations/" + kind);
   const populated = rows.filter(c => Array.isArray(c.data) && c.data.length > 0);
   const pending = rows.filter(c => !Array.isArray(c.data) || c.error).length;
+  if(kind==="pi")piDashboard=await api("/pi/dashboard");
   if(kind==="dens") denPrice=await api("/market/keys").catch(()=>({price:null}));
   return (
     intro(
@@ -310,9 +329,10 @@ async function operations() {
       kind === "pi"
         ? "Your colonies, production programmes and launchpad inventory."
         : "Every linked character’s dens and available tactical operations.",
+      kind==="pi"?'<button data-action="pi-settings">⚙ Settings</button>':"",
     ) +
-    (kind==="dens" ? denOverview(rows) : "") +
-    `<div class="notice">${kind === "pi" ? "Rates are estimates from extractor programmes or factory capacity, not guaranteed actual output. Launchpads show the last EVE snapshot; idle factories and routing shortages can reduce production." : "Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data."}</div>` +
+    (kind==="dens" ? denOverview(rows) : piDashboardView(piDashboard)) +
+    `<div class="notice">${kind === "pi" ? "Extraction shows programme-average units/hour. Factory rates are configured capacity, not guaranteed output. Stock is from the last EVE snapshot." : "Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data."}</div>` +
     (pending ? `<div class="notice">${pending} character${pending === 1 ? '' : 's'} awaiting a successful sync. Use Refresh all characters to retry.</div>` : '') +
     (populated.length ? groupedCharacters(populated,
         (c) =>
@@ -333,7 +353,7 @@ function planets(rows) {
     plasma: 2063,
     shattered: 30889,
   };
-  return `<small>${rows.length} of up to 6 planets occupied</small><div class="planetgrid">${rows.map((p) => `<article class="planet"><div class="planet-heading"><img src="https://images.evetech.net/types/${p.info?.type_id || types[p.planet_type] || 11}/icon?size=64" alt="${esc(p.planet_type)} planet"><div><strong>${esc(p.systemName)}</strong><small>${esc(p.info?.name || p.planet_id)} · ${esc(p.planet_type)}</small></div></div><div>${tag(p.status, p.status.includes("stopped") ? "warn" : "dim")}</div><small>${p.resetAt ? `Extractor reset: <span data-reset="${esc(p.resetAt)}">${Date.parse(p.resetAt) <= Date.now() ? "Reset needed" : eta(p.resetAt)}</span>` : "No extractor reset timer"}</small>${p.finalProducts.length ? p.finalProducts.map((r) => `<div class="planet-product"><div class="planet-product-line"><strong class="icon-label">${eveIcon(r.type_id)}${esc(r.name)}</strong><span title="Estimated hourly capacity">- ${num(r.perHour)}/h</span></div><small>${num(r.stored)} in launchpads</small></div>`).join("") : "<small>No final product configured</small>"}<details><summary>All production & storage</summary>${p.production.map((r) => `<div class="production"><span>${esc(r.name)}<small>${esc(r.kind)} · ${esc(r.status)}</small></span><strong>${num(r.perHour)}/h</strong></div>`).join("")}<h3>Launchpads</h3>${p.launchpads.map((l) => `<small>Pad ${l.id}</small>${l.contents.length ? l.contents.map((i) => `<div class="production"><span>${esc(i.name)}</span><strong>${num(i.amount)}</strong></div>`).join("") : "<small>Empty</small>"}`).join("")}</details></article>`).join("")}</div>`;
+  return `<small>${rows.length} of up to 6 planets occupied</small><div class="planetgrid">${rows.map((p) => `<article class="planet"><div class="planet-heading"><img src="https://images.evetech.net/types/${p.info?.type_id || types[p.planet_type] || 11}/icon?size=64" alt="${esc(p.planet_type)} planet"><div><strong>${esc(p.systemName)}</strong><small>${esc(p.info?.name || p.planet_id)} · ${esc(p.planet_type)}</small></div></div><div class="planet-mode">${esc(p.mode)}${p.production.some(r=>r.kind==="Extractor")?"":` · ${tag(p.status,"dim")}`}</div><small>${p.resetAt ? `Extractor reset: <span data-reset="${esc(p.resetAt)}">${Date.parse(p.resetAt) <= Date.now() ? "Reset needed" : eta(p.resetAt)}</span>` : "No extraction programme"}</small>${extractionRows(p,piDashboard.settings)}${p.finalProducts.length ? p.finalProducts.map((r) => `<div class="planet-product"><div class="planet-product-line"><strong class="icon-label">${eveIcon(r.type_id)}${esc(r.name)}</strong>${p.production.some(r=>r.kind==="Extractor")?"":`<span title="Configured factory capacity; input supply may reduce output">- ${num(r.perHour)}/hr capacity</span>`}</div><small>${num(r.stored)} in launchpads</small></div>`).join("") : "<small>No final product configured</small>"}<details><summary>All production & storage</summary>${p.production.map((r) => `<div class="production"><span>${esc(r.name)}<small>${esc(r.kind)} · ${esc(r.status)}</small></span><strong>${num(r.perHour)}/h</strong></div>`).join("")}<h3>Storage</h3>${p.storage.map((l) => `<small>${esc(l.kind)} ${l.id}</small>${l.contents.length ? l.contents.map((i) => `<div class="production"><span>${esc(i.name)}</span><strong>${num(i.amount)}</strong></div>`).join("") : "<small>Empty</small>"}`).join("")}</details></article>`).join("")}</div>`;
 }
 setInterval(
   () =>
@@ -548,7 +568,9 @@ root.addEventListener("click", async (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   try {
-    if(b.dataset.action==='update-view') {
+    if(b.dataset.action==='pi-settings') {
+      piDraftTargets=[...piDashboard.settings.targets];openDialog(piSettingsView(piDashboard));
+    } else if(b.dataset.action==='update-view') {
       await render();
     } else if(b.dataset.action==='training-alts') {
       showTrainingAlts=!showTrainingAlts;
@@ -698,7 +720,12 @@ async function documentClick(e) {
   const b = e.target.closest("button");
   if (!b) return;
   try {
-    if (b.dataset.copyMissing !== undefined) {
+    if(b.dataset.piAdd || b.dataset.piRemove || b.dataset.piMove!==undefined){
+      if(b.dataset.piAdd){const id=Number(document.querySelector('#pi-product-select').value);if(!piDraftTargets.includes(id)&&piDraftTargets.length<8)piDraftTargets.push(id);}
+      if(b.dataset.piRemove)piDraftTargets=piDraftTargets.filter(id=>id!==Number(b.dataset.piRemove));
+      if(b.dataset.piMove!==undefined){const i=Number(b.dataset.piMove),j=i+Number(b.dataset.direction);if(j>=0&&j<piDraftTargets.length)[piDraftTargets[i],piDraftTargets[j]]=[piDraftTargets[j],piDraftTargets[i]];}
+      document.querySelector('#pi-target-list').innerHTML=piTargetList(piDraftTargets,piDashboard.products);
+    } else if (b.dataset.copyMissing !== undefined) {
       const holder=b.closest('.missing-copy'), status=holder.querySelector('.copy-status');
       try {await navigator.clipboard.writeText(decodeURIComponent(b.dataset.copyMissing));status.textContent='Copied — ready to import into EVE.';}
       catch {const area=holder.querySelector('.copy-fallback');area.hidden=false;area.focus();area.select();status.textContent='Select and copy the text below (Ctrl+C).';}
@@ -802,6 +829,11 @@ dialog.addEventListener("change",e=>{
  label.hidden=!alt;label.querySelector('select').disabled=!alt;
 });
 async function documentSubmit(e) {
+  if(e.target.id==="pi-settings"){
+    e.preventDefault();const values=new FormData(e.target),button=e.target.querySelector('[type=submit]');button.disabled=true;
+    try{await api('/pi/settings',{perfect:Number(values.get('perfect')),critical:Number(values.get('critical')),targets:piDraftTargets},'POST');dialog.close();await render();}catch(error){document.querySelector('#pi-settings-error').textContent=error.message;}finally{button.disabled=false;}
+    return;
+  }
   if(e.target.id === "add-character-form") {
     e.preventDefault();
     const values=new FormData(e.target), query=new URLSearchParams({link:'1',group:String(values.get('group'))});
@@ -877,4 +909,10 @@ try {
 
 setInterval(()=>document.querySelectorAll("[data-den-expiry]").forEach(el=>{
  el.textContent=Date.parse(el.dataset.denExpiry)<=Date.now()?"Expired · sync to refresh":"Expires in "+eta(el.dataset.denExpiry);
+}),10000);
+
+setInterval(()=>document.querySelectorAll('[data-extractor-expiry]').forEach(el=>{
+ if(el.dataset.extractorExpiry&&Date.parse(el.dataset.extractorExpiry)<=Date.now()){
+  el.classList.remove('perfect','attention','critical','unknown');el.classList.add('stopped');el.querySelector('.pi-extractor-state').textContent='Reset needed · last programme';
+ }
 }),10000);
