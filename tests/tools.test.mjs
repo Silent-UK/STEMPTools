@@ -37,7 +37,7 @@ const fakeCat = {
     return null;
   },
 };
-async function fixture(fn, fixtureCat = fakeCat) {
+async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
   const dir = mkdtempSync(join(tmpdir(), "tools-test-")),
     db = openStore(dir);
   let identity = {
@@ -59,6 +59,7 @@ async function fixture(fn, fixtureCat = fakeCat) {
     eve: {},
     exchange: async () => ({ access_token: "fake", refresh_token: "fake" }),
     verifyToken: async () => identity,
+    ...overrides,
   });
   const server = app.listen(0, "127.0.0.1");
   await new Promise((r) => server.once("listening", r));
@@ -1061,3 +1062,67 @@ test('Jita valuation reads every page, excludes other stations and never caches 
  db.prepare('DELETE FROM public_cache').run();fail=true;
  assert.equal((await price([9848]))[0].price,null);assert.equal(db.prepare('SELECT count(*) n FROM public_cache').get().n,0);
 }));
+
+test("administration is restricted to configured owner even if another account has admin flag",async()=>{
+ await fixture(async({db,user,request})=>{
+  const owner=user(100,"Owner"),other=user(200,"Other");
+  db.prepare("UPDATE users SET admin=1 WHERE id=?").run(other.uid);
+  for(const path of ["users","esi","corporations","invites"]){
+   assert.equal((await request("/api/admin/"+path,{session:other.session})).status,403);
+   assert.equal((await request("/api/admin/"+path,{session:owner.session})).status,200);
+  }
+  assert.equal((await (await request("/api/me",{session:other.session})).json()).admin,false);
+  const result=await (await request("/api/admin/users",{session:owner.session})).json();
+  assert.equal(result.length,2);assert.equal(result[0].characters.length,1);
+  assert.ok(!JSON.stringify(result).includes("tokens"));assert.ok(!JSON.stringify(result).includes("owner_hash"));
+  assert.equal((await request("/auth/login?corporation=1",{session:other.session})).status,403);
+ });
+});
+test("buckets persist, enqueue once per UTC slot and manual refresh does not move schedule",async()=>{
+ await fixture(async({db,user})=>{
+  const u=user(100,"Owner"),sync=syncService(db,{},fakeCat);
+  const assigned=db.prepare("SELECT * FROM character_buckets WHERE character_id=100").get();
+  assert.ok([0,10,20,30,40,50].includes(assigned.minute));assert.ok(assigned.next_due>Date.now());
+  const start=Date.UTC(2026,9,20,12,20);
+  db.prepare("UPDATE character_buckets SET minute=20,next_due=?").run(start);
+  db.prepare("INSERT INTO snapshots VALUES(100,'skills','{}',?, ?,NULL)").run(start-1000,start+3600000);
+  sync.schedule(start-1);assert.equal(db.prepare("SELECT count(*) n FROM jobs").get().n,0);
+  sync.schedule(start+30000);assert.equal(db.prepare("SELECT count(*) n FROM jobs").get().n,1);
+  assert.equal(db.prepare("SELECT expires FROM snapshots").get().expires,0);
+  assert.equal(db.prepare("SELECT next_due FROM character_buckets").get().next_due,start+3600000);
+  db.prepare("DELETE FROM jobs").run();sync.schedule(start+60000);
+  assert.equal(db.prepare("SELECT count(*) n FROM jobs").get().n,0);
+  sync.queue(u.uid,100,true);assert.equal(db.prepare("SELECT next_due FROM character_buckets").get().next_due,start+3600000);
+  db.prepare("DELETE FROM jobs").run();sync.schedule(start+3600000+600000);
+  assert.equal(db.prepare("SELECT count(*) n FROM jobs").get().n,0);
+  assert.equal(db.prepare("SELECT next_due FROM character_buckets").get().next_due,start+7200000);
+ });
+});
+test("corporation OAuth remains separate, session-bound and stores encrypted credentials",async()=>{
+ await fixture(async({db,user,request})=>{
+  const u=user(100,"Owner");
+  const original=db.prepare("SELECT tokens FROM characters WHERE id=100").get().tokens;
+  const begin=await request("/auth/login?corporation=1",{session:u.session});
+  const url=new URL(begin.headers.get("location"));
+  assert.equal(url.searchParams.get("scope"),"esi-characters.read_corporation_roles.v1");
+  const cookie=begin.headers.get("set-cookie").split(";")[0];
+  const callback="/auth/callback?code=fake&state="+url.searchParams.get("state");
+  assert.equal((await request(callback,{cookie:cookie+"; tools_session="+u.session})).status,302);
+  const corp=db.prepare("SELECT * FROM corporation_connections").get();
+  assert.equal(corp.corporation_id,300);assert.equal(corp.role,"Director");
+  assert.ok(!corp.tokens.includes("fake"));
+  assert.equal(db.prepare("SELECT tokens FROM characters WHERE id=100").get().tokens,original);
+  assert.equal((await request(callback,{cookie:cookie+"; tools_session="+u.session})).status,400);
+  const rows=await (await request("/api/admin/corporations",{session:u.session})).json();assert.ok(!("tokens" in rows[0]));
+ },fakeCat,{verifyCorporation:async()=>({id:300,name:"Example Corp",role:"Director"})});
+});
+test("corporation validation rejects ordinary members and accepts only CEO or Director",async()=>{
+ const {verifyCorporation}=await import("../lib/corp.mjs");
+ const original=globalThis.fetch;let roles=[],ceo=999;
+ globalThis.fetch=async url=>({ok:true,json:async()=>url.includes("/roles/")?{roles}:url.includes("/corporations/")?{name:"Corp",ceo_id:ceo}:{corporation_id:300}});
+ try {
+  await assert.rejects(()=>verifyCorporation("token",100),/CEO or Director/);
+  roles=["Director"];assert.equal((await verifyCorporation("token",100)).role,"Director");
+  roles=[];ceo=100;assert.equal((await verifyCorporation("token",100)).role,"CEO");
+ }finally{globalThis.fetch=original;}
+});

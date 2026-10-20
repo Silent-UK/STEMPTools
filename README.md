@@ -68,3 +68,11 @@ Extractor averages sum each cycle using the [EVE developer PI formula](https://d
 Goals sum launchpad, storage and command-centre contents across owned characters. They exclude factory input buffers and future extraction. SDE recipes expand lower-tier ingredients as needed, obey whole batches and limiting ingredients, reserve existing selected finished products, then allocate remaining stock in configured priority order. Finished targets and shared stock are never double-counted. Target order is an allocation choice, not an optimisation for maximum profit.
 
 Valuation uses the lowest sell order at Jita IV–4 station 60003760, across all pages for the target type in The Forge. Quotes obey ESI expiry and incomplete fetches are not cached. Values include existing selected end products plus additional producible output, before fees, hauling or market-depth effects. Missing prices are shown explicitly; a partial stock warning appears if any linked character is missing a PI snapshot or has a sync error. EVE can require viewing a colony in-game before its reported contents are recalculated.
+
+
+### v0.17.0 — owner administration
+
+- Owner-only Admin navigation and API access use the configured owner character ID. Users lists account counts, expandable character ESI health and last login (recorded from this release onward).
+- Characters receive a persistent random UTC sync bucket: :00, :10, :20, :30, :40 or :50. Existing characters are assigned automatically. Each slot queues characters once per hour; the worker processes them sequentially. Manual refresh does not change their slot. Missed windows after downtime roll forward, avoiding a catch-up burst. Characters needing reconnection wait for reconnection or manual refresh.
+- Corp ESI connects a CEO/Director through a separate OAuth flow requesting `esi-characters.read_corporation_roles.v1`. Tokens are encrypted separately from personal character tokens. Role verification is at connection time; future corporate data features must refresh credentials and recheck roles before use, and request their necessary scopes. No corporate data collection is enabled yet. Use Connect corporation again to renew verification.
+- Database additions are automatic at startup. No manual database migration is required.

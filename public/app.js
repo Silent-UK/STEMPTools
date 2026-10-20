@@ -50,7 +50,7 @@ const eta = (v) =>
     : "Not provided";
 let me,
   chars = [],
-  page = "overview",
+  page = location.hash==="#corp"?"admin-corp":"overview",
   selected,
   docs = [],
   assetOffset = 0,
@@ -120,7 +120,7 @@ const nav = [
   ["assets", "▦", "Asset search"],
 ];
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}${me.admin ? '<button data-nav="admin"><span>⚙</span>Invitations</button>' : ""}</nav></div><div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.16.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><div class="navlabel">Your command centre</div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav></div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.17.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -154,6 +154,7 @@ async function render() {
     if (page === "industry") html = await industry();
     if (page === "clones") html = await clonesPage();
     if (page === "admin") html = await admin();
+    if(page.startsWith("admin-"))html=await adminPage();
     if (run === renderId) {
       content.innerHTML = html;
       renderedPage=page;
@@ -494,6 +495,23 @@ async function assets() {
           )
     }<div class="actions"><button data-page-assets="-1" ${assetOffset === 0 ? "disabled" : ""}>Previous</button><button data-page-assets="1" ${assetOffset + 20 >= data.locationCount ? "disabled" : ""}>Next</button></div></section><section class="panel"><h2>Snapshot freshness</h2>${groupedCharacters(data.sources.filter(c=>c.id===Number(selected)),(c) => `<div class="production"><span>${esc(c.name)}</span><div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync</button></div></div>`)}</section>`
   );
+}
+function adminCharacterRows(list) {
+ return table(["Character","ESI status","Bucket","Next slot","Last attempt","Last data"],list.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.reconnect?"Reconnect required":c.job|| (c.errors.length?"Needs attention":c.updated?"Synced":"Awaiting first sync"))}${c.errors.length?`<details><summary>${c.errors.length} issues</summary>${c.errors.map(e=>`<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("<br>")}</details>`:""}</td><td>:${String(c.minute).padStart(2,"0")}</td><td>${date(c.next_due)}</td><td>${c.attempted?date(c.attempted):"—"}</td><td>${c.updated?date(c.updated):"—"}</td></tr>`));
+}
+async function adminPage() {
+ if(!me.admin)return "";
+ const refresh='<button data-action="update-view">↻ Refresh status</button>';
+ if(page==="admin-users") {
+  const users=await api("/admin/users");
+  return intro("Users","Account and character connection health.",refresh)+`<section class="panel admin-compact">${users.map(u=>`<details class="admin-user"><summary><strong>${esc(u.name)}</strong><span>${u.characters.length} characters</span><small>Last login: ${u.last_login?date(u.last_login):"Not recorded yet"}</small></summary>${adminCharacterRows(u.characters)}</details>`).join("")}</section>`;
+ }
+ if(page==="admin-esi") {
+  const data=await api("/admin/esi");
+  return intro("ESI Status","Hourly syncs in six UTC buckets. Manual refresh stays available; characters sync one at a time.",refresh)+`<div class="bucket-grid">${data.buckets.map(m=>{const list=data.characters.filter(c=>c.minute===m);return `<section class="panel"><h2>:${String(m).padStart(2,"0")}</h2><strong>${list.length} characters</strong><small>${list.filter(c=>c.job).length} queued / running</small></section>`}).join("")}</div><section class="panel admin-compact">${adminCharacterRows(data.characters)}</section>`;
+ }
+ const corps=await api("/admin/corporations");
+ return intro("Corp ESI","Connect a CEO or Director for future corporation features.",'<a class="button primary" href="/auth/login?corporation=1">+ Connect corporation</a>')+`<section class="panel admin-compact"><p>Corporation role access is verified when connected. Future features may ask for additional permissions.</p>${corps.length?table(["Corporation","Character","Role","Last verified"],corps.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.character_name)}</td><td>${esc(c.role)}</td><td>${date(c.verified)}</td></tr>`)):empty("No corporation connected")}</section>`;
 }
 async function admin() {
   const list = await api("/admin/invites");

@@ -1,3 +1,4 @@
+import {CORP_SCOPES,verifyCorporation} from "./lib/corp.mjs";
 import {defaultPISettings,validatePISettings,combinedProduction,jitaPricing} from "./lib/pi.mjs";
 import {validSubscriptionDate} from "./public/subscription.mjs";
 import { fittingView } from "./lib/fitting-view.mjs";
@@ -86,11 +87,13 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.16.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.17.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
-    const linking = req.query.link === "1";
+    const corporation=req.query.corporation === "1";
+    if(corporation && req.session?.main_id!==config.owner)return res.sendStatus(403);
+    const linking = corporation || req.query.link === "1";
     if (linking && !req.session)
       return res
         .status(401)
@@ -120,6 +123,7 @@ export function createApp(config) {
       verifier,
       Date.now() + 600000,
     );
+    if(corporation)db.prepare("INSERT INTO oauth_corporations VALUES(?)").run(hash(state));
     if(groupMode)db.prepare("INSERT INTO oauth_character_groups VALUES(?,?,?)").run(hash(state),groupMode,groupParent);
     res.cookie("tools_oauth", browser, { ...cookieOptions, maxAge: 600000 });
     const url = new URL("https://login.eveonline.com/v2/oauth/authorize");
@@ -127,7 +131,7 @@ export function createApp(config) {
       response_type: "code",
       client_id: config.client,
       redirect_uri: config.base + "/auth/callback",
-      scope: SCOPES.join(" "),
+      scope: (corporation?CORP_SCOPES:SCOPES).join(" "),
       state,
       code_challenge: Buffer.from(hash(verifier), "hex").toString("base64url"),
       code_challenge_method: "S256",
@@ -143,6 +147,8 @@ export function createApp(config) {
       .get(hash(state), hash(browser), Date.now());
     if (!flow)
       return res.status(400).send("Login expired or invalid. Start again.");
+    const corporation=!!db.prepare("SELECT 1 FROM oauth_corporations WHERE state=?").get(hash(state));
+    if(corporation && req.session?.main_id!==config.owner)return res.sendStatus(403);
     const grouping=db.prepare("SELECT mode,parent_id FROM oauth_character_groups WHERE state=?").get(hash(state));
     db.prepare("DELETE FROM oauth WHERE state=?").run(hash(state));
     res.clearCookie("tools_oauth", cookieOptions);
@@ -161,7 +167,13 @@ export function createApp(config) {
       id = await (config.verifyToken || verifyToken)(
         token.access_token,
         config.client,
+        corporation?CORP_SCOPES:SCOPES,
       );
+    if(corporation) {
+      const corp=await (config.verifyCorporation||verifyCorporation)(token.access_token,id.id);
+      db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(corp.id,corp.name,id.id,id.name,id.owner,box.seal(token),Date.now(),corp.role);
+      return res.redirect("/#corp");
+    }
     const user = transaction(db, () => {
       const existing = db
         .prepare("SELECT * FROM characters WHERE id=?")
@@ -252,7 +264,7 @@ export function createApp(config) {
       ...cookieOptions,
       maxAge: 7 * 86400000,
     });
-    sync.queue(user);
+    if(!flow.user_id)db.prepare("INSERT INTO user_logins VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_login=excluded.last_login").run(user,Date.now());
     res.redirect("/");
   });
   app.use("/api", (req, res, next) => {
@@ -275,7 +287,7 @@ export function createApp(config) {
     res.json({
       name: req.session.name,
       main_id: req.session.main_id,
-      admin: !!req.session.admin,
+      admin: req.session.main_id===config.owner,
     }),
   );
   app.post("/api/logout", (req, res) => {
@@ -723,8 +735,20 @@ export function createApp(config) {
       })),
     );
   });
+  app.use("/api/admin",(req,res,next)=>req.session.main_id===config.owner?next():res.sendStatus(403));
+  function adminCharacters() {
+    return db.prepare(`SELECT c.id,c.user_id,c.name,c.reconnect,b.minute,b.next_due,j.status AS job,a.attempted,
+    (SELECT MAX(updated) FROM snapshots WHERE character_id=c.id) AS updated
+    FROM characters c JOIN character_buckets b ON b.character_id=c.id LEFT JOIN jobs j ON j.character_id=c.id LEFT JOIN sync_attempts a ON a.character_id=c.id ORDER BY c.name`).all().map(c=>({...c,errors:db.prepare("SELECT kind,message FROM sync_errors WHERE character_id=?").all(c.id)}));
+  }
+  app.get("/api/admin/users",(req,res)=>{
+    const chars=adminCharacters();
+    res.json(db.prepare("SELECT u.id,u.name,l.last_login FROM users u LEFT JOIN user_logins l ON l.user_id=u.id ORDER BY u.name").all().map(u=>({...u,characters:chars.filter(c=>c.user_id===u.id)})));
+  });
+  app.get("/api/admin/esi",(req,res)=>res.json({characters:adminCharacters(),buckets:[0,10,20,30,40,50]}));
+  app.get("/api/admin/corporations",(req,res)=>res.json(db.prepare("SELECT corporation_id,name,character_id,character_name,verified,role FROM corporation_connections ORDER BY name").all()));
   app.get("/api/admin/invites", (req, res) => {
-    if (!req.session.admin) return res.sendStatus(403);
+    if (req.session.main_id!==config.owner) return res.sendStatus(403);
     res.json(
       db
         .prepare(
@@ -734,7 +758,7 @@ export function createApp(config) {
     );
   });
   app.post("/api/admin/invites", (req, res) => {
-    if (!req.session.admin) return res.sendStatus(403);
+    if (req.session.main_id!==config.owner) return res.sendStatus(403);
     const code = random();
     db.prepare("INSERT INTO invites VALUES(?,?,?,NULL)").run(
       hash(code),
