@@ -134,7 +134,7 @@ db.prepare("INSERT INTO sessions VALUES(?,1,?)").run(
   Date.now() + 3600000,
 );
 db.prepare("INSERT INTO corp_authorizations VALUES(1,1000001,'Example Main','preview',668298004,?,?,?,'Director',?)").run(cryptoBox("ab".repeat(32)).seal({access_token:"preview"}),JSON.stringify(["esi-characters.read_corporation_roles.v1"]),Date.now()+3600000,Date.now());
-const corpExample={id:123,type_id:81826,type_name:"Metenox Moon Drill",kind:"Moon Drill",name:"Example Moon Drill",system:"U54-1L",state:"shield_vulnerable",timer:null,reinforce_hour:19,services:[{name:"Metenox Moon Drill",state:"online"}],fuel_expires:null,fuel:720,gas:28000,rate:5,gas_rate:200,mining:"online",inventory_at:Date.now(),materials:[{type_id:16634,name:"Titanium",quantity:85000},{type_id:16640,name:"Cadmium",quantity:28000}],history:[{from:Date.now()-90000000,to:Date.now()-86400000,emptied:true,items:[{type_id:16634,name:"Titanium",quantity:170000}]}]};
+const corpExample={id:123,type_id:81826,type_name:"Metenox Moon Drill",kind:"Moon Drill",name:"Example Moon Drill",system:"U54-1L",region:"Tribute",state:"shield_vulnerable",timer:null,reinforce_hour:19,services:[{name:"Metenox Moon Drill",state:"online"}],fuel_expires:null,fuel:720,gas:28000,rate:5,gas_rate:200,mining:"online",inventory_at:Date.now(),materials:[{type_id:16634,name:"Titanium",quantity:85000},{type_id:16640,name:"Cadmium",quantity:28000}],history:[{from:Date.now()-90000000,to:Date.now()-86400000,emptied:true,items:[{type_id:16634,name:"Titanium",quantity:170000}]}]};
 db.prepare("INSERT INTO corp_snapshots VALUES(668298004,?,?)").run(JSON.stringify([corpExample,{...corpExample,id:124,type_id:35833,type_name:"Fortizar",kind:"Structure",name:"Example Citadel",gas:null,gas_rate:null,rate:18,fuel:12960,fuel_expires:new Date(Date.now()+720*3600000).toISOString(),materials:[],history:[],services:[{name:"Cloning",state:"online"}],timer:new Date(Date.now()+86400000).toISOString(),state:"armor_reinforce"},{...corpExample,id:125,type_id:16213,type_name:"Caldari Control Tower",kind:"POS",name:"Example POS · Moon IV",rate:40,fuel:9600,gas:null,gas_rate:null,services:null,state:"online",materials:[],history:[],fuels:[{type_id:4051,name:"Nitrogen Fuel Block",quantity:9600},{type_id:16275,name:"Strontium Clathrates",quantity:3000}]}]),Date.now());
 const { app } = createApp({
   verifyCorporation:async()=>({id:668298004,role:"Director"}),
@@ -144,7 +144,7 @@ const { app } = createApp({
   base: "http://127.0.0.1:3014",
   key: "ab".repeat(32),
   owner: 1000001,
-  eve: {request:async path=>{const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
+  eve: {publicGet:async path=>path==="/markets/prices"?[{type_id:16634,average_price:1200},{type_id:16640,average_price:8000}]:{},request:async path=>{const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
 });
 const server = http.createServer((req, res) => {
   req.headers.cookie = "tools_session=local-preview";

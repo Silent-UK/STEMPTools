@@ -1,3 +1,4 @@
+import {fuelDeadlines,compareStructureTimers} from "./structure-timers.mjs";
 import {extractionRows,piDashboardView,piSettingsView,piTargetList} from "./pi-view.mjs";
 import {subscriptionStatus} from "./subscription.mjs";
 import {missingSkillText} from "./skill-export.mjs";
@@ -119,8 +120,15 @@ const nav = [
   ["pi", "◎", "Planetary industry"],
   ["assets", "▦", "Asset search"],
 ];
+function corporationNavOpen() {
+ try {const saved=localStorage.getItem("stemp-corp-nav-"+me.main_id);if(saved!==null)return saved==="open";}catch{}
+ return page.startsWith("corp-");
+}
+document.addEventListener("toggle",e=>{
+ if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
+},true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${page.startsWith("corp-")?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Drills</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.18.0</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Drills</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.18.1</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -499,11 +507,7 @@ async function assets() {
 }
 const corpFuel = (s,rate,stock) => rate==null||stock==null?null:rate===0?stock:Math.max(0,stock-rate*Math.max(0,Date.now()-s.inventory_at)/3600000);
 function corpRunway(s){
- const deadlines=[];
- if(s.fuel_expires)deadlines.push({at:Date.parse(s.fuel_expires),label:"Blocks · ESI"});
- if(s.rate>0&&s.fuel!=null)deadlines.push({at:s.inventory_at+s.fuel/s.rate*3600000,label:"Blocks · estimated"});
- if(s.gas_rate>0&&s.gas!=null)deadlines.push({at:s.inventory_at+s.gas/s.gas_rate*3600000,label:"Gas · estimated"});
- const first=deadlines.filter(d=>Number.isFinite(d.at)).sort((a,b)=>a.at-b.at)[0];
+ const first=fuelDeadlines(s)[0];
  return first?`<span class="${first.at<Date.now()+3*86400000?"corp-danger":first.at<Date.now()+7*86400000?"corp-warning":"corp-good"}">${first.at<=Date.now()?"Fuel due":eta(new Date(first.at).toISOString())}</span><small>${esc(first.label)} · ${date(first.at)}</small>`:s.rate===0?"Services offline":"Unknown";
 }
 function corpStock(s){return `<strong>${num(s.fuel)} blocks</strong><small>${s.rate==null?"Rate unknown":num(s.rate)+" / hour"}</small>${s.gas!=null?`<small>${num(s.gas)} Magmatic Gas · ${s.gas_rate==null?"rate unknown":num(s.gas_rate)+" / hour"}</small>`:""}`;}
@@ -511,11 +515,35 @@ function corpTopup(s,days){
  const block=corpFuel(s,s.rate,s.fuel),gas=corpFuel(s,s.gas_rate,s.gas);
  return `${block==null?"Unknown blocks":num(Math.max(0,Math.ceil(s.rate*24*days-block)))+" blocks"}${s.kind==="Moon Drill"?`<small>${gas==null?"Unknown gas":num(Math.max(0,Math.ceil(s.gas_rate*24*days-gas)))+" gas"}</small>`:""}`;
 }
+let harvestData=null,harvestSearch="",harvestRegion="";
+const isk=value=>value==null?"Unavailable":num(value)+" ISK";
+function matchingHarvest(){return (harvestData?.structures||[]).filter(s=>(!harvestRegion||(s.region||"Unknown region")===harvestRegion)&&(!harvestSearch||`${s.name} ${s.system}`.toLowerCase().includes(harvestSearch.toLowerCase())));}
+function filterHarvest(){
+ document.querySelectorAll("[data-harvest-row]").forEach(row=>{row.hidden=(!row.dataset.search.includes(harvestSearch.toLowerCase()))||!!harvestRegion&&row.dataset.region!==harvestRegion;});
+ const count=matchingHarvest().length;const label=document.getElementById("harvest-count");if(label)label.textContent=count+" shown";
+ const empty=document.getElementById("harvest-no-match");if(empty)empty.hidden=count>0;
+}
+function harvestTable(data){
+ harvestData=data;const rows=data.structures,known=rows.filter(s=>s.total_value!=null),missing=rows.filter(s=>s.total_value==null||s.missing_prices>0).length;
+ const total=rows.length&&!known.length?null:known.reduce((sum,s)=>sum+s.total_value,0),due=rows.filter(s=>s.fuel===0||s.gas===0||(fuelDeadlines(s)[0]?.at??Infinity)<=Date.now()+7*86400000).length;
+ const matches=new Set(matchingHarvest().map(s=>s.id));
+ return `<div class="harvest-stats"><section class="panel"><small>Total Moondrills</small><strong>${rows.length}</strong><small>All Sacred Templars moondrills</small></section><section class="panel"><small>Total Value in Moondrills</small><strong>${isk(total)}</strong><small>${missing?`Known subtotal · ${missing} drills have incomplete prices`:"Estimated value · all moondrills"}</small></section><section class="panel"><small>Fuel required in the next 7 days</small><strong class="corp-warning">${due}</strong><small>Fuel blocks or gas, including empty bays</small></section></div>
+ <p class="harvest-note">Highest estimated value first · Filters apply to the list; totals cover all moondrills.</p><p class="harvest-note">ESI average prices · ${data.prices.checked?"Last checked "+date(data.prices.checked):"Prices unavailable"}${data.prices.error?` · ${esc(data.prices.error)}`:""} · Estimates before fees.</p>
+ <div class="harvest-filters"><label>System or structure<input id="harvest-search" placeholder="Search the roster…" value="${esc(harvestSearch)}"></label><label>Region<select id="harvest-region"><option value="">All regions</option>${[...new Set(rows.map(s=>s.region||"Unknown region"))].sort().map(r=>`<option ${r===harvestRegion?"selected":""}>${esc(r)}</option>`).join("")}</select></label><button data-action="harvest-clear">Clear filters</button><button data-action="harvest-export">Export CSV</button><small id="harvest-count">${matches.size} shown</small></div>
+ <div class="harvest-table"><table><thead><tr><th>Structure</th><th>System / Region</th><th>Moon materials</th><th>Volume (m³)</th><th>Inventory / Collections</th></tr></thead><tbody>${rows.map(s=>`<tr data-harvest-row="${s.id}" data-search="${esc(`${s.name} ${s.system}`.toLowerCase())}" data-region="${esc(s.region||"Unknown region")}" ${matches.has(s.id)?"":"hidden"}><td><div class="harvest-entity">${eveIcon(s.type_id)}<span><strong>${esc(s.name)}</strong><small>${esc(s.type_name)} · ${esc(s.mining)}</small></span></div><details class="harvest-supply"><summary>Fuel & gas</summary>${corpStock(s)}${corpRunway(s)}<small>7-day top-up: ${corpTopup(s,7)}</small><small>30-day top-up: ${corpTopup(s,30)}</small></details></td><td><strong>${esc(s.system)}</strong><small>${esc(s.region||"Unknown region")}</small></td><td>${!s.materials.length?'<span class="muted">Bay empty · 0 ISK</span>':`<details class="harvest-materials"><summary><strong>${isk(s.total_value)}</strong><span>${s.materials.length} materials · ${s.missing_prices?"Priced subtotal":"Estimated total"} · Details</span></summary>${s.missing_prices?`<small class="corp-warning">${s.missing_prices} material prices unavailable; excluded from subtotal.</small>`:""}<div class="harvest-breakdown">${s.materials.map(i=>`<div class="harvest-material">${eveIcon(i.type_id)}<span><strong>${esc(i.name)}</strong><small>${num(i.quantity)} units · ${i.unit_price==null?"Unit price unavailable":isk(i.unit_price)+" each"}</small></span><strong>${isk(i.value)}</strong></div>`).join("")}</div></details>`}</td><td><strong>${s.total_volume==null?"Unavailable":num(s.total_volume)+" m³"}</strong>${s.missing_volumes?'<small class="corp-warning">Known subtotal · volume data missing</small>':""}</td><td>${date(s.inventory_at)}${Date.now()-s.inventory_at>3*3600000?'<small class="corp-warning">Stale inventory</small>':""}<small>Empty detected: ${s.history.find(h=>h.emptied)?date(s.history.find(h=>h.emptied).to):"Not observed"}</small><details class="harvest-history"><summary>Collections · ${s.history.length}</summary><small>Minimum observed removals between snapshots.</small>${s.history.map(h=>`<details><summary>${h.emptied?"Emptied":"Collection"} · ${date(h.to)}</summary><small>Between ${date(h.from)} and ${date(h.to)}</small>${h.items.map(i=>`<small>${esc(i.name)} · ${num(i.quantity)} units</small>`).join("")}</details>`).join("")||'<small>No collections observed yet.</small>'}</details></td></tr>`).join("")}</tbody></table><p id="harvest-no-match" ${matches.size?"hidden":""}>${rows.length?"No matching moondrills. Try changing the filters.":"No moon drills reported."}</p></div>`;
+}
+function exportHarvest(){
+ const cells=[['Structure','System','Region','Material','Quantity','Unit price ISK (ESI average)','Estimated value ISK','Volume m3','Inventory UTC'],...matchingHarvest().flatMap(s=>(s.materials.length?s.materials:[null]).map(i=>[s.name,s.system,s.region||'',i?.name||'Empty',i?.quantity??0,i?.unit_price??'',i?.value??(i?'':0),i?.volume??(i?'':0),new Date(s.inventory_at).toISOString()]))];
+ const csv=cells.map(row=>row.map(v=>{let text=String(v);if(/^[=+@\-\t\r]/.test(text))text="'"+text;return '"'+text.replaceAll('"','""')+'"';}).join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='stemp-moon-harvest.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 async function corporationPage(){
- const data=await api("/corporation/structures"),moon=page==="corp-moons",rows=data.structures.filter(s=>!moon||s.kind==="Moon Drill");
- const header=intro(moon?"Moon Drills":"Structures","Sacred Templars · corporation operations",'<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?corporation=1">Reconnect Corp ESI</a>');
+ const moon=page==="corp-moons",data=await api(moon?"/corporation/harvest":"/corporation/structures"),rows=data.structures.filter(s=>!moon||s.kind==="Moon Drill");
+ if(!moon)rows.sort(compareStructureTimers);
+ const header=intro(moon?"Moon Drills":"Structures",moon?"Sacred Templars · corporation operations":"Sacred Templars · next timer first · overdue first, unknown last",'<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?corporation=1">Reconnect Corp ESI</a>');
  const status=`<p class="muted corp-status">${data.updated?"Snapshot: "+date(data.updated):"Awaiting first sync"} · ${esc(data.job?.status||"Not queued")}${data.job?.error?`<br><span class="corp-warning">${esc(data.job.error)}</span>`:""}</p>`;
  if(!data.updated)return header+status+empty("Corporation data is being collected","Use Update view after the sync completes.");
+ if(moon)return header+status+harvestTable(data);
  const totals=`<div class="corp-totals"><span><strong>${rows.length}</strong> ${moon?"Moon drills":"Structures"}</span><span><strong>${rows.filter(s=>s.timer).length}</strong> State timers</span>${moon?`<span><strong>${num(rows.reduce((n,s)=>n+s.materials.reduce((a,i)=>a+i.quantity,0),0))}</strong> Stored material units</span>`:""}</div>`;
  return header+status+totals+`<p class="muted">${moon?"Stored materials are the current harvest bay. Collections are minimum observed decreases between snapshots; exact collection times and lifetime production are not supplied by ESI.":"Fuel is reported bay stock. Top-ups project 7 or 30 days from now at current service rates; unknown rates stay unknown. Timers and estimates use UTC."}</p><section class="panel corp-rows">${rows.length?rows.map(s=>`<details><summary><span class="corp-name">${eveIcon(s.type_id)}<span><strong>${esc(s.name)}</strong><small>${esc(s.system)} · ${esc(s.type_name)}</small></span></span><span>${esc(moon?s.mining:s.state.replaceAll("_"," "))}${s.timer?`<small>State ends ${date(s.timer)} · ${eta(s.timer)}</small>`:""}</span><span>${corpStock(s)}</span><span>${corpRunway(s)}</span>${moon?`<span>${num(s.materials.reduce((n,i)=>n+i.quantity,0))} units<small>Empty detected: ${s.history.find(h=>h.emptied)?date(s.history.find(h=>h.emptied).to):"Not observed"}</small></span>`:""}</summary><div class="corp-expanded">${moon?`<h3>Harvest bay</h3>${table(["Material","Units"],s.materials.map(i=>`<tr><td>${eveIcon(i.type_id)} ${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}<h3>Observed collections</h3>${s.history.length?s.history.map(h=>`<details><summary>${h.emptied?"Emptied":"Collection observed"} · ${date(h.from)} – ${date(h.to)}</summary>${table(["Material","Minimum removed"],h.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}</details>`).join(""):"No collections observed yet."}`:`<h3>Timers & services</h3><p>${s.timer?"State timer: "+date(s.timer):"No active state timer reported"}${s.reinforce_hour!=null?" · Reinforcement window centred on "+String(s.reinforce_hour).padStart(2,"0")+":00 UTC (±2 hours)":""}${s.unanchors_at?" · Unanchors: "+date(s.unanchors_at):""}</p>${s.services?.map(v=>`<span class="tag">${esc(v.name)} · ${esc(v.state)}</span>`).join(" ")||"Service data not reported"}`}
  <h3>Fuel planning</h3>${table(["Bay snapshot","7-day top-up","30-day top-up"],[`<tr><td>${date(s.inventory_at)}</td><td>${corpTopup(s,7)}</td><td>${corpTopup(s,30)}</td></tr>`])}${s.kind==="POS"?`<small>POS fuel estimates cover recognised standard towers. Faction/unknown rates are not assumed. Strontium and other supplies:</small>${table(["Resource","In bay"],(s.fuels||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}`:""}</div></details>`).join(""):empty(moon?"No moon drills reported":"No structures reported")}</section>`;
@@ -627,6 +655,9 @@ root.addEventListener("click", async (e) => {
       open?expandedAltGroups.add(id):expandedAltGroups.delete(id);
       document.getElementById('overview-alts-'+id).hidden=!open;
       b.setAttribute('aria-expanded',String(open));b.textContent=b.textContent.replace(/[▾▸]$/,open?'▾':'▸');
+    } else if (b.dataset.action === "harvest-clear") {
+      harvestSearch="";harvestRegion="";document.getElementById("harvest-search").value="";document.getElementById("harvest-region").value="";filterHarvest();
+    } else if (b.dataset.action === "harvest-export") {exportHarvest();
     } else if (b.dataset.action === "corp-sync") {
       b.disabled=true;await api("/corporation/sync",{});toast("Corporation refresh queued. EVE cache times are respected.");await render();
     } else if (b.dataset.action === "add-character") {
@@ -708,12 +739,14 @@ root.addEventListener("change",async e=>{
  try{await api("/characters/"+e.target.dataset.groupChar+"/group",{parent_id:Number(e.target.value)});await render();}catch(err){toast(err.message);await render();}
 });
 root.addEventListener("change", (e) => {
+  if(e.target.id==="harvest-region"){harvestRegion=e.target.value;filterHarvest();}
   if (e.target.id === "character-select") {
     selected = e.target.value;
     render();
   }
 });
 root.addEventListener("input", (e) => {
+  if(e.target.id==="harvest-search"){harvestSearch=e.target.value;filterHarvest();}
   if (e.target.classList.contains("blueprint-filter")) {
     const value=e.target.value.trim().toLowerCase();
     const container=document.querySelector("#content");

@@ -88,3 +88,11 @@ Valuation uses the lowest sell order at Jita IV–4 station 60003760, across all
 - Schema updates are automatic. No Fuel database or production data is copied.
 
 References: [ESI API specification](https://esi.evetech.net/meta/openapi.json), [CCP starbase fuel changes](https://www.eveonline.com/news/view/starbase-tweaks-an-update), [CCP structure management](https://support.eveonline.com/hc/en-us/articles/208289605-Structure-Management).
+
+
+### v0.18.1 — harvest layout and navigation
+
+- Structures sort by their earliest finite fuel, gas, state or unanchor deadline, including overdue entries first; unknown timers sort last. The displayed fuel deadline and the sorting calculation share the same inputs.
+- Moon Drills adopts Sliders' harvest layout: three summary tiles, system/structure search, region filtering, highest-value-first roster, expandable material prices and quantities, volume and CSV export. Totals cover all drills; filtering affects the roster and export. Collection history and fuel planning remain available within each row.
+- Values use cached ESI average prices, not Jita sell orders. Missing prices/volumes are explicitly marked; known subtotals exclude unknown entries. Last known prices survive outages and are labelled accordingly. Region metadata populates at the next successful corporation sync. No additional scopes are needed for this update.
+- Corporation Management remembers its open/closed state in this browser, separately for each signed-in account, across navigation and reloads.

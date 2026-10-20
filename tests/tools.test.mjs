@@ -1206,3 +1206,21 @@ test("a signed-in non-admin can authorize STEMP without modifying the owner's co
   assert.equal((await request("/api/admin/corporations",{session:u.session})).status,403);
  },fakeCat,{verifyCorporation:async()=>({id:668298004,name:"Sacred Templars",role:"Director"})});
 });
+
+test("harvest valuation sorts known totals first and identifies missing prices and volumes",async()=>{
+ const {valueHarvest}=await import("../lib/harvest.mjs");
+ const rows=valueHarvest([{id:1,name:"Low",kind:"Moon Drill",materials:[{name:"A",type_id:1,quantity:2}]},{id:2,name:"High",kind:"Moon Drill",materials:[{name:"A",type_id:1,quantity:10},{name:"B",type_id:2,quantity:4}]},{id:3,name:"Unknown",kind:"Moon Drill",materials:[{name:"C",type_id:3,quantity:2}]},{id:4,name:"Empty",kind:"Moon Drill",materials:[]},{id:5,kind:"POS",materials:[]}],[{type_id:1,average_price:100},{type_id:2,average_price:-20}],id=>id===1?{volume:2}:{});
+ assert.deepEqual(rows.map(r=>r.id),[2,1,4,3]);assert.equal(rows[0].total_value,1000);assert.equal(rows[0].total_volume,20);assert.equal(rows[0].missing_prices,1);assert.equal(rows[0].missing_volumes,1);assert.equal(rows[3].total_value,null);assert.equal(rows[2].total_value,0);
+});
+test("harvest prices retain their previous value on failure and remain protected by corporation access",async()=>{
+ let fail=false,calls=0;
+ await fixture(async({db,user,request})=>{
+  const u=user(100,"Owner"),other=user(200,"Other");connectCorpFixture(db,u.uid);
+  db.prepare("INSERT INTO corp_snapshots VALUES(668298004,?,?)").run(JSON.stringify([{id:1,kind:"Moon Drill",name:"Drill",materials:[{type_id:1,name:"A",quantity:10}]}]),Date.now());
+  assert.equal((await request("/api/corporation/harvest",{session:other.session})).status,403);assert.equal(calls,0);
+  let result=await (await request("/api/corporation/harvest",{session:u.session})).json();assert.equal(result.structures[0].total_value,500);assert.equal(result.prices.error,null);
+  await request("/api/corporation/harvest",{session:u.session});assert.equal(calls,1);
+  fail=true;db.prepare("UPDATE public_cache SET expires=0 WHERE path='/tools/corp-harvest-prices'").run();
+  result=await (await request("/api/corporation/harvest",{session:u.session})).json();assert.equal(result.structures[0].total_value,500);assert.ok(result.prices.error.includes("retained"));assert.equal(calls,2);
+ },fakeCat,{verifyCorporation:async()=>({id:668298004,role:"Director"}),eve:{publicGet:async()=>{calls++;if(fail)throw Error("Unavailable");return [{type_id:1,average_price:50}];}}});
+});
