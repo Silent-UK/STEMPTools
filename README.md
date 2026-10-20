@@ -10,7 +10,7 @@ Invite-only EVE character management for Silent Uk and invited pilots. Node 24+,
 - All-character Merc Den infomorphs, anarchy/development, reinforcement and available MTOs with expiry and SDE impacts.
 - All-character PI, up to six occupied planets, extraction estimates, factory nominal output, launchpad contents.
 - All-character asset search, character/location filters, full ESI pagination, nested-container root locations.
-- Background sync every 15 minutes, assets hourly; ESI response expiry respected. Failed categories retain previous complete snapshots and show an error.
+- Background sync every hour; ESI response expiry respected. Failed categories retain previous complete snapshots and show an error.
 
 ## EVE limitations
 ESI does not return a next-MTO spawn time: the UI shows available operation expiry instead. Den anarchy is the reported score/level plus each MTO's static impact; this is not a measurement of a corporation's lost workforce. PI factory rates are nominal capacity, not actual input-supply simulation. Extractor output is the reported cycle estimate. Assets are cached inventory, with unavailable structure names explicitly labelled. Alpha training restrictions, boosters, remaps and future queue pauses are not simulated. Training time uses current attributes/partial skill points and the chosen speed; a trained but inactive skill is not marked ready. Shared plans/fittings never expose another user's private character snapshots.
@@ -48,3 +48,12 @@ New and edited skill plans support clipboard/text import: one English skill name
 Dens show totals across all linked characters, stored Infomorph Decryption Keys, EVE market-average estimated values (before fees), anarchy/development levels, workforce reduction and named MTOs with expiry timers. Prices are cached using ESI expiry headers; unavailable prices remain unknown rather than zero. MTO service failures no longer prevent den inventory syncing and are labelled incomplete. These are last-sync snapshots, not live inventory. Future spawn timestamps are not exposed by the currently supported ESI schema; no guessed spawn timer is presented as fact.
 
 Workforce mapping: levels 0/1 = 0%, 2 = 10%, 3 = 20%, 4 = 40%, per [official Mercenary Den patch notes](https://www.eveonline.com/news/view/patch-notes-version-22-02). MTO names and effects come from the [official SDE](https://developers.eveonline.com/docs/guides/staticdata/).
+
+
+## v0.15.0 workspace update
+
+Overview includes account-owned SP and wallet totals. Wallet sync requests `esi-wallet.read_character_wallet.v1`; reconnect existing characters once, then sync. Unknown balances remain unavailable, and failed syncs retain the previous value. No manual database migration is needed.
+
+Background sync completion offers an Update view button instead of rebuilding the page. Training countdowns update in place and advance through the cached EVE schedule. Clone capacity counts stored jump-clone slots from active Infomorph Psychology, Advanced Infomorph Psychology and Elite Infomorph Psychology levels; the active body is excluded. Older clone snapshots gain capacity after the next sync.
+
+Industry and Assets use character selectors; Industry's blueprint search still covers all linked characters. Corp plans is the display label for plans shared with signed-in Tools members; it does not introduce corporation-based access restrictions. Skills-at-level counts include injected skills reported by ESI, with level 0 meaning injected but untrained.

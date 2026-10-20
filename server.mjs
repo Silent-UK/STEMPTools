@@ -85,7 +85,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.14.6" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.15.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -291,6 +291,8 @@ export function createApp(config) {
     res.json(
       rows.map((c) => ({
         ...c,
+        total_sp: JSON.parse(db.prepare("SELECT data FROM snapshots WHERE character_id=? AND kind='skills'").get(c.id)?.data || "null")?.skills?.total_sp ?? null,
+        isk: JSON.parse(db.prepare("SELECT data FROM snapshots WHERE character_id=? AND kind='wallet'").get(c.id)?.data || "null")?.balance ?? null,
         main: c.id === req.session.main_id,
         subscription_end: db.prepare("SELECT expires_on FROM character_subscriptions WHERE character_id=?").get(c.id)?.expires_on || null,
         parent_id: db.prepare("SELECT parent_id FROM character_groups WHERE character_id=?").get(c.id)?.parent_id || req.session.main_id,

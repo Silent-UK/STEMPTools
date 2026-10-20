@@ -460,7 +460,7 @@ test("sync keeps previous complete data when a source fails", () =>
       ).items.length,
       1,
     );
-    assert.equal(db.prepare("SELECT count(*) n FROM sync_errors").get().n, 6);
+    assert.equal(db.prepare("SELECT count(*) n FROM sync_errors").get().n, 7);
   }));
 test("PI identifies launchpads and flags factory capacity as estimates", () => {
   const cat = {
@@ -852,11 +852,11 @@ test("clones calculate cooldown, sort locations and preserve implants",()=>fixtu
  const eve={get:async path=>{
  if(path.endsWith("/clones"))return {last_clone_jump_date:"2026-10-18T00:00:00Z",jump_clones:[{jump_clone_id:1,name:"Combat",location_id:2,location_type:"station",implants:[1]},{jump_clone_id:2,name:"Training",location_id:1,location_type:"station",implants:[]}]};
  if(path.endsWith("/implants"))return [1];
- if(path.endsWith("/skills"))return {skills:[{skill_id:33399,active_skill_level:5}]};
+ if(path.endsWith("/skills"))return {skills:[{skill_id:33399,active_skill_level:5},{skill_id:24242,active_skill_level:5},{skill_id:33407,active_skill_level:3},{skill_id:73910,active_skill_level:0,trained_skill_level:5}]};
  throw Error("unused");},publicGet:async path=>({name:path.endsWith("/1")?"Alpha":"Zulu"}),request:async()=>{throw Error("unused");}};
  const svc=syncService(db,eve,fakeCat);svc.queue(a.uid);await svc.tick();
  const result=JSON.parse(db.prepare("SELECT data FROM snapshots WHERE kind='clones'").get().data);
- assert.equal(result.ready_at,"2026-10-18T19:00:00.000Z");assert.deepEqual(result.clones.map(c=>c.location),["Alpha","Zulu"]);assert.equal(result.active_implants.length,1);assert.equal(result.clones[1].implants.length,1);
+ assert.equal(result.capacity,8);assert.equal(result.ready_at,"2026-10-18T19:00:00.000Z");assert.deepEqual(result.clones.map(c=>c.location),["Alpha","Zulu"]);assert.equal(result.active_implants.length,1);assert.equal(result.clones[1].implants.length,1);
 }));
 
 test("linked plan adds effective-use requirements to fitting readiness",()=>fixture(async({db,user,request})=>{
@@ -986,3 +986,23 @@ test('adding a character carries Main or Alt selection through the bound OAuth f
   assert.equal(db.prepare('SELECT count(*) n FROM oauth_character_groups').get().n,0);
  });
 });
+
+
+test("wallet sync isolates balances, preserves failures and distinguishes zero from missing",()=>fixture(async({db,user,request})=>{
+ const a=user(100,"Wallet owner"),b=user(200,"Other");
+ const list=async session=>(await(await request("/api/characters",{session})).json());
+ assert.equal((await list(a.session))[0].isk,null);
+ db.prepare("UPDATE characters SET scopes=? WHERE id=100").run(JSON.stringify(["esi-wallet.read_character_wallet.v1"]));
+ let balance=123456.78;
+ const eve={get:async path=>{if(path.endsWith("/wallet")){if(balance===null)throw Error("outage");return balance;}throw Error("unused");},request:async()=>{throw Error("unused");}};
+ const svc=syncService(db,eve,fakeCat);
+ const sync=async()=>{db.prepare("UPDATE snapshots SET expires=0 WHERE character_id=100").run();svc.queue(a.uid);await svc.tick();};
+ await sync();assert.equal((await list(a.session))[0].isk,123456.78);assert.equal((await list(b.session))[0].isk,null);
+ balance=null;await sync();assert.equal((await list(a.session))[0].isk,123456.78);
+ balance=0;await sync();assert.equal((await list(a.session))[0].isk,0);
+ db.prepare("UPDATE characters SET scopes='[]' WHERE id=100").run();await sync();
+ assert.match(db.prepare("SELECT message FROM sync_errors WHERE character_id=100 AND kind='wallet'").get().message,/Reconnect/);
+ assert.equal((await list(a.session))[0].isk,0);
+ db.prepare("INSERT INTO snapshots VALUES(100,'skills',?,1,1,NULL)").run(JSON.stringify({skills:{total_sp:98765}}));
+ assert.equal((await list(a.session))[0].total_sp,98765);assert.equal((await list(b.session))[0].total_sp,null);
+}));

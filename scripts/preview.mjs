@@ -124,7 +124,11 @@ for (const [id, name] of [
     ],
     locations: { 60003760: "Example trade hub" },
   };
-  for (const [kind, data] of Object.entries({ skills, pi, dens, assets }))
+  db.prepare("INSERT INTO character_groups VALUES(?,?) ON CONFLICT(character_id) DO UPDATE SET parent_id=excluded.parent_id").run(id,id);
+  const wallet={balance:1234567890.12};
+  const clones={capacity:10,ready_at:null,active_implants:[{id:9899,name:"Memory Augmentation - Standard"}],clones:[{name:"Combat",location_id:60003760,location:"Example trade hub",implants:[{id:9899,name:"Memory Augmentation - Standard"}]}]};
+  const industry={jobs:[{name:"Rifter",product_type_id:587,blueprint_type_id:688,activity_id:1,runs:3,status:"active",end_date:new Date(Date.now()+3600000).toISOString(),location:"Example trade hub"}],blueprints:[]};
+  for (const [kind, data] of Object.entries({ skills, pi, dens, assets, wallet, clones, industry }))
     db.prepare("INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)").run(
       id,
       kind,
