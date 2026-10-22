@@ -128,7 +128,7 @@ document.addEventListener("toggle",e=>{
  if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
 },true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Drills</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.18.2</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Drills</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.18.3</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -329,7 +329,7 @@ async function refreshPIPrices(run){
 async function operations() {
   const kind = page === "pi" ? "pi" : "dens",
     rows = await api("/operations/" + kind);
-  const populated = rows.filter(c => Array.isArray(c.data) && c.data.length > 0);
+  const populated = (kind==="pi"?visibleCharacters(rows):rows).filter(c => Array.isArray(c.data) && c.data.length > 0);
   const pending = rows.filter(c => !Array.isArray(c.data) || c.error).length;
   if(kind==="pi")piDashboard=await api("/pi/dashboard");
   if(kind==="dens") denPrice=await api("/market/keys").catch(()=>({price:null}));
@@ -341,13 +341,13 @@ async function operations() {
         : "Every linked character’s dens and available tactical operations.",
       kind==="pi"?'<button data-action="pi-settings">⚙ Settings</button>':"",
     ) +
-    (kind==="dens" ? denOverview(rows) : piDashboardView(piDashboard)) +
+    (kind==="dens" ? denOverview(rows) : altFilter()+piDashboardView(piDashboard)+'<small>Summary totals include all characters. Show alts to view their colonies.</small>') +
     `<div class="notice">${kind === "pi" ? "Extraction shows programme-average units/hour. Factory rates are configured capacity, not guaranteed output. Stock is from the last EVE snapshot." : "Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data."}</div>` +
     (pending ? `<div class="notice">${pending} character${pending === 1 ? '' : 's'} awaiting a successful sync. Use Refresh all characters to retry.</div>` : '') +
-    (populated.length ? groupedCharacters(populated,
+    (populated.length ? (kind==="pi" ? (items,render)=>items.map(render).join('') : groupedCharacters)(populated,
         (c) =>
           `<section class="panel"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)}</div>` : ""}${!c.data ? empty("Awaiting first sync") : kind === "pi" ? planets(c.data) : dens(c.data)}</section>`,
-      ) : empty(kind === "pi" ? "No planetary colonies reported" : "No Mercenary Dens reported", pending ? "Some characters still need a successful sync." : "None of your synced characters have any."))
+      ) : empty(kind === "pi" ? "No planetary colonies reported for visible characters" : "No Mercenary Dens reported", pending ? "Some characters still need a successful sync." : "None of your synced characters have any."))
   );
 }
 function planets(rows) {
@@ -422,11 +422,16 @@ async function clonesPage() {
  return intro("Clones","Jump clones sorted by location. Readiness is estimated from the last EVE snapshot.")+'<small>Switching clones within the same Upwell structure can bypass the jump cooldown. Destination access and other in-game restrictions still apply.</small><div class="clone-grid">'+groupedCharacters(chars,c=>`<section class="panel compact"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>`:""}${!c.data?empty("Awaiting clone sync"):`<div class="clone-readiness"><strong>Next Clone Jump</strong> - <span data-clone-ready="${esc(c.data.ready_at||"")}">${cloneTimer(c.data.ready_at)}</span></div><div class="clone-capacity" title="Stored jump clones / capacity from active Infomorph Psychology skills; excludes your active body">Total Clones <strong>${c.data.clones.length}/${c.data.capacity??'—'}</strong></div><details class="clone-active asset-location" open><summary>Active clone · ${c.data.active_implants.length} implants</summary><div class="clone-implants">${implantList(c.data.active_implants)}</div></details>${cloneLocations(c.data.clones)}`}</section>`)+'</div>';
 }
 setInterval(()=>document.querySelectorAll("[data-clone-ready]").forEach(el=>el.textContent=cloneTimer(el.dataset.cloneReady)),10000);
+const pageAlts={industry:false,pi:false,assets:false};
+function altFilter() {return `<div class="training-visibility"><button data-action="page-alts" aria-pressed="${pageAlts[page]}">${pageAlts[page]?"Hide alts":"Show alts"}</button></div>`;}
+function visibleCharacters(rows) {return characterGroups(rows).flatMap(g=>[...(g.main?[g.main]:[]),...(pageAlts[page]?g.alts:[])]);}
+function selectVisibleCharacter(rows) {if(!rows.some(c=>c.id===Number(selected))) {selected=rows[0]?.id;assetOffset=0;}}
 function characterTiles(rows,label) {
  return `<div class="training-overview character-picker">${characterGroups(rows).flatMap(g=>[...(g.main?[g.main]:[]),...g.alts]).map(c=>`<button class="training-card" data-select-char="${c.id}" aria-pressed="${Number(selected)===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${label(c)}</small></span></button>`).join('')}</div>`;
 }
 async function industry() {
-  const rows = await api("/operations/industry");
+  const rows = visibleCharacters(await api("/operations/industry"));
+  selectVisibleCharacter(rows);
   const activities = {
     1: "Manufacturing",
     3: "TE research",
@@ -442,8 +447,8 @@ async function industry() {
       "Industry",
       "Jobs and blueprints across your characters. Updated hourly.",
     ) +
-    characterTiles(rows,c=>c.data?`Jobs - ${c.data.jobs.filter(j=>j.status==="active"&&Date.parse(j.end_date)>Date.now()).length}`:"Awaiting sync") +
-    `<div class="toolbar"><input class="blueprint-filter" aria-label="Search blueprints across all characters" placeholder="Search blueprints across all characters…"><small id="blueprint-results" role="status"></small></div>` +
+    altFilter() + characterTiles(rows,c=>c.data?`Jobs - ${c.data.jobs.filter(j=>j.status==="active"&&Date.parse(j.end_date)>Date.now()).length}`:"Awaiting sync") +
+    `<div class="toolbar"><input class="blueprint-filter" aria-label="Search blueprints across visible characters" placeholder="Search blueprints across visible characters…"><small id="blueprint-results" role="status"></small></div>` +
     rows.map(
         (c) =>
           `<section class="panel compact industry-character" data-industry-char="${c.id}" ${c.id===Number(selected)?'':'hidden'}><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
@@ -485,11 +490,14 @@ function assetCharacterGroups(items) {
  return owners.map(c=>`<strong>${esc(c.name)}</strong>${table(["Item","Quantity","Container / flag"],items.filter(a=>a.character_id===c.id).sort((a,b)=>a.name.localeCompare(b.name)).map(a=>`<tr><td><span class="icon-label">${eveIcon(a.type_id)}${esc(a.name)}</span></td><td>${num(a.quantity)}</td><td>${a.location_id!==a.root_location_id?'Container '+a.location_id+' · ':''}${esc(a.location_flag)}</td></tr>`))}`).join('');
 }
 async function assets() {
+  const visible=visibleCharacters(chars);
+  selectVisibleCharacter(visible);
+  if(!visible.length)return intro("Asset search", "Select a character to search their assets.")+altFilter()+empty("No visible characters");
   assetFilters.character=String(selected||"");
   const qs = new URLSearchParams({ ...assetFilters, offset: assetOffset });
   const data = await api("/assets?" + qs);
   return (
-    intro("Asset search", "Select a character to search their assets.") + characterTiles(chars,c=>c.snapshots.some(s=>s.kind==="assets")?"Assets synced":"Awaiting sync") +
+    intro("Asset search", "Select a character to search their assets.") + altFilter() + characterTiles(visible,c=>c.snapshots.some(s=>s.kind==="assets")?"Assets synced":"Awaiting sync") +
     `<form id="asset-search" class="toolbar"><input name="q" aria-label="Item name" placeholder="Search item name…" value="${esc(assetFilters.q)}"><input type="hidden" name="character" value="${Number(selected)||''}"><input name="location" aria-label="Location" placeholder="Filter location…" value="${esc(assetFilters.location)}"><button class="primary">Search</button></form><section class="panel"><div class="panelhead"><h2>${num(data.total)} matching stacks</h2><small>${data.locationCount ? assetOffset + 1 : 0}–${Math.min(assetOffset + 20, data.locationCount)} of ${num(data.locationCount)} locations</small></div>${
       data.locations.length
         ? data.locations
@@ -638,7 +646,9 @@ root.addEventListener("click", async (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   try {
-    if(b.dataset.action==='pi-settings') {
+    if (b.dataset.action === "page-alts" && Object.hasOwn(pageAlts,page)) {
+      pageAlts[page]=!pageAlts[page];assetOffset=0;await render();
+    } else if(b.dataset.action==='pi-settings') {
       piDraftTargets=[...piDashboard.settings.targets];openDialog(piSettingsView(piDashboard));
     } else if(b.dataset.action==='update-view') {
       await render();
