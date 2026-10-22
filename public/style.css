@@ -1082,3 +1082,6 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 .my-group-chart{max-height:none;overflow:visible}.my-skill-chart{flex-wrap:wrap;justify-content:center;gap:16px}.my-donut{width:min(270px,100%);height:auto;aspect-ratio:1}.my-donut>span{width:75%;height:75%}.my-donut strong{font-size:36px}.my-donut small{font-size:12px}.my-levels{min-width:130px}.my-bar-row{grid-template-columns:minmax(110px,1.2fr) minmax(35px,1fr) 75px}
 
 #asset-search{align-items:center;flex-wrap:wrap;gap:8px}#asset-search .asset-search-all{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;width:auto;margin:0;white-space:nowrap;font-size:12px;cursor:pointer}#asset-search .asset-search-all input[type="checkbox"]{flex:0 0 auto;width:14px;min-width:14px;height:14px;margin:0;padding:0;accent-color:var(--purple)}#asset-search>input:not([type="hidden"]){flex:1 1 200px;min-width:0}#asset-search>button{flex:0 0 auto;width:auto}
+
+/* Keep the activity tiles aligned with training and their contents centred. */
+.my-training-layout{align-items:stretch}.my-training-layout>.my-activity{grid-auto-rows:1fr}.my-training-layout .my-metric{text-align:center;justify-items:center;align-content:center;min-width:0;min-height:62px}.my-training-layout .my-metric>*{max-width:100%;overflow-wrap:anywhere}
