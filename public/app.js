@@ -1,4 +1,5 @@
-import {moonSurveysView} from "./moon-surveys-view.mjs";
+import {corpIndustryView,jobTime} from "./corp-industry-view.mjs";
+import {moonBrowserView} from "./moon-browser-view.mjs";
 import {moonExtractions,fractureCountdown} from "./moon-extractions.mjs";
 import {characterTraining,characterCharts} from "./character-summary.mjs";
 import {stackAssetRows} from "./asset-tree.mjs";
@@ -134,7 +135,7 @@ document.addEventListener("toggle",e=>{
  if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
 },true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.19.6</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.19.7</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -554,9 +555,11 @@ function exportHarvest(){
  const csv=cells.map(row=>row.map(v=>{let text=String(v);if(/^[=+@\-\t\r]/.test(text))text="'"+text;return '"'+text.replaceAll('"','""')+'"';}).join(',')).join('\r\n');
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='stemp-moon-harvest.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-let surveyFilters={q:'',region:'',tier:'',offset:0};
+let corpIndustryFilters={q:'',status:''};
+let surveyFilters={q:'',system:'',moon:'',refine:90,mode:'athanor'};
 async function corporationPage(){
- if(page==='corp-surveys')return intro('Moon Surveys','Sacred Templars · moon composition directory')+moonSurveysView(await api('/corporation/surveys?'+new URLSearchParams(surveyFilters)),surveyFilters);
+ if(page==='corp-industry')return intro('Corporation Industry','Sacred Templars · running and undelivered jobs','<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?corporation=1">Reconnect Corp ESI</a>')+corpIndustryView(await api('/corporation/industry'),corpIndustryFilters);
+ if(page==='corp-surveys')return intro('Moon Surveys','Sacred Templars · moon composition directory')+moonBrowserView(await api('/corporation/surveys/browser?'+new URLSearchParams(surveyFilters)),surveyFilters);
  const moon=page==="corp-moons",data=await api(moon?"/corporation/harvest":"/corporation/structures"),rows=data.structures.filter(s=>!moon||s.kind==="Moon Drill");
  if(!moon)rows.sort(compareStructureTimers);
  const header=intro(moon?"Moon Mining":"Structures",moon?"Sacred Templars · corporation operations":"Sacred Templars · next timer first · overdue first, unknown last",'<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?corporation=1">Reconnect Corp ESI</a>');
@@ -676,8 +679,11 @@ root.addEventListener("click", async (e) => {
       open?expandedAltGroups.add(id):expandedAltGroups.delete(id);
       document.getElementById('overview-alts-'+id).hidden=!open;
       b.setAttribute('aria-expanded',String(open));b.textContent=b.textContent.replace(/[▾▸]$/,open?'▾':'▸');
-    } else if (b.dataset.surveyOffset!==undefined) {
-      surveyFilters.offset=Number(b.dataset.surveyOffset);await render();
+    } else if(b.dataset.surveySystem || b.dataset.surveyMoon || b.dataset.surveyMode) {
+      if(b.dataset.surveySystem){surveyFilters.system=b.dataset.surveySystem;surveyFilters.moon='';}
+      if(b.dataset.surveyMoon)surveyFilters.moon=b.dataset.surveyMoon;
+      if(b.dataset.surveyMode)surveyFilters.mode=b.dataset.surveyMode;
+      await render();
     } else if (b.dataset.action === "harvest-clear") {
       harvestSearch="";harvestRegion="";document.getElementById("harvest-search").value="";document.getElementById("harvest-region").value="";filterHarvest();
     } else if (b.dataset.action === "harvest-export") {exportHarvest();
@@ -812,8 +818,9 @@ root.addEventListener("input", (e) => {
   }
 });
 root.addEventListener("submit", (e) => {
+  if(e.target.id==='corp-industry-filter'){e.preventDefault();const f=new FormData(e.target);corpIndustryFilters={q:String(f.get('q')||''),status:String(f.get('status')||'')};render();}
   if(e.target.id==='moon-survey-search'){
-    e.preventDefault();const values=new FormData(e.target);surveyFilters={q:String(values.get('q')||''),region:String(values.get('region')||''),tier:String(values.get('tier')||''),offset:0};render();
+    e.preventDefault();const values=new FormData(e.target);surveyFilters={...surveyFilters,q:String(values.get('q')||''),refine:Number(values.get('refine')),system:'',moon:''};render();
   }
   if (e.target.id === "asset-search") {
     e.preventDefault();
@@ -1054,3 +1061,5 @@ function applyVisualStyles(){
 }
 
 setInterval(()=>document.querySelectorAll('[data-moon-fracture]').forEach(el=>el.textContent=fractureCountdown(el.dataset.moonFracture)),10000);
+
+setInterval(()=>document.querySelectorAll('[data-corp-job-end]').forEach(el=>el.textContent=jobTime(el.dataset.corpJobEnd)),10000);

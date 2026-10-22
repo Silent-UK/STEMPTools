@@ -94,7 +94,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.6" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.7" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -300,7 +300,9 @@ export function createApp(config) {
     if(!await corp.access(req.session.user_id))return res.status(403).json({error:"Sacred Templars CEO or Director access is required. Connect corporation access again."});
     next();
   });
+  app.get("/api/corporation/surveys/browser",async(req,res)=>res.json(await corp.surveys(req.query)));
   app.get("/api/corporation/surveys",(req,res)=>res.json(surveyList(req.query)));
+  app.get("/api/corporation/industry",(req,res)=>res.json(corp.industrySnapshot()));
   app.get("/api/corporation/harvest",async(req,res)=>res.json(await corp.harvest()));
   app.get("/api/corporation/structures",(req,res)=>res.json(corp.snapshot()));
   app.post("/api/corporation/sync",(req,res)=>{corp.queue();res.json({ok:true});});

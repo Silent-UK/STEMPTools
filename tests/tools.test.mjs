@@ -1275,3 +1275,31 @@ test('combined PI volume counts finished stock and additional output without ing
  const result=combinedVolumes(targets,id=>({volume:id===1?6:100}));assert.equal(result.total_m3,480);assert.equal(result.targets[0].combined_m3,180);
  assert.equal(combinedVolumes(targets,id=>id===1?{volume:6}:null).total_m3,null);
 });
+
+test('corporation industry paginates atomically, retains failures and requires corporation access',async()=>{
+ let fail=false,empty=false;
+ const job={job_id:1,installer_id:100,facility_id:60003760,location_id:60003760,activity_id:1,blueprint_type_id:1,product_type_id:1,runs:5,status:'active',end_date:'2027-01-01T00:00:00Z'};
+ await fixture(async({db,user,request,corp})=>{
+  const u=user(100,'Director');assert.equal((await request('/api/corporation/industry',{session:u.session})).status,403);
+  connectCorpFixture(db,u.uid);const {CORP_SCOPES}=await import('../lib/corp.mjs');db.prepare('UPDATE corp_authorizations SET scopes=?').run(JSON.stringify(CORP_SCOPES));
+  const sync=async()=>{db.prepare('UPDATE corp_jobs SET attempted=0').run();corp.queue();await corp.tick();return corp.industrySnapshot();};
+  let result=await sync();assert.equal(result.rows.length,2);assert.equal(result.rows[0].installer,'Test name');assert.equal(result.error,null);
+  fail=true;result=await sync();assert.equal(result.rows.length,2);assert.ok(result.error);assert.equal(corp.snapshot().job.status,'idle');
+  fail=false;empty=true;result=await sync();assert.equal(result.rows.length,0);assert.equal(result.error,null);
+  assert.equal((await request('/api/corporation/industry',{session:u.session})).status,200);
+ },fakeCat,{verifyCorporation:async()=>({id:668298004,role:'Director'}),corpNetwork:async url=>{const u=new URL(url),jobs=u.pathname.endsWith('/industry/jobs'),page=Number(u.searchParams.get('page'));if(jobs)assert.equal(u.searchParams.get('include_completed'),'false');return {ok:!(jobs&&fail&&page===2),status:503,headers:new Headers({'x-pages':jobs&&!empty?'2':'1'}),json:async()=>jobs&&!empty?[{...job,job_id:page,status:page===2?'ready':'active'}]:[]};},eve:{publicGet:async()=>({name:'Test name'})}});
+});
+test('corporation industry distinguishes paused and estimated ready jobs and excludes delivered jobs',async()=>{
+ const {industryJobs,jobState}=await import('../public/corp-industry-view.mjs');
+ const now=Date.parse('2026-10-23T12:00:00Z'),base={end_date:'2026-10-22T12:00:00Z',name:'Rifter'};
+ const jobs=[{...base,job_id:1,status:'active'},{...base,job_id:2,status:'paused'},{...base,job_id:3,status:'delivered'}];
+ assert.equal(jobState(jobs[0],now),'ready-estimated');assert.equal(jobState(jobs[1],now),'paused');assert.equal(industryJobs(jobs,{},now).length,2);assert.equal(industryJobs(jobs,{status:'ready'},now).length,1);assert.equal(industryJobs(jobs,{q:'missing'},now).length,0);
+});
+test('moon browser selects matching systems and refining preserves missing coverage and zero efficiency',async()=>{
+ const {surveyBrowser,refinedSurvey}=await import('../lib/moon-surveys.mjs');
+ const browser=surveyBrowser({q:'LS9B-9'});assert.equal(browser.system,'LS9B-9');assert.ok(browser.moons.every(m=>m.system==='LS9B-9'));assert.equal(surveyBrowser({q:'not-a-moon-xyz'}).selected,null);
+ const moon={ores:[{name:'Ore',fraction:.5}],sources:[]},recipe={athanor:{Ore:{batch_m3:1000,materials:[{name:'Pyerite',quantity:100}]}},metenox:{Ore:{batch_m3:1000,materials:[{name:'Hydrocarbons',quantity:10}]}}},cat={named:()=>1},price=[{type_id:1,average_price:2}];
+ let r=refinedSurvey(moon,recipe,price,cat,{daily_m3:1000,refine:90});assert.equal(r.ores[0].m3,15000);assert.equal(r.ores[0].materials[0].quantity,1350);assert.equal(r.value,2700);
+ assert.equal(refinedSurvey(moon,recipe,price,cat,{refine:0}).value,0);assert.equal(refinedSurvey(moon,recipe,[],cat,{}).value,null);assert.equal(refinedSurvey({...moon,conflict:true},recipe,price,cat,{}).value,null);
+ r=refinedSurvey(moon,recipe,price,cat,{daily_m3:1000,mode:'metenox'});assert.equal(r.ores[0].materials[0].quantity,60);
+});
