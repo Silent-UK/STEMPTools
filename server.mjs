@@ -1,3 +1,4 @@
+import {assetMatches} from "./public/asset-tree.mjs";
 import {corporationService} from "./lib/corp-management.mjs";
 import {CORP_SCOPES,STEMP_ID,verifyCorporation} from "./lib/corp.mjs";
 import {defaultPISettings,validatePISettings,combinedProduction,jitaPricing} from "./lib/pi.mjs";
@@ -92,7 +93,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.18.3" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -505,25 +506,13 @@ export function createApp(config) {
       sources.push({ id: c.id, name: c.name, updated: s?.updated || null });
       if (!s) continue;
       const data = JSON.parse(s.data);
-      for (const item of data.items) {
-        const name = cat.type(item.type_id)?.name || String(item.type_id),
-          place =
-            data.locations[item.root_location_id] ||
-            String(item.root_location_id);
-        if (
-          !name.toLowerCase().includes(q) ||
-          !place.toLowerCase().includes(location)
-        )
-          continue;
-        rows.push({
-          ...item,
-          name,
-          location: place,
-          location_type_id: data.locationTypes?.[item.root_location_id] || null,
-          character: c.name,
-          character_id: c.id,
-        });
-      }
+      const inventory=data.items.map(item=>({...item,
+        name:cat.type(item.type_id)?.name || String(item.type_id),
+        location:data.locations[item.root_location_id] || String(item.root_location_id),
+        location_type_id:data.locationTypes?.[item.root_location_id] || null,
+        character:c.name,character_id:c.id,
+      }));
+      rows.push(...assetMatches(inventory,q,location));
     }
     const grouped = new Map();
     for (const row of rows) {
@@ -549,7 +538,7 @@ export function createApp(config) {
       a.name.localeCompare(b.name),
     );
     res.json({
-      total: rows.length,
+      total: rows.filter(a=>!a.context).length,
       locationCount: locations.length,
       locations: locations.slice(offset, offset + 20),
       items: rows.slice(offset, offset + 100),

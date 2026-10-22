@@ -19,3 +19,9 @@ export function piTargetList(ids,products){
 export function piSettingsView(data){
  return `<h2>Planetary industry settings</h2><form id="pi-settings"><h3>Extraction levels · average units/hour</h3><div class="pi-thresholds"><label>Perfect from<input type="number" name="perfect" min="1" max="100000000" step="1" required value="${data.settings.perfect}"></label><label>Critical below<input type="number" name="critical" min="0" max="99999999" step="1" required value="${data.settings.critical}"></label></div><small>Green at or above Perfect; amber between the thresholds; red below Critical. Stopped extractors always show Reset needed.</small><h3>P3 / P4 end products</h3><div class="formrow"><select id="pi-product-select" aria-label="End product">${data.products.map(p=>`<option value="${p.id}">${esc(p.name)} · P${p.tier}</option>`).join('')}</select><button type="button" data-pi-add="1">Add product</button></div><div id="pi-target-list">${piTargetList(data.settings.targets,data.products)}</div><p class="muted">Up to 8 targets. Priority runs from top to bottom when ingredients are shared. Settings apply to all your linked characters.</p><button class="primary" type="submit">Save settings</button><small id="pi-settings-error" role="status"></small></form>`;
 }
+
+export function launchpadRows(planet){
+ const pads=planet.launchpads||planet.storage?.filter(s=>s.kind==='Launchpad')||[];
+ const volume=n=>Number(n).toLocaleString('en-GB',{maximumFractionDigits:2});
+ return pads.map((pad,i)=>{const u=pad.usage,known=u&&Number.isFinite(u.used);return `<div class="pi-launchpad"><span>Launchpad${pads.length>1?' '+(i+1):''}</span><strong class="${known?'corp-'+u.level:'muted'}" title="${known?volume(u.freePercent)+'% free · last EVE snapshot':'Stored item volume unavailable'}">${known?volume(u.used)+' m³ / '+volume(u.capacity)+' m³':'Volume unavailable'}</strong></div>`;}).join('');
+}
