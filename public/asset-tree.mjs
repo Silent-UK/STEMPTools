@@ -16,3 +16,17 @@ export function assetMatches(items,q,location) {
  for(const item of items)if(direct.has(String(item.location_id))&&/^(Hi|Med|Lo|Rig|SubSystem|Service)Slot\d+$/.test(item.location_flag))included.add(String(item.item_id));
  return items.filter(a=>included.has(String(a.item_id))).map(a=>({...a,context:!direct.has(String(a.item_id))}));
 }
+
+// Stack only equivalent siblings. Parent items remain distinct so ships keep their own fittings.
+export function stackAssetRows(items) {
+ const parents=new Set(items.map(a=>String(a.location_id))),groups=new Map(),rows=[];
+ const slot=flag=>String(flag||'').replace(/^(Hi|Med|Lo|Rig|SubSystem|Service)Slot\d+$/,'$1 slots');
+ for(const item of items){
+  if(parents.has(String(item.item_id))){rows.push({...item});continue;}
+  const key=JSON.stringify([item.character_id,item.root_location_id,item.location_id,item.type_id??item.name,slot(item.location_flag),Boolean(item.is_blueprint_copy),Boolean(item.is_singleton),Boolean(item.context)]);
+  const existing=groups.get(key);
+  if(existing){existing.quantity+=item.quantity;existing.count++;existing.location_flag=slot(item.location_flag);}
+  else {const row={...item,count:1};groups.set(key,row);rows.push(row);}
+ }
+ return assetTree(rows);
+}
