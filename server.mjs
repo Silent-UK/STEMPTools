@@ -1,3 +1,4 @@
+import {whitelistService} from "./lib/whitelist.mjs";
 import {surveyList} from './lib/moon-surveys.mjs';
 import {assetMatches} from "./public/asset-tree.mjs";
 import {corporationService} from "./lib/corp-management.mjs";
@@ -41,6 +42,7 @@ export function createApp(config) {
     eve = config.eve || eveClient(db, box, config),
     sync = syncService(db, eve, cat),
     corp = corporationService(db,box,config,cat,eve);
+  const whitelist=whitelistService(db,config.membershipLookup || (async id=>(await eve.request("/characters/"+id)).data));
   const ownerUser=db.prepare("SELECT id FROM users WHERE main_id=?").get(config.owner);
   const legacy=db.prepare("SELECT * FROM corporation_connections WHERE corporation_id=?").get(STEMP_ID);
   if(ownerUser&&legacy)db.prepare("INSERT OR IGNORE INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(ownerUser.id,legacy.character_id,legacy.character_name,legacy.owner_hash,STEMP_ID,legacy.tokens,JSON.stringify(["esi-characters.read_corporation_roles.v1"]),0,legacy.role,0);
@@ -94,7 +96,17 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.8" }));
+  app.use(async(req,res,next)=>{
+    const path=req.path.toLowerCase();
+    if(!req.session || !(path.startsWith('/api/')||path.startsWith('/auth/')) || path==='/api/logout')return next();
+    try {await whitelist.check(req.session.main_id);next();}
+    catch(e) {
+      if(e.status===403){db.prepare('DELETE FROM sessions WHERE user_id=?').run(req.session.user_id);res.clearCookie('tools_session',cookieOptions);}
+      if(path.startsWith('/api/'))return res.status(e.status).json({error:e.message});
+      res.status(e.status).type('text').send(e.message);
+    }
+  });
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.9" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -116,8 +128,6 @@ export function createApp(config) {
         groupParent=parent.id;
       }
     }
-    const invite =
-      typeof req.query.invite === "string" ? hash(req.query.invite) : null;
     const state = random(),
       browser = random(),
       verifier = random();
@@ -126,7 +136,7 @@ export function createApp(config) {
       hash(state),
       hash(browser),
       linking ? req.session.user_id : null,
-      invite,
+      null,
       verifier,
       Date.now() + 600000,
     );
@@ -185,6 +195,7 @@ export function createApp(config) {
       if(req.session.main_id===config.owner)db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(corpInfo.id,corpInfo.name,id.id,id.name,id.owner,box.seal(token),Date.now(),corpInfo.role);
       return res.redirect("/#corp-structures");
     }
+    if(!flow.user_id)await whitelist.check(id.id,true);
     const user = transaction(db, () => {
       const existing = db
         .prepare("SELECT * FROM characters WHERE id=?")
@@ -213,32 +224,13 @@ export function createApp(config) {
         uid = u.id;
       }
       if (!uid) {
-        let invite = null;
-        if (id.id !== config.owner) {
-          invite = db
-            .prepare(
-              "SELECT * FROM invites WHERE hash=? AND expires>? AND used_by IS NULL",
-            )
-            .get(flow.invite || "", Date.now());
-          if (!invite)
-            throw Object.assign(
-              Error(
-                "Tools is invite-only. Ask for an invitation, then sign in with your main.",
-              ),
-              { status: 403 },
-            );
-        }
         uid = Number(
           db
             .prepare("INSERT INTO users(main_id,name,admin) VALUES(?,?,?)")
             .run(id.id, id.name, id.id === config.owner ? 1 : 0)
             .lastInsertRowid,
         );
-        if (invite)
-          db.prepare("UPDATE invites SET used_by=? WHERE hash=?").run(
-            uid,
-            flow.invite,
-          );
+
       }
       db.prepare(
         "INSERT INTO characters VALUES(?,?,?,?,?,?,?,0) ON CONFLICT(id) DO UPDATE SET name=excluded.name,tokens=excluded.tokens,scopes=excluded.scopes,expires=excluded.expires,reconnect=0",
@@ -751,25 +743,21 @@ export function createApp(config) {
   });
   app.get("/api/admin/esi",(req,res)=>res.json({characters:adminCharacters(),buckets:[0,10,20,30,40,50]}));
   app.get("/api/admin/corporations",(req,res)=>res.json(db.prepare("SELECT corporation_id,name,character_id,character_name,verified,role FROM corporation_connections ORDER BY name").all()));
-  app.get("/api/admin/invites", (req, res) => {
-    if (req.session.main_id!==config.owner) return res.sendStatus(403);
-    res.json(
-      db
-        .prepare(
-          "SELECT expires,used_by FROM invites ORDER BY expires DESC LIMIT 100",
-        )
-        .all(),
-    );
+  app.get('/api/admin/whitelist',(req,res)=>res.json(db.prepare('SELECT * FROM login_whitelist ORDER BY name').all()));
+  app.post('/api/admin/whitelist',async(req,res)=>{
+    const id=Number(req.body.corporation_id);
+    if(!Number.isSafeInteger(id)||id<=0)return res.status(400).json({error:'Enter a valid corporation ID'});
+    let data;
+    try {data=await eve.publicGet('/corporations/'+id);}catch{return res.status(400).json({error:'Corporation could not be verified with ESI. Check the ID and try again.'});}
+    if(typeof data?.name!=='string'||!data.name.trim())return res.status(400).json({error:'ESI did not return a corporation name'});
+    db.prepare('INSERT INTO login_whitelist VALUES(?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name').run(id,data.name);
+    res.json({ok:true});
   });
-  app.post("/api/admin/invites", (req, res) => {
-    if (req.session.main_id!==config.owner) return res.sendStatus(403);
-    const code = random();
-    db.prepare("INSERT INTO invites VALUES(?,?,?,NULL)").run(
-      hash(code),
-      req.session.user_id,
-      Date.now() + 7 * 86400000,
-    );
-    res.json({ url: config.base + "/?invite=" + code });
+  app.delete('/api/admin/whitelist/:id',async(req,res)=>{
+    const id=Number(req.params.id);
+    if(id===await whitelist.corporation(req.session.main_id,true))return res.status(400).json({error:'Your own corporation must stay whitelisted so you can manage access.'});
+    db.prepare('DELETE FROM login_whitelist WHERE corporation_id=?').run(id);
+    res.json({ok:true});
   });
   app.use(
     express.static(
@@ -782,7 +770,7 @@ export function createApp(config) {
   );
   app.use((err, req, res, _next) => {
     const status =
-      Number.isInteger(err.status) && err.status >= 400 && err.status < 500
+      Number.isInteger(err.status) && err.status >= 400 && err.status < 600
         ? err.status
         : 400;
     const message = String(err.message || "Request failed");

@@ -135,14 +135,13 @@ document.addEventListener("toggle",e=>{
  if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
 },true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.19.8</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.19.9</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
 }
 function login() {
-  const invite = new URLSearchParams(location.search).get("invite");
-  root.innerHTML = `<div class="login"><section class="login-art"><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div class="eyebrow">YOUR CHARACTERS. ONE WORKSPACE.</div><h1>A clearer view<br>of your <em>New Eden.</em></h1><p>Train with a purpose. Keep your colonies moving. Bring every character into one private command centre.</p><div class="orbital" aria-hidden="true"></div></section><section class="loginbox"><div>${tag("INVITE-ONLY", "purple")}<h2>Your next move starts here.</h2><p class="muted">Sign in with your main character, then securely connect your alts.</p><a class="button primary" href="/auth/login${invite ? "?invite=" + encodeURIComponent(invite) : ""}">Sign in with EVE Online →</a><small>${invite ? "Your invitation will be redeemed after EVE login." : "Already a member? Sign in above. New pilots need an invitation."}</small><div class="features"><span>◇ Shared skill plans</span><span>△ Fitting skill checks</span><span>◎ All-character PI</span><span>⬡ Mercenary dens</span><span>▦ Asset search</span><span>▤ Skills & queue</span></div><p class="notice">Your character information is private. Only the plans and fittings you choose to share are visible to other members.</p></div></section></div>`;
+  root.innerHTML = `<div class="login"><section class="login-art"><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div class="eyebrow">YOUR CHARACTERS. ONE WORKSPACE.</div><h1>A clearer view<br>of your <em>New Eden.</em></h1><p>Train with a purpose. Keep your colonies moving. Bring every character into one private command centre.</p><div class="orbital" aria-hidden="true"></div></section><section class="loginbox"><div>${tag("CORPORATION ACCESS", "purple")}<h2>Your next move starts here.</h2><p class="muted">Sign in with your main character, then securely connect your alts.</p><a class="button primary" href="/auth/login">Sign in with EVE Online →</a><small>Your login main must belong to a whitelisted corporation. Alts may belong to other corporations.</small><div class="features"><span>◇ Shared skill plans</span><span>△ Fitting skill checks</span><span>◎ All-character PI</span><span>⬡ Mercenary dens</span><span>▦ Asset search</span><span>▤ Skills & queue</span></div><p class="notice">Your character information is private. Only the plans and fittings you choose to share are visible to other members.</p></div></section></div>`;
 }
 let renderedPage=null, snapshotSignature="", checkingSnapshots=false;
 const snapshotKey=rows=>JSON.stringify(rows.map(c=>[c.id,c.job,c.reconnect,c.snapshots,c.errors]));
@@ -169,7 +168,6 @@ async function render() {
     if (page === "assets") html = await assets();
     if (page === "industry") html = await industry();
     if (page === "clones") html = await clonesPage();
-    if (page === "admin") html = await admin();
     if(page.startsWith("admin-"))html=await adminPage();
     if(page.startsWith("corp-")){html=await corporationPage();if(page==="corp-structures")html=`<div class="structures-page">${html}</div>`;}
     if (run === renderId) {
@@ -574,6 +572,11 @@ function adminCharacterRows(list) {
  return table(["Character","ESI status","Bucket","Next slot","Last attempt","Last data"],list.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.reconnect?"Reconnect required":c.job|| (c.errors.length?"Needs attention":c.updated?"Synced":"Awaiting first sync"))}${c.errors.length?`<details><summary>${c.errors.length} issues</summary>${c.errors.map(e=>`<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("<br>")}</details>`:""}</td><td>:${String(c.minute).padStart(2,"0")}</td><td>${date(c.next_due)}</td><td>${c.attempted?date(c.attempted):"—"}</td><td>${c.updated?date(c.updated):"—"}</td></tr>`));
 }
 async function adminPage() {
+ if(page==='admin-whitelist') {
+  const list=await api('/admin/whitelist');
+  return intro('Whitelist','Only mains in these corporations can sign in. Linked alts may belong to other corporations.')+`<section class="panel admin-compact"><form id="whitelist-add" class="actions"><label>Corporation ID <input name="corporation_id" type="number" min="1" required placeholder="Corporation ID"></label><button class="primary">Add corporation</button></form>${table(['Corporation','ID',''],list.map(c=>`<tr><td><div class="pilot"><img class="eve-icon" src="https://images.evetech.net/corporations/${c.corporation_id}/logo?size=64" alt=""><strong>${esc(c.name)}</strong></div></td><td>${c.corporation_id}</td><td><button data-whitelist-remove="${c.corporation_id}">Remove</button></td></tr>`))}<small>Membership is checked at login and every five minutes while using the site, subject to ESI caching. Removing a corporation blocks its members on their next request.</small></section>`;
+ }
+
  if(!me.admin)return "";
  const refresh='<button data-action="update-view">↻ Refresh status</button>';
  if(page==="admin-users") {
@@ -586,27 +589,6 @@ async function adminPage() {
  }
  const corps=await api("/admin/corporations");
  return intro("Corp ESI","Connect your Sacred Templars CEO or Director for Corporation Management.",'<a class="button primary" href="/auth/login?corporation=1">+ Connect corporation</a>')+`<section class="panel admin-compact"><p>Read-only access to structures, corporation assets and POS fuel. Membership and CEO/Director status are rechecked before access, with a short ESI verification cache.</p>${corps.length?table(["Corporation","Character","Role","Last verified"],corps.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.character_name)}</td><td>${esc(c.role)}</td><td>${date(c.verified)}</td></tr>`)):empty("No corporation connected")}</section>`;
-}
-async function admin() {
-  const list = await api("/admin/invites");
-  return (
-    intro(
-      "Invitations",
-      "Only invited pilots can create a STEMP Tools account.",
-      `<button class="primary" data-action="invite">+ Create invitation</button>`,
-    ) +
-    `<div id="invite-link"></div><section class="panel"><h2>Recent invitations</h2>${
-      list.length
-        ? table(
-            ["Expires", "Status"],
-            list.map(
-              (i) =>
-                `<tr><td>${date(i.expires)}</td><td>${tag(i.used_by ? "Redeemed" : i.expires < Date.now() ? "Expired" : "Available", i.used_by ? "" : "dim")}</td></tr>`,
-            ),
-          )
-        : empty("No invitations created")
-    }</section>`
-  );
 }
 function openDialog(html) {
   dialog.classList.remove("fitting-dialog");
@@ -743,10 +725,8 @@ root.addEventListener("click", async (e) => {
         assetOffset + 20 * Number(b.dataset.pageAssets),
       );
       await render();
-    } else if (b.dataset.action === "invite") {
-      const i = await api("/admin/invites", {});
-      document.querySelector("#invite-link").innerHTML =
-        `<div class="notice">Single-use invitation, valid for 7 days:<input aria-label="Invitation link" readonly value="${esc(i.url)}" class="invite-link-field"></div>`;
+    } else if (b.dataset.whitelistRemove) {
+      await api('/admin/whitelist/'+b.dataset.whitelistRemove,{},'DELETE');await render();
     }
   } catch (e) {
     toast(e.message);
@@ -817,7 +797,8 @@ root.addEventListener("input", (e) => {
     });
   }
 });
-root.addEventListener("submit", (e) => {
+root.addEventListener("submit", async (e) => {
+  if(e.target.id==='whitelist-add'){e.preventDefault();const f=new FormData(e.target);try{await api('/admin/whitelist',{corporation_id:Number(f.get('corporation_id'))});await render();}catch(error){toast(error.message);}return;}
   if(e.target.id==='corp-industry-filter'){e.preventDefault();const f=new FormData(e.target);corpIndustryFilters={q:String(f.get('q')||''),status:String(f.get('status')||'')};render();}
   if(e.target.id==='moon-survey-search'){
     e.preventDefault();const values=new FormData(e.target);surveyFilters={...surveyFilters,q:String(values.get('q')||''),refine:Number(values.get('refine')),system:'',moon:''};render();

@@ -1,6 +1,6 @@
 # Tools — tools.areyouaspy.co.uk
 
-Invite-only EVE character management for Silent Uk and invited pilots. Node 24+, SQLite, EVE SSO. Self-hosted on the existing VPS; no dependency on the Fuel/WCFAT databases.
+Corporation-whitelisted EVE character management for Sacred Templars and Sacred Templar Knights. Node 24+, SQLite, EVE SSO. Self-hosted on the existing VPS; no dependency on the Fuel/WCFAT databases.
 
 ## Features
 - Main-only login; individually authorised linked alts. Silent Uk (122543287) bootstraps as administrator.
@@ -28,12 +28,12 @@ node scripts/preview.mjs
 Preview binds to 127.0.0.1:3014 with fictional data in a temporary database; it is never the production entry point. Production is `node --env-file=.env server.mjs`. See [deployment instructions](deploy/SETUP.md).
 
 ## Security and data
-Tokens are AES-256-GCM encrypted using ENCRYPTION_KEY, which must be backed up with the database. Sessions and invitations are hashed server-side. OAuth uses expiring single-use browser-bound state and PKCE; JWT issuer/audience/client/character-owner validation. Every private lookup is scoped to account ownership. Linking a character already held by another account is rejected. No automatic migration of transferred characters. Site admin can create invites but has no API to read other pilots' private data.
+Tokens are AES-256-GCM encrypted using ENCRYPTION_KEY, which must be backed up with the database. Sessions are hashed server-side. OAuth uses expiring single-use browser-bound state and PKCE; JWT issuer/audience/client/character-owner validation. Every private lookup is scoped to account ownership. Linking a character already held by another account is rejected. No automatic migration of transferred characters. Site admin manages the corporation login whitelist but has no API to read other pilots' private data. Login mains must be whitelisted; linked alts may be in other corporations.
 
 Data files live outside releases in /var/lib/stemp-tools. Back up tools.sqlite using SQLite online backup (or stop the service before copying it and its WAL), catalog.sqlite and the separately protected .env. Never commit them. Deleting an alt removes tokens and snapshots; EVE access can also be revoked in CCP's authorised applications page.
 
 ## Verification
-Tests cover account isolation, CSRF, invites, OAuth replay, alt ownership, main deletion guard, encryption, partial sync retention, real SDE Avatar prerequisites, partial-SP estimates and PI output. Browser review uses fictional data. Actual EVE login/sync and VPS TLS deployment require the newly registered EVE application's credentials.
+Tests cover account isolation, CSRF, corporation whitelisting, OAuth replay, alt ownership, main deletion guard, encryption, partial sync retention, real SDE Avatar prerequisites, partial-SP estimates and PI output. Browser review uses fictional data. Actual EVE login/sync and VPS TLS deployment require the newly registered EVE application's credentials.
 
 ## Sources
 - https://developers.eveonline.com/docs/services/sso/

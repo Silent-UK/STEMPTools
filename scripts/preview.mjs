@@ -143,6 +143,7 @@ savedCorp.push({...corpExample,id:126,type_id:35835,type_name:'Athanor',kind:'St
 db.prepare('UPDATE corp_snapshots SET data=? WHERE corporation_id=668298004').run(JSON.stringify(savedCorp));
 db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-industry',JSON.stringify({updated:Date.now(),error:null,rows:[{job_id:1,product_type_id:587,blueprint_type_id:688,name:'Rifter',activity_id:1,runs:20,installer:'Example Main',location:'Example Citadel',status:'active',end_date:new Date(Date.now()+9000000).toISOString()},{job_id:2,blueprint_type_id:688,name:'Rifter Blueprint',activity_id:5,runs:10,installer:'Example Industrial',location:'Example Citadel',status:'ready',end_date:new Date(Date.now()-900000).toISOString()},{job_id:3,product_type_id:587,blueprint_type_id:688,name:'Rifter',activity_id:1,runs:5,installer:'Example Main',location:'Example Citadel',status:'paused',end_date:new Date(Date.now()-900000).toISOString()}]}),0);
 const { app } = createApp({
+ membershipLookup:async()=>({corporation_id:668298004}),
   verifyCorporation:async()=>({id:668298004,role:"Director"}),
   db,
   cat,

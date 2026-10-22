@@ -57,6 +57,7 @@ async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
     client: "test",
     secret: "test",
     eve: {},
+    membershipLookup:async()=>({corporation_id:668298004}),
     exchange: async () => ({ access_token: "fake", refresh_token: "fake" }),
     verifyToken: async () => identity,
     ...overrides,
@@ -179,7 +180,7 @@ test("anonymous users cannot read data or shared documents", () =>
       "/api/assets",
       "/api/documents",
       "/api/operations/pi",
-      "/api/admin/invites",
+      "/api/admin/whitelist",
     ])
       assert.equal((await request(path)).status, 401);
   }));
@@ -267,7 +268,7 @@ test("owner isolation, CSRF and shared document permissions", () =>
     );
     assert.equal(
       (
-        await request("/api/admin/invites", {
+        await request("/api/admin/whitelist", {
           session: a.session,
           method: "POST",
           body: {},
@@ -331,78 +332,48 @@ test("main cannot be removed and alt data is removed on unlink", () =>
     );
     assert.equal(db.prepare("SELECT count(*) n FROM snapshots").get().n, 0);
   }));
-test("invite-only registration, owner bootstrap and state replay prevention", () =>
-  fixture(async ({ request, db, identity }) => {
-    function flow(code, invite = null) {
-      db.prepare("INSERT INTO oauth VALUES(?,?,?,?,?,?)").run(
-        hash(code),
-        hash("browser"),
-        null,
-        invite,
-        "verifier",
-        Date.now() + 10000,
-      );
-    }
-    identity({
-      id: 200,
-      name: "New",
-      owner: "hash",
-      expires: Date.now() + 100000,
-      scopes: [],
-    });
-    flow("notinvited");
-    assert.equal(
-      (
-        await request("/auth/callback?state=notinvited&code=x", {
-          cookie: "tools_oauth=browser",
-        })
-      ).status,
-      403,
-    );
-    db.prepare("INSERT INTO invites VALUES(?,?,?,NULL)").run(
-      hash("invite"),
-      null,
-      Date.now() + 10000,
-    );
-    flow("invited", hash("invite"));
-    assert.equal(
-      (
-        await request("/auth/callback?state=invited&code=x", {
-          cookie: "tools_oauth=browser",
-        })
-      ).status,
-      302,
-    );
-    assert.ok(db.prepare("SELECT used_by FROM invites").get().used_by);
-    assert.equal(
-      (
-        await request("/auth/callback?state=invited&code=x", {
-          cookie: "tools_oauth=browser",
-        })
-      ).status,
-      400,
-    );
-    identity({
-      id: 100,
-      name: "Owner",
-      owner: "hash-owner",
-      expires: Date.now() + 100000,
-      scopes: [],
-    });
-    flow("owner");
-    assert.equal(
-      (
-        await request("/auth/callback?state=owner&code=x", {
-          cookie: "tools_oauth=browser",
-        })
-      ).status,
-      302,
-    );
-    assert.equal(
-      db.prepare("SELECT admin FROM users WHERE main_id=100").get().admin,
-      1,
-    );
-  }));
+test("whitelist registration rejects outsiders, permits both corporations and prevents OAuth replay",async()=>{
+ let corporation=999,fail=false;
+ await fixture(async({request,db,identity})=>{
+  const flow=code=>db.prepare('INSERT INTO oauth VALUES(?,?,?,?,?,?)').run(hash(code),hash('browser'),null,hash('legacy-invite'),'verifier',Date.now()+10000);
+  const login=async(code,id)=>{identity({id,name:'Pilot '+id,owner:'owner-'+id,expires:Date.now()+100000,scopes:[]});flow(code);return request('/auth/callback?state='+code+'&code=x',{cookie:'tools_oauth=browser'});};
+  assert.equal((await login('outside',200)).status,403);
+  assert.equal(db.prepare('SELECT count(*) n FROM users').get().n,0);
+  fail=true;assert.equal((await login('unavailable',200)).status,503);fail=false;
+  corporation=668298004;assert.equal((await login('stemp',200)).status,302);
+  assert.equal((await request('/auth/callback?state=stemp&code=x',{cookie:'tools_oauth=browser'})).status,400);
+  corporation=98044257;assert.equal((await login('knights',300)).status,302);
+  corporation=999;assert.equal((await login('existing-outside',200)).status,403);
+  assert.equal((await login('owner-outside',100)).status,403);
+  corporation=668298004;assert.equal((await login('owner',100)).status,302);
+ },fakeCat,{membershipLookup:async()=>{if(fail)throw Error('ESI offline');return {corporation_id:corporation};}});
+});
+
+test("whitelist administration blocks removed corporations and keeps the owner's corporation",async()=>{
+ await fixture(async({request,user,db})=>{
+  const owner=user(100,'Owner'),member=user(200,'Member');
+  const list=await(await request('/api/admin/whitelist',{session:owner.session})).json();assert.equal(list.length,2);
+  assert.equal((await request('/api/me',{session:member.session})).status,200);
+  assert.equal((await request('/api/admin/whitelist/98044257',{session:member.session,method:'DELETE',body:{}})).status,403);
+  assert.equal((await request('/api/admin/whitelist/98044257',{session:owner.session,method:'DELETE',body:{},origin:'https://evil.test'})).status,403);
+  assert.equal((await request('/api/admin/whitelist/668298004',{session:owner.session,method:'DELETE',body:{}})).status,400);
+  assert.equal((await request('/api/admin/whitelist/98044257',{session:owner.session,method:'DELETE',body:{}})).status,200);
+  assert.equal((await request('/api/me',{session:member.session})).status,403);
+  assert.equal(db.prepare('SELECT count(*) n FROM sessions WHERE user_id=?').get(member.uid).n,0);
+  assert.equal((await request('/api/admin/invites',{session:owner.session})).status,404);
+  assert.equal((await request('/api/admin/invites',{session:owner.session,method:'POST',body:{}})).status,404);
+  assert.equal((await request('/api/admin/whitelist',{session:owner.session,method:'POST',body:{corporation_id:98044257}})).status,200);
+ },fakeCat,{membershipLookup:async id=>({corporation_id:id===100?668298004:98044257}),eve:{publicGet:async()=>({name:'Sacred Templar Knights'})}});
+});
+
+test("existing sessions fail closed when membership cannot be verified",async()=>{
+ await fixture(async({request,user,db})=>{
+  const u=user(100,'Owner');assert.equal((await request('/api/me',{session:u.session})).status,503);
+  assert.equal((await request('/API/me',{session:u.session})).status,503);
+  assert.equal(db.prepare('SELECT count(*) n FROM sessions').get().n,1);
+ },fakeCat,{membershipLookup:async()=>{throw Error('ESI unavailable');}});
+});
+
 test("alt cannot be attached to another account and linking session must match", () =>
   fixture(async ({ request, user, db, identity }) => {
     const a = user(1, "A"),
@@ -1068,7 +1039,7 @@ test("administration is restricted to configured owner even if another account h
  await fixture(async({db,user,request})=>{
   const owner=user(100,"Owner"),other=user(200,"Other");
   db.prepare("UPDATE users SET admin=1 WHERE id=?").run(other.uid);
-  for(const path of ["users","esi","corporations","invites"]){
+  for(const path of ["users","esi","corporations","whitelist"]){
    assert.equal((await request("/api/admin/"+path,{session:other.session})).status,403);
    assert.equal((await request("/api/admin/"+path,{session:owner.session})).status,200);
   }
@@ -1302,4 +1273,44 @@ test('moon browser selects matching systems and refining preserves missing cover
  let r=refinedSurvey(moon,recipe,price,cat,{daily_m3:1000,refine:90});assert.equal(r.ores[0].m3,15000);assert.equal(r.ores[0].materials[0].quantity,1350);assert.equal(r.value,2700);
  assert.equal(refinedSurvey(moon,recipe,price,cat,{refine:0}).value,0);assert.equal(refinedSurvey(moon,recipe,[],cat,{}).value,null);assert.equal(refinedSurvey({...moon,conflict:true},recipe,price,cat,{}).value,null);
  r=refinedSurvey(moon,recipe,price,cat,{daily_m3:1000,mode:'metenox'});assert.equal(r.ores[0].materials[0].quantity,60);
+});
+
+test('whitelisted mains may link outside alts but those alts cannot become a login',async()=>{
+ const checked=[];
+ await fixture(async({request,user,identity,db})=>{
+  const u=user(100,'Main');
+  identity({id:200,name:'Outside alt',owner:'outside',expires:Date.now()+100000,scopes:[]});
+  const begin=await request('/auth/login?link=1&group=alt&parent=100',{session:u.session});
+  const state=new URL(begin.headers.get('location')).searchParams.get('state');
+  const cookie=begin.headers.get('set-cookie').split(';')[0]+'; tools_session='+u.session;
+  assert.equal((await request('/auth/callback?code=test&state='+state,{cookie})).status,302);
+  assert.equal(db.prepare('SELECT user_id FROM characters WHERE id=200').get().user_id,u.uid);
+  assert.deepEqual(checked,[100]);
+  const login=await request('/auth/login'),loginState=new URL(login.headers.get('location')).searchParams.get('state');
+  assert.equal((await request('/auth/callback?code=test&state='+loginState,{cookie:login.headers.get('set-cookie').split(';')[0]})).status,403);
+ },fakeCat,{membershipLookup:async id=>{checked.push(id);return {corporation_id:id===100?668298004:999};}});
+});
+
+test('whitelist membership cache expires and does not allow access on ESI failure',async t=>{
+ const {whitelistService}=await import('../lib/whitelist.mjs');
+ const dir=mkdtempSync(join(tmpdir(),'whitelist-test-')),db=openStore(dir);
+ let now=1000000,corporation=668298004,calls=0,fail=false;
+ t.mock.method(Date,'now',()=>now);
+ try {
+  const service=whitelistService(db,async()=>{calls++;if(fail)throw Error('offline');return {corporation_id:corporation};});
+  await service.check(100);await service.check(100);assert.equal(calls,1);
+  now+=300001;fail=true;await assert.rejects(service.check(100),e=>e.status===503);
+  fail=false;corporation=999;await assert.rejects(service.check(100),e=>e.status===403);
+ }finally{db.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('whitelist migration preserves old invitations and does not re-add removed corporations',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'whitelist-migration-'));
+ let db=openStore(dir);
+ try {
+  db.exec("CREATE TABLE invites(hash TEXT PRIMARY KEY); INSERT INTO invites VALUES('old-record'); DELETE FROM login_whitelist WHERE corporation_id=98044257");
+  db.close();db=openStore(dir);
+  assert.equal(db.prepare('SELECT count(*) n FROM invites').get().n,1);
+  assert.equal(db.prepare('SELECT count(*) n FROM login_whitelist').get().n,1);
+ }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });
