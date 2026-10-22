@@ -983,6 +983,7 @@ test('adding a character carries Main or Alt selection through the bound OAuth f
   const result=await request('/auth/callback?code=test&state='+state,{cookie:'tools_oauth='+browser+'; tools_session='+a.session});
   assert.equal(result.status,302);
   assert.equal(db.prepare('SELECT parent_id FROM character_groups WHERE character_id=300').get().parent_id,mode==='main'?300:100);
+  assert.equal(db.prepare('SELECT status FROM jobs WHERE character_id=300').get().status,'queued');
   assert.equal(db.prepare('SELECT main_id FROM users WHERE id=?').get(a.uid).main_id,100);
   assert.equal(db.prepare('SELECT count(*) n FROM oauth_character_groups').get().n,0);
  });
@@ -1223,4 +1224,54 @@ test("harvest prices retain their previous value on failure and remain protected
   fail=true;db.prepare("UPDATE public_cache SET expires=0 WHERE path='/tools/corp-harvest-prices'").run();
   result=await (await request("/api/corporation/harvest",{session:u.session})).json();assert.equal(result.structures[0].total_value,500);assert.ok(result.prices.error.includes("retained"));assert.equal(calls,2);
  },fakeCat,{verifyCorporation:async()=>({id:668298004,role:"Director"}),eve:{publicGet:async()=>{calls++;if(fail)throw Error("Unavailable");return [{type_id:1,average_price:50}];}}});
+});
+
+test('moon extraction sync retains timers on failure and clears on confirmed empty response',async()=>{
+ let fail=false,entries=[{structure_id:123,moon_id:45,extraction_start_time:'2026-01-01T00:00:00Z',chunk_arrival_time:'2027-01-01T00:00:00Z',natural_decay_time:'2027-01-03T00:00:00Z'}];
+ await fixture(async({db,user,corp})=>{
+  const u=user(100,'Owner');connectCorpFixture(db,u.uid);
+  const {CORP_SCOPES}=await import('../lib/corp.mjs');
+  db.prepare('UPDATE corp_authorizations SET scopes=?').run(JSON.stringify(CORP_SCOPES));
+  const sync=async()=>{db.prepare('UPDATE corp_jobs SET attempted=0').run();corp.queue();await corp.tick();return (await corp.harvest()).extractions;};
+  let result=await sync();assert.equal(result.rows.length,1);assert.equal(result.error,null);
+  fail=true;result=await sync();assert.equal(result.rows.length,1);assert.ok(result.error);assert.equal(corp.snapshot().job.status,'idle');
+  fail=false;entries=[];result=await sync();assert.deepEqual(result.rows,[]);assert.equal(result.error,null);
+ },fakeCat,{verifyCorporation:async()=>({id:668298004,role:'Director'}),corpNetwork:async url=>({ok:!(fail&&url.includes('/extractions')),status:503,headers:new Headers(),json:async()=>url.includes('/extractions')?entries:[]}),eve:{publicGet:async path=>path==='/markets/prices'?[]:{}}});
+});
+
+test('moon extraction display distinguishes empty, unavailable, ready and expired timers',async()=>{
+ const {moonExtractions}=await import('../public/moon-extractions.mjs');
+ const now=Date.parse('2026-01-01T00:00:00Z');
+ assert.match(moonExtractions({rows:[],updated:now},[],now),/No Extractions/);
+ assert.doesNotMatch(moonExtractions({rows:[],error:'Reconnect'},[],now),/No Extractions/);
+ const row={structure_id:1,moon_id:2,chunk_arrival_time:'2026-01-02T02:03:00Z',natural_decay_time:'2026-01-04T00:00:00Z'};
+ assert.match(moonExtractions({rows:[row],updated:now},[{id:1,name:'<Refinery>',type_id:35835}],now),/1d 2h 3m/);
+ assert.match(moonExtractions({rows:[row],updated:now},[],Date.parse(row.chunk_arrival_time)),/Ready to fracture/);
+ assert.match(moonExtractions({rows:[row],updated:now},[],Date.parse(row.natural_decay_time)),/No Extractions/);
+});
+
+test('moon surveys are private and can be filtered and paged',async()=>{
+ await fixture(async({request,user,db})=>{
+  const u=user(100,'Owner');
+  assert.equal((await request('/api/corporation/surveys',{session:u.session})).status,403);
+  connectCorpFixture(db,u.uid);
+  const data=await (await request('/api/corporation/surveys?region=Vale%20of%20the%20Silent&q=LS9B-9',{session:u.session})).json();
+  assert.ok(data.rows.length);assert.ok(data.rows.every(r=>r.region==='Vale of the Silent'&&r.system==='LS9B-9'));
+  assert.ok(!data.regions.includes('Vale'));assert.ok(!data.regions.includes('Geminate West'));
+ },fakeCat,{verifyCorporation:async()=>({id:668298004,role:'Director'})});
+});
+test('extraction estimates preserve partial coverage and reject missing or conflicting survey values',async()=>{
+ const {estimateExtraction}=await import('../lib/moon-surveys.mjs');
+ const e={extraction_start_time:'2026-01-01T00:00:00Z',chunk_arrival_time:'2026-01-02T00:00:00Z'};
+ const survey={name:'Moon',ores:[{name:'Ore',fraction:.8}],sources:[]},price=[{type_id:1,average_price:100}];
+ const calc=s=>estimateExtraction(e,s,price,()=>({volume:10}),()=>1,720000);
+ const result=calc(survey);assert.equal(result.known_m3,576000);assert.equal(result.ores[0].units,57600);assert.equal(result.value,5760000);assert.equal(result.partial,true);
+ assert.ok(calc({...survey,conflict:true}).error);assert.ok(calc({...survey,ores:[{name:'Ore',fraction:null}]}).error);assert.ok(calc(null).error);
+ assert.equal(estimateExtraction(e,survey,[],()=>({volume:10}),()=>1,720000).value,null);
+});
+test('combined PI volume counts finished stock and additional output without ingredients',async()=>{
+ const {combinedVolumes}=await import('../lib/pi.mjs');
+ const targets=[{id:1,existing:10,additional:20},{id:2,existing:1,additional:2}];
+ const result=combinedVolumes(targets,id=>({volume:id===1?6:100}));assert.equal(result.total_m3,480);assert.equal(result.targets[0].combined_m3,180);
+ assert.equal(combinedVolumes(targets,id=>id===1?{volume:6}:null).total_m3,null);
 });

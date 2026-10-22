@@ -1085,3 +1085,9 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 
 /* Keep the activity tiles aligned with training and their contents centred. */
 .my-training-layout{align-items:stretch}.my-training-layout>.my-activity{grid-auto-rows:1fr}.my-training-layout .my-metric{text-align:center;justify-items:center;align-content:center;min-width:0;min-height:62px}.my-training-layout .my-metric>*{max-width:100%;overflow-wrap:anywhere}
+
+.moon-extractions{padding:10px 12px;margin-bottom:10px}.moon-extractions h2{font-size:14px;margin:0 0 8px}.moon-extraction{display:grid;grid-template-columns:minmax(160px,1fr) minmax(120px,1fr) minmax(180px,1fr);gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:12px}.moon-extraction>div{min-width:0}.moon-extraction small{display:block;font-size:11px}.moon-extraction .moon-refinery{display:flex;gap:8px;align-items:center}.moon-refinery img{width:36px;height:36px}.moon-refinery strong{overflow-wrap:anywhere}@media(max-width:700px){.moon-extraction{grid-template-columns:1fr 1fr}.moon-refinery{grid-column:1/-1}}
+
+.moon-surveys{padding:12px}.moon-surveys td{padding:5px 8px;font-size:12px;vertical-align:top}.moon-surveys td small{display:block;font-size:10px}.survey-ore{display:flex;justify-content:space-between;gap:14px;padding:2px 0}.survey-ore span small{display:inline!important}.moon-surveys .filters{gap:8px;flex-wrap:wrap;margin:8px 0}.moon-extraction-estimate{grid-column:1/-1;font-size:11px}.moon-extraction-estimate summary{padding:3px 0}.subscription-cell input:disabled{opacity:.8}
+
+.pi-result{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}

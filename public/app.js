@@ -1,3 +1,5 @@
+import {moonSurveysView} from "./moon-surveys-view.mjs";
+import {moonExtractions,fractureCountdown} from "./moon-extractions.mjs";
 import {characterTraining,characterCharts} from "./character-summary.mjs";
 import {stackAssetRows} from "./asset-tree.mjs";
 import {fuelDeadlines,compareStructureTimers} from "./structure-timers.mjs";
@@ -132,7 +134,7 @@ document.addEventListener("toggle",e=>{
  if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
 },true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Drills</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.19.5</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP">STEMP Tools</div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin","⚙","Invitations"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details><button class="account-icon" data-action="logout" aria-label="Sign out" title="Sign out">${accountIcon("logout")}</button></div><p>STEMP Tools · v0.19.6</p></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -185,8 +187,9 @@ function subscriptionColorClass(state) {
  return state.days===null?'':`subscription-days-${Math.max(0,Math.min(30,state.days))}`;
 }
 function subscriptionCell(c) {
- const state=subscriptionStatus(c.subscription_end);
- return `<div class="subscription-cell"><input type="date" data-subscription-char="${c.id}" value="${esc(c.subscription_end||'')}" aria-label="Subscription expiry for ${esc(c.name)}" title="Manually recorded expiry date · EVE / UTC"><strong class="subscription-status ${subscriptionColorClass(state)}">${state.label}</strong><small class="subscription-save" role="status"></small></div>`;
+ const owner=chars.find(main=>main.id===c.parent_id)||c,inherited=owner.id!==c.id;
+ const state=subscriptionStatus(owner.subscription_end);
+ return `<div class="subscription-cell" ${inherited?`data-subscription-inherits="${owner.id}"`:""}><input type="date" ${inherited?'disabled':`data-subscription-char="${c.id}"`} value="${esc(owner.subscription_end||'')}" aria-label="Subscription expiry for ${esc(c.name)}" title="Manually recorded expiry date · EVE / UTC"><strong class="subscription-status ${subscriptionColorClass(state)}">${state.label}</strong>${inherited?`<small>From ${esc(owner.name)}</small>`:""}<small class="subscription-save" role="status"></small></div>`;
 }
 let overviewExpanded=false;
 try {overviewExpanded=localStorage.getItem('stemp-overview-expanded')==='true';}catch{}
@@ -551,13 +554,15 @@ function exportHarvest(){
  const csv=cells.map(row=>row.map(v=>{let text=String(v);if(/^[=+@\-\t\r]/.test(text))text="'"+text;return '"'+text.replaceAll('"','""')+'"';}).join(',')).join('\r\n');
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='stemp-moon-harvest.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+let surveyFilters={q:'',region:'',tier:'',offset:0};
 async function corporationPage(){
+ if(page==='corp-surveys')return intro('Moon Surveys','Sacred Templars · moon composition directory')+moonSurveysView(await api('/corporation/surveys?'+new URLSearchParams(surveyFilters)),surveyFilters);
  const moon=page==="corp-moons",data=await api(moon?"/corporation/harvest":"/corporation/structures"),rows=data.structures.filter(s=>!moon||s.kind==="Moon Drill");
  if(!moon)rows.sort(compareStructureTimers);
- const header=intro(moon?"Moon Drills":"Structures",moon?"Sacred Templars · corporation operations":"Sacred Templars · next timer first · overdue first, unknown last",'<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?corporation=1">Reconnect Corp ESI</a>');
+ const header=intro(moon?"Moon Mining":"Structures",moon?"Sacred Templars · corporation operations":"Sacred Templars · next timer first · overdue first, unknown last",'<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?corporation=1">Reconnect Corp ESI</a>');
  const status=`<p class="muted corp-status">${data.updated?"Snapshot: "+date(data.updated):"Awaiting first sync"} · ${esc(data.job?.status||"Not queued")}${data.job?.error?`<br><span class="corp-warning">${esc(data.job.error)}</span>`:""}</p>`;
  if(!data.updated)return header+status+empty("Corporation data is being collected","Use Update view after the sync completes.");
- if(moon)return header+status+harvestTable(data);
+ if(moon)return header+status+moonExtractions(data.extractions,data.refineries||[])+harvestTable(data);
  const totals=`<div class="corp-totals"><span><strong>${rows.length}</strong> ${moon?"Moon drills":"Structures"}</span><span><strong>${rows.filter(s=>s.timer).length}</strong> State timers</span>${moon?`<span><strong>${num(rows.reduce((n,s)=>n+s.materials.reduce((a,i)=>a+i.quantity,0),0))}</strong> Stored material units</span>`:""}</div>`;
  return header+status+totals+`<p class="muted">${moon?"Stored materials are the current harvest bay. Collections are minimum observed decreases between snapshots; exact collection times and lifetime production are not supplied by ESI.":"Fuel is reported bay stock. Top-ups project 7 or 30 days from now at current service rates; unknown rates stay unknown. Timers and estimates use UTC."}</p><section class="panel corp-rows">${rows.length?rows.map(s=>`<details><summary><span class="corp-name">${eveIcon(s.type_id)}<span><strong>${esc(s.name)}</strong><small>${esc(s.system)} · ${esc(s.type_name)}</small></span></span><span>${esc(moon?s.mining:s.state.replaceAll("_"," "))}${s.timer?`<small>State ends ${date(s.timer)} · ${eta(s.timer)}</small>`:""}</span><span>${corpStock(s)}</span><span>${corpRunway(s)}</span>${moon?`<span>${num(s.materials.reduce((n,i)=>n+i.quantity,0))} units<small>Empty detected: ${s.history.find(h=>h.emptied)?date(s.history.find(h=>h.emptied).to):"Not observed"}</small></span>`:""}</summary><div class="corp-expanded">${moon?`<h3>Harvest bay</h3>${table(["Material","Units"],s.materials.map(i=>`<tr><td>${eveIcon(i.type_id)} ${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}<h3>Observed collections</h3>${s.history.length?s.history.map(h=>`<details><summary>${h.emptied?"Emptied":"Collection observed"} · ${date(h.from)} – ${date(h.to)}</summary>${table(["Material","Minimum removed"],h.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}</details>`).join(""):"No collections observed yet."}`:`<h3>Timers & services</h3><p>${s.timer?"State timer: "+date(s.timer):"No active state timer reported"}${s.reinforce_hour!=null?" · Reinforcement window centred on "+String(s.reinforce_hour).padStart(2,"0")+":00 UTC (±2 hours)":""}${s.unanchors_at?" · Unanchors: "+date(s.unanchors_at):""}</p>${s.services?.map(v=>`<span class="tag">${esc(v.name)} · ${esc(v.state)}</span>`).join(" ")||"Service data not reported"}`}
  <h3>Fuel planning</h3>${table(["Bay snapshot","7-day top-up","30-day top-up"],[`<tr><td>${date(s.inventory_at)}</td><td>${corpTopup(s,7)}</td><td>${corpTopup(s,30)}</td></tr>`])}${s.kind==="POS"?`<small>POS fuel estimates cover recognised standard towers. Faction/unknown rates are not assumed. Strontium and other supplies:</small>${table(["Resource","In bay"],(s.fuels||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}`:""}</div></details>`).join(""):empty(moon?"No moon drills reported":"No structures reported")}</section>`;
@@ -671,6 +676,8 @@ root.addEventListener("click", async (e) => {
       open?expandedAltGroups.add(id):expandedAltGroups.delete(id);
       document.getElementById('overview-alts-'+id).hidden=!open;
       b.setAttribute('aria-expanded',String(open));b.textContent=b.textContent.replace(/[▾▸]$/,open?'▾':'▸');
+    } else if (b.dataset.surveyOffset!==undefined) {
+      surveyFilters.offset=Number(b.dataset.surveyOffset);await render();
     } else if (b.dataset.action === "harvest-clear") {
       harvestSearch="";harvestRegion="";document.getElementById("harvest-search").value="";document.getElementById("harvest-region").value="";filterHarvest();
     } else if (b.dataset.action === "harvest-export") {exportHarvest();
@@ -749,6 +756,7 @@ root.addEventListener("change",async e=>{
   if(character)character.subscription_end=saved.expires_on;
   const status=subscriptionStatus(saved.expires_on), label=cell.querySelector('.subscription-status');
   label.textContent=status.label;label.className='subscription-status '+subscriptionColorClass(status);feedback.textContent='Saved';
+  document.querySelectorAll('[data-subscription-inherits]').forEach(el=>{if(Number(el.dataset.subscriptionInherits)===character?.id){el.querySelector('input').value=saved.expires_on||'';const label=el.querySelector('.subscription-status');label.textContent=status.label;label.className='subscription-status '+subscriptionColorClass(status);}});
  }catch(error){input.value=character?.subscription_end||'';feedback.textContent='Not saved';toast(error.message);}
  finally{input.disabled=false;}
 });
@@ -804,6 +812,9 @@ root.addEventListener("input", (e) => {
   }
 });
 root.addEventListener("submit", (e) => {
+  if(e.target.id==='moon-survey-search'){
+    e.preventDefault();const values=new FormData(e.target);surveyFilters={q:String(values.get('q')||''),region:String(values.get('region')||''),tier:String(values.get('tier')||''),offset:0};render();
+  }
   if (e.target.id === "asset-search") {
     e.preventDefault();
     const values=new FormData(e.target);
@@ -1041,3 +1052,5 @@ function applyVisualStyles(){
  document.querySelectorAll('[data-viz-gradient]').forEach(el=>el.style.background='conic-gradient('+el.dataset.vizGradient+')');
  document.querySelectorAll('[data-asset-indent]').forEach(el=>el.style.paddingLeft=Math.max(0,Math.min(192,Number(el.dataset.assetIndent)||0))+'px');
 }
+
+setInterval(()=>document.querySelectorAll('[data-moon-fracture]').forEach(el=>el.textContent=fractureCountdown(el.dataset.moonFracture)),10000);

@@ -1,7 +1,8 @@
+import {surveyList} from './lib/moon-surveys.mjs';
 import {assetMatches} from "./public/asset-tree.mjs";
 import {corporationService} from "./lib/corp-management.mjs";
 import {CORP_SCOPES,STEMP_ID,verifyCorporation} from "./lib/corp.mjs";
-import {defaultPISettings,validatePISettings,combinedProduction,jitaPricing} from "./lib/pi.mjs";
+import {defaultPISettings,validatePISettings,combinedProduction,combinedVolumes,jitaPricing} from "./lib/pi.mjs";
 import {validSubscriptionDate} from "./public/subscription.mjs";
 import { fittingView } from "./lib/fitting-view.mjs";
 import skillGroups from "./lib/skill-groups.json" with { type: "json" };
@@ -93,7 +94,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.5" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.6" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -262,6 +263,7 @@ export function createApp(config) {
       }
       return uid;
     });
+    if(flow.user_id || !db.prepare("SELECT 1 FROM snapshots WHERE character_id=? LIMIT 1").get(id.id))sync.queue(user,id.id,true);
     const session = random();
     if (req.session)
       db.prepare("DELETE FROM sessions WHERE id=?").run(req.session.id);
@@ -298,6 +300,7 @@ export function createApp(config) {
     if(!await corp.access(req.session.user_id))return res.status(403).json({error:"Sacred Templars CEO or Director access is required. Connect corporation access again."});
     next();
   });
+  app.get("/api/corporation/surveys",(req,res)=>res.json(surveyList(req.query)));
   app.get("/api/corporation/harvest",async(req,res)=>res.json(await corp.harvest()));
   app.get("/api/corporation/structures",(req,res)=>res.json(corp.snapshot()));
   app.post("/api/corporation/sync",(req,res)=>{corp.queue();res.json({ok:true});});
@@ -442,7 +445,7 @@ export function createApp(config) {
       if(Number.isFinite(item.amount)&&item.amount>0)current.amount+=item.amount;
       stock.set(item.type_id,current);
     }
-    res.json({settings,products:recipes.filter(r=>[3,4].includes(r.tier)).sort((a,b)=>a.name.localeCompare(b.name)),targets:combinedProduction([...stock.values()],settings.targets,recipes),partial:rows.some(r=>!r.data||r.error),updated:rows.length&&rows.every(r=>r.updated)?Math.min(...rows.map(r=>r.updated)):null});
+    res.json({settings,products:recipes.filter(r=>[3,4].includes(r.tier)).sort((a,b)=>a.name.localeCompare(b.name)),...combinedVolumes(combinedProduction([...stock.values()],settings.targets,recipes),id=>cat.type(id)),partial:rows.some(r=>!r.data||r.error),updated:rows.length&&rows.every(r=>r.updated)?Math.min(...rows.map(r=>r.updated)):null});
   });
   app.get("/api/market/keys", async (req,res) => {
     try {
