@@ -1103,3 +1103,17 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 .stemp-login-content h1{margin:0;color:#fff;font-size:clamp(30px,5vw,48px);line-height:1.1;letter-spacing:.025em}
 .stemp-login-content .button{font-size:14px;padding:12px 22px}
 @media(max-width:480px){.stemp-login-logo{width:96vw}.stemp-login-content{padding:24px 20px;gap:18px}}
+
+.fitting-pilots{padding-left:12px}
+.fitting-pilots-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.fitting-pilots-head h3{margin:0;font-size:12px}
+.fitting-pilots-head button{font-size:11px;padding:5px 8px;white-space:nowrap}
+.fitting-pilots .character-group{margin-bottom:0}
+.fitting-pilots .fitting-pilot{padding:4px 0}
+.fitting-pilots .pilot-status-line{flex-wrap:wrap;gap:4px}
+.fitting-pilots .pilot-status-line .portrait{width:24px;height:24px}
+.fitting-pilots .alt-group{margin:2px 0 4px;padding-left:8px}
+.fitting-pilots .alt-group>summary{padding:3px 0;font-size:11px}
+.fitting-pilots.mains-only .alt-group{display:none}
+@media(max-width:900px){.fitting-pilots{padding-left:0}}
+.fitting-pilots .fitting-pilot>details{margin-top:0}

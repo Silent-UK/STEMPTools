@@ -142,6 +142,8 @@ const savedCorp=JSON.parse(db.prepare('SELECT data FROM corp_snapshots WHERE cor
 savedCorp.push({...corpExample,id:126,type_id:35835,type_name:'Athanor',kind:'Structure',name:'Example Athanor',system:'LS9B-9',materials:[]});
 db.prepare('UPDATE corp_snapshots SET data=? WHERE corporation_id=668298004').run(JSON.stringify(savedCorp));
 db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-industry',JSON.stringify({updated:Date.now(),error:null,rows:[{job_id:1,product_type_id:587,blueprint_type_id:688,name:'Rifter',activity_id:1,runs:20,installer:'Example Main',location:'Example Citadel',status:'active',end_date:new Date(Date.now()+9000000).toISOString()},{job_id:2,blueprint_type_id:688,name:'Rifter Blueprint',activity_id:5,runs:10,installer:'Example Industrial',location:'Example Citadel',status:'ready',end_date:new Date(Date.now()-900000).toISOString()},{job_id:3,product_type_id:587,blueprint_type_id:688,name:'Rifter',activity_id:1,runs:5,installer:'Example Main',location:'Example Citadel',status:'paused',end_date:new Date(Date.now()-900000).toISOString()}]}),0);
+db.prepare('UPDATE character_groups SET parent_id=1000001 WHERE character_id=1000003').run();
+db.prepare('INSERT INTO documents VALUES(?,?,?,?,?,?,?)').run('preview-fitting',1,'fitting','Preview Rifter',JSON.stringify('[Rifter, Preview Rifter]'),0,Date.now());
 const { app } = createApp({
  membershipLookup:async()=>({corporation_id:668298004}),
   verifyCorporation:async()=>({id:668298004,role:"Director"}),
