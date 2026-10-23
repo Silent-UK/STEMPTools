@@ -1136,3 +1136,12 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 .account-controls .theme-options{left:auto;right:0}
 @media(max-width:650px){.account{display:none}.brand .brand-version{display:block}}
 @media(min-width:651px){.shell>aside{overflow-y:auto;flex-shrink:0}.shell>aside>*{flex-shrink:0}}
+
+.shell>aside{gap:8px;padding:18px 14px}
+.shell>aside nav button{padding:5px 10px;margin:0;gap:8px;line-height:1.3}
+.shell>aside nav button span{font-size:16px}
+.shell>aside .corp-nav{margin-top:5px}
+.shell>aside .corp-nav>summary{padding:5px 8px}
+.shell>aside .corp-nav nav button{padding-left:20px}
+.shell>aside .navlabel{padding:0 10px 3px}
+.shell>aside .account{padding-top:8px}
