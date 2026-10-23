@@ -1117,3 +1117,11 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 .fitting-pilots.mains-only .alt-group{display:none}
 @media(max-width:900px){.fitting-pilots{padding-left:0}}
 .fitting-pilots .fitting-pilot>details{margin-top:0}
+
+.document-action-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.document-action-row>.actions{gap:6px;flex-wrap:wrap;margin:0}
+.fitting-plan-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0}
+.fitting-plan-controls label{display:flex;align-items:center;gap:6px;margin:0;font-size:12px}
+.fitting-plan-controls select{width:190px;max-width:100%;margin:0}
+.document-action-row button,.fitting-plan-controls select{font-size:12px;padding:8px 10px}
+@media(max-width:480px){.fitting-plan-controls label{flex-wrap:wrap}}
