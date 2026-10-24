@@ -1343,3 +1343,16 @@ test("PI sharing selects only owned pilots, isolates recipients and revokes imme
   assert.deepEqual(config.pilots.map(p=>p.id),[100]);assert.equal(config.grants.length,0);
  });
 });
+
+test('PI market uses highest Jita buy, lowest sell and midpoint with complete cached pages',()=>fixture(async({db})=>{
+ let calls=0,fail=false;
+ const order=(price,buy,location=60003760)=>({type_id:9848,location_id:location,is_buy_order:buy,volume_remain:10,price});
+ const eve={request:async path=>{calls++;const query=new URL('https://esi.evetech.net'+path).searchParams;assert.equal(query.get('order_type'),'all');const page=Number(query.get('page'));if(fail&&page===2)throw Error('outage');return {pages:2,expires:Date.now()+60000,data:page===1?[order(100,false),order(50,true),order(500,true,123),order(1,false,123)]:[order(80,false),order(60,true)]};}};
+ const price=jitaPricing(db,eve,true),quote=(await price([9848]))[0];
+ assert.equal(quote.buy,60);assert.equal(quote.sell,80);assert.equal(quote.average,70);
+ await price([9848]);assert.equal(calls,2);
+ db.prepare('DELETE FROM public_cache').run();fail=true;
+ assert.ok((await price([9848]))[0].error);assert.equal(db.prepare('SELECT count(*) n FROM public_cache').get().n,0);
+ const missing=jitaPricing(db,{request:async()=>({pages:1,expires:Date.now()+60000,data:[order(100,false)]})},true);
+ const q=(await missing([9848]))[0];assert.equal(q.buy,null);assert.equal(q.sell,100);assert.equal(q.average,null);
+}));
