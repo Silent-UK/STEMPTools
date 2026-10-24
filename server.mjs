@@ -106,7 +106,7 @@ export function createApp(config) {
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.25" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.26" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -425,7 +425,7 @@ export function createApp(config) {
   const pricePI=jitaPricing(db,eve),marketPI=jitaPricing(db,eve,true);
   app.get('/api/pi/market',async(req,res)=>{
     const recipes=piRecipes(),fuelNames=['Coolant','Enriched Uranium','Mechanical Parts','Oxygen','Robotics'];
-    const groups=[{name:'Fuel Blocks',description:'PI ingredients used to manufacture fuel blocks.',items:fuelNames.map(name=>({id:cat.named(name),name})).filter(r=>r.id)},...[3,4].map(tier=>({name:'P'+tier,items:recipes.filter(r=>r.tier===tier).sort((a,b)=>a.name.localeCompare(b.name)).map(r=>({id:r.id,name:r.name}))}))];
+    const groups=[{name:'Fuel Blocks',description:'PI ingredients used to manufacture fuel blocks.',items:fuelNames.map(name=>({id:cat.named(name),name})).filter(r=>r.id)},...[2,3,4].map(tier=>({name:'P'+tier,items:recipes.filter(r=>r.tier===tier).sort((a,b)=>a.name.localeCompare(b.name)).map(r=>({id:r.id,name:r.name}))}))];
     const quotes=new Map((await marketPI([...new Set(groups.flatMap(g=>g.items.map(r=>r.id)))])).map(q=>[q.id,q]));
     res.json({groups:groups.map(g=>({...g,items:g.items.map(r=>({...r,...quotes.get(r.id)}))}))});
   });
