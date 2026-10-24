@@ -1151,3 +1151,5 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 
 .pi-toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.pi-toolbar [aria-pressed=true]{background:var(--accent);color:var(--bg)}
 .pi-share-pilots{max-height:320px;overflow:auto;margin:6px 0}.pi-share-check{display:flex!important;align-items:center;gap:7px;padding:4px 0}.pi-share-check input{width:auto!important;margin:0}#pi-share-error{color:#ff8383}
+
+.pi-status-filters .pi-filter-alts{margin-left:auto}
