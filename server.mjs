@@ -106,7 +106,7 @@ export function createApp(config) {
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.21" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.22" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -429,6 +429,29 @@ export function createApp(config) {
       db.prepare("INSERT INTO pi_settings VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data").run(req.session.user_id,JSON.stringify(settings));
       res.json(settings);
     }catch(e){res.status(400).json({error:e.message});}
+  });
+  app.get("/api/pi/shares",(req,res)=>{
+    const owner=req.session.user_id;
+    res.json({recipients:db.prepare("SELECT id,name,main_id FROM users WHERE id<>? ORDER BY name COLLATE NOCASE").all(owner),
+      pilots:db.prepare("SELECT id,name FROM characters WHERE user_id=? ORDER BY name COLLATE NOCASE").all(owner),
+      grants:db.prepare("SELECT s.recipient_id,s.character_id FROM pi_shares s JOIN characters c ON c.id=s.character_id AND c.user_id=s.owner_id WHERE s.owner_id=?").all(owner)});
+  });
+  app.post("/api/pi/shares",(req,res)=>{
+    const owner=req.session.user_id,{recipient_id,character_ids}=req.body;
+    if(!Number.isSafeInteger(recipient_id)||recipient_id===owner||!db.prepare("SELECT id FROM users WHERE id=?").get(recipient_id)||!Array.isArray(character_ids)||character_ids.length>1000||character_ids.some(id=>!Number.isSafeInteger(id)))return res.status(400).json({error:"Choose a registered recipient and your pilots."});
+    try {
+      transaction(db,()=>{
+        for(const id of character_ids)ownedCharacter(db,owner,id);
+        db.prepare("DELETE FROM pi_shares WHERE owner_id=? AND recipient_id=?").run(owner,recipient_id);
+        const add=db.prepare("INSERT INTO pi_shares VALUES(?,?,?)");
+        for(const id of new Set(character_ids))add.run(owner,recipient_id,id);
+      });
+      res.json({ok:true});
+    }catch(e){res.status(e.status||400).json({error:e.message});}
+  });
+  app.get("/api/pi/shared",(req,res)=>{
+    const rows=db.prepare("SELECT c.id,c.name,u.name owner_name,s.data,s.updated,g.owner_id FROM pi_shares g JOIN characters c ON c.id=g.character_id AND c.user_id=g.owner_id JOIN users u ON u.id=g.owner_id LEFT JOIN snapshots s ON s.character_id=c.id AND s.kind='pi' WHERE g.recipient_id=? ORDER BY u.name COLLATE NOCASE,c.name COLLATE NOCASE").all(req.session.user_id);
+    res.json(rows.map(r=>({id:r.id,name:r.name,owner_name:r.owner_name,updated:r.updated||null,data:r.data?piSummary(JSON.parse(r.data),cat):null,settings:{perfect:piSettings(r.owner_id).perfect,critical:piSettings(r.owner_id).critical}})));
   });
   app.get("/api/pi/prices",async(req,res)=>res.json(await pricePI(piSettings(req.session.user_id).targets)));
   app.get("/api/pi/dashboard",(req,res)=>{

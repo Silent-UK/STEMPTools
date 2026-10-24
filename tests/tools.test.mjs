@@ -1314,3 +1314,32 @@ test('whitelist migration preserves old invitations and does not re-add removed 
   assert.equal(db.prepare('SELECT count(*) n FROM login_whitelist').get().n,1);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test("PI sharing selects only owned pilots, isolates recipients and revokes immediately",async()=>{
+ await fixture(async({db,user,request})=>{
+  const a=user(100,"Alice"),b=user(200,"Bob"),c=user(300,"Carol");
+  db.prepare("INSERT INTO characters SELECT 101,user_id,'Alice alt',owner_hash,tokens,scopes,expires,reconnect FROM characters WHERE id=100").run();
+  const share=(session,recipient_id,character_ids)=>request('/api/pi/shares',{session,method:'POST',body:{recipient_id,character_ids}});
+  const shared=async session=>(await request('/api/pi/shared',{session})).json();
+  assert.equal((await request('/api/pi/shared')).status,401);
+  assert.equal((await share(a.session,b.uid,[100,101])).status,200);
+  assert.deepEqual((await shared(b.session)).map(r=>r.id),[100,101]);
+  assert.deepEqual(await shared(c.session),[]);
+  const row=(await shared(b.session))[0];
+  assert.equal(row.owner_name,'Alice');assert.equal(row.tokens,undefined);assert.equal(row.scopes,undefined);
+  assert.equal((await share(a.session,b.uid,[200])).status,404);
+  assert.equal((await shared(b.session)).length,2,'invalid replacement leaves current grants intact');
+  assert.equal((await share(a.session,a.uid,[100])).status,400);
+  assert.equal((await request('/api/pi/shares',{session:a.session,method:'POST',origin:'https://other.example',body:{recipient_id:b.uid,character_ids:[]}})).status,403);
+  assert.equal((await share(a.session,b.uid,[101])).status,200);
+  assert.deepEqual((await shared(b.session)).map(r=>r.id),[101]);
+  assert.equal((await request('/api/characters/101/sync',{session:b.session,method:'POST',body:{}})).ok,false);
+  assert.equal((await share(a.session,b.uid,[])).status,200);
+  assert.deepEqual(await shared(b.session),[]);
+  await share(a.session,b.uid,[101]);
+  db.prepare('UPDATE characters SET user_id=? WHERE id=101').run(c.uid);
+  assert.deepEqual(await shared(b.session),[],'ownership changes invalidate previous sharing');
+  const config=await(await request('/api/pi/shares',{session:a.session})).json();
+  assert.deepEqual(config.pilots.map(p=>p.id),[100]);assert.equal(config.grants.length,0);
+ });
+});

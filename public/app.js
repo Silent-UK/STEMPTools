@@ -135,7 +135,7 @@ document.addEventListener("toggle",e=>{
  if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
 },true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.19.21</small></div></div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.19.22</small></div></div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -175,7 +175,7 @@ async function render() {
       applyPIStatusFilters();
       applyVisualStyles();
       renderedPage=page;
-      if(page==="pi"&&piDashboard?.targets.length)refreshPIPrices(run);
+      if(page==="pi"&&!piShared&&piDashboard?.targets.length)refreshPIPrices(run);
       if(samePage) window.scrollTo({top:scrollY,behavior:"instant"});
     }
   } catch (e) {
@@ -319,7 +319,7 @@ async function documents() {
     }</section>`
   );
 }
-let piDashboard=null,piDraftTargets=[];
+let piDashboard=null,piDraftTargets=[],piShared=false,piShares=null;
 const piStatusFilters=new Set();
 function piFilterBar(){return `<div class="pi-status-filters" role="group" aria-label="Filter planets by extractor status">${[['stopped','Not Running'],['attention','Needs Attention'],['critical','Critical']].map(([key,label])=>`<button data-pi-filter="${key}" aria-pressed="${piStatusFilters.has(key)}">${label}</button>`).join('')}<small>Any selected status · no selection shows all</small><small id="pi-filter-count" role="status"></small></div><p id="pi-filter-empty" hidden>No planets match the selected filters.</p>`;}
 function applyPIStatusFilters(){
@@ -343,10 +343,22 @@ async function refreshPIPrices(run){
   if(note)note.textContent=quote?.price!=null?`${num(quote.price)} ISK / unit · Jita IV–4 · ${date(quote.updated)}`:"Jita sell price unavailable";
  }
 }
+function piShareView(){
+ return `<h2>Share planetary industry</h2><p>Share selected pilots’ planets, production and storage. Recipients can view only. Untick pilots to remove access, or use Unshare all.</p><form id="pi-share-form"><label>Share to<select name="recipient" id="pi-share-recipient" required><option value="">Choose a member</option>${piShares.recipients.map(r=>`<option value="${r.id}">${esc(r.name)} · ${r.main_id}</option>`).join('')}</select></label><label class="pi-share-check"><input type="checkbox" id="pi-share-all">Select all pilots</label><div class="pi-share-pilots">${piShares.pilots.map(c=>`<label class="pi-share-check"><input type="checkbox" name="pilot" value="${c.id}">${esc(c.name)}</label>`).join('')}</div><p id="pi-share-error" role="alert"></p><div class="actions"><button type="submit" class="primary">Save sharing</button><button type="button" id="pi-unshare">Unshare all</button></div></form>`;
+}
+function updatePIShareSelection(){
+ const recipient=Number(dialog.querySelector('#pi-share-recipient').value);
+ dialog.querySelectorAll('[name=pilot]').forEach(el=>el.checked=piShares.grants.some(g=>g.recipient_id===recipient&&g.character_id===Number(el.value)));
+ updatePIShareAll();
+}
+function updatePIShareAll(){
+ const boxes=[...dialog.querySelectorAll('[name=pilot]')],all=dialog.querySelector('#pi-share-all'),count=boxes.filter(b=>b.checked).length;
+ all.checked=boxes.length>0&&count===boxes.length;all.indeterminate=count>0&&count<boxes.length;
+}
 async function operations() {
   const kind = page === "pi" ? "pi" : "dens",
-    rows = await api("/operations/" + kind);
-  const populated = (kind==="pi"?visibleCharacters(rows):rows).filter(c => Array.isArray(c.data) && c.data.length > 0);
+    rows = await api(kind==="pi"&&piShared?"/pi/shared":"/operations/" + kind);
+  const populated = (kind==="pi"&&!piShared?visibleCharacters(rows):rows).filter(c => Array.isArray(c.data) && c.data.length > 0);
   const pending = rows.filter(c => !Array.isArray(c.data) || c.error).length;
   if(kind==="pi")piDashboard=await api("/pi/dashboard");
   if(kind==="dens") denPrice=await api("/market/keys").catch(()=>({price:null}));
@@ -356,18 +368,18 @@ async function operations() {
       kind === "pi"
         ? "Your colonies, production programmes and launchpad inventory."
         : "Every linked character’s dens and available tactical operations.",
-      kind==="pi"?'<button data-action="pi-settings">⚙ Settings</button>':"",
+      kind==="pi"?`<div class="actions pi-toolbar"><button data-action="pi-settings">⚙ Settings</button><button data-action="page-alts" aria-pressed="${pageAlts.pi}" ${piShared?"disabled":""}>${pageAlts.pi?"Hide alts":"Show alts"}</button><button data-action="pi-share">Share</button><button data-action="pi-shared" aria-pressed="${piShared}">Shared with me</button></div>`:"",
     ) +
-    (kind==="dens" ? denOverview(rows) : altFilter()+piDashboardView(piDashboard)+piFilterBar()) +
+    (kind==="dens" ? denOverview(rows) : (piShared?'<p class="muted">Read-only PI shared with you. All shared pilots are shown.</p>':piDashboardView(piDashboard))+piFilterBar()) +
     (kind === "pi" ? "" : `<div class="notice">Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data.</div>`) +
-    (pending ? `<div class="notice">${pending} character${pending === 1 ? '' : 's'} awaiting a successful sync. Use Refresh all characters to retry.</div>` : '') +
+    (pending ? `<div class="notice">${pending} character${pending === 1 ? '' : 's'} awaiting a successful sync. ${kind==='pi'&&piShared?'The owner needs to sync these pilots.':'Use Refresh all characters to retry.'}</div>` : '') +
     (populated.length ? (kind==="pi" ? (items,render)=>items.map(render).join('') : groupedCharacters)(populated,
         (c) =>
-          `<section class="panel" ${kind==="pi"?"data-pi-character":""}><div class="panelhead">${portrait(c)}<div class="actions">${kind==="pi"?`<small class="pi-planet-count">${c.data.length} of up to 6 planets occupied</small>`:""}<small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)}</div>` : ""}${!c.data ? empty("Awaiting first sync") : kind === "pi" ? planets(c.data) : dens(c.data)}</section>`,
-      ) : empty(kind === "pi" ? "No planetary colonies reported for visible characters" : "No Mercenary Dens reported", pending ? "Some characters still need a successful sync." : "None of your synced characters have any."))
+          `<section class="panel" ${kind==="pi"?"data-pi-character":""}><div class="panelhead">${kind==="pi"&&piShared?`<div class="pilot"><img class="portrait" alt="" src="https://images.evetech.net/characters/${c.id}/portrait?size=64"><div><strong>${esc(c.name)}</strong><small>Shared by ${esc(c.owner_name)}</small></div></div>`:portrait(c)}<div class="actions">${kind==="pi"?`<small class="pi-planet-count">${c.data.length} of up to 6 planets occupied</small>`:""}<small>${date(c.updated)}</small>${kind==="pi"&&piShared?"":`<button data-sync-char="${c.id}">↻ Sync character</button>`}</div></div>${c.error ? `<div class="notice error">${esc(c.error)}</div>` : ""}${!c.data ? empty("Awaiting first sync") : kind === "pi" ? planets(c.data,c.settings||piDashboard.settings) : dens(c.data)}</section>`,
+      ) : empty(kind === "pi" ? (piShared?"No planets shared with you":"No planetary colonies reported for visible characters") : "No Mercenary Dens reported", pending ? "Some characters still need a successful sync." : kind==="pi"&&piShared?"Ask a member to share their PI with you.":"None of your synced characters have any."))
   );
 }
-function planets(rows) {
+function planets(rows,settings=piDashboard.settings) {
   if (!rows.length) return empty("No colonies reported");
   const types = {
     temperate: 11,
@@ -380,7 +392,7 @@ function planets(rows) {
     plasma: 2063,
     shattered: 30889,
   };
-  return `<div class="planetgrid">${rows.map((p) => `<article class="planet" data-pi-status="${piPlanetStatuses(p,piDashboard.settings).join(' ')}"><div class="planet-heading"><img src="https://images.evetech.net/types/${p.info?.type_id || types[p.planet_type] || 11}/icon?size=64" alt="${esc(p.planet_type)} planet"><div><strong>${esc(p.systemName)}</strong><small>${esc(p.info?.name || p.planet_id)} · ${esc(p.planet_type)}</small></div></div><small>${p.resetAt ? `Extractor reset: <span data-reset="${esc(p.resetAt)}">${Date.parse(p.resetAt) <= Date.now() ? "Reset needed" : eta(p.resetAt)}</span>` : "No extraction programme"}</small>${extractionRows(p,piDashboard.settings)}${p.finalProducts.length ? p.finalProducts.map((r) => `<div class="planet-product"><div class="planet-product-line"><strong class="icon-label">${eveIcon(r.type_id)}${esc(r.name)}</strong>${p.production.some(r=>r.kind==="Extractor")?"":`<span title="Configured factory capacity; input supply may reduce output">- ${num(r.perHour)}/hr capacity</span>`}</div><small>${num(r.stored)} in launchpads</small></div>`).join("") : "<small>No final product configured</small>"}${launchpadRows(p)}<details><summary>All production & storage</summary>${p.production.map((r) => `<div class="production"><span>${esc(r.name)}<small>${esc(r.kind)} · ${esc(r.status)}</small></span><strong>${num(r.perHour)}/h</strong></div>`).join("")}<h3>Storage</h3>${p.storage.map((l) => `<small>${esc(l.kind)} ${l.id}</small>${l.contents.length ? l.contents.map((i) => `<div class="production"><span>${esc(i.name)}</span><strong>${num(i.amount)}</strong></div>`).join("") : "<small>Empty</small>"}`).join("")}</details></article>`).join("")}</div>`;
+  return `<div class="planetgrid">${rows.map((p) => `<article class="planet" data-pi-status="${piPlanetStatuses(p,settings).join(' ')}"><div class="planet-heading"><img src="https://images.evetech.net/types/${p.info?.type_id || types[p.planet_type] || 11}/icon?size=64" alt="${esc(p.planet_type)} planet"><div><strong>${esc(p.systemName)}</strong><small>${esc(p.info?.name || p.planet_id)} · ${esc(p.planet_type)}</small></div></div><small>${p.resetAt ? `Extractor reset: <span data-reset="${esc(p.resetAt)}">${Date.parse(p.resetAt) <= Date.now() ? "Reset needed" : eta(p.resetAt)}</span>` : "No extraction programme"}</small>${extractionRows(p,settings)}${p.finalProducts.length ? p.finalProducts.map((r) => `<div class="planet-product"><div class="planet-product-line"><strong class="icon-label">${eveIcon(r.type_id)}${esc(r.name)}</strong>${p.production.some(r=>r.kind==="Extractor")?"":`<span title="Configured factory capacity; input supply may reduce output">- ${num(r.perHour)}/hr capacity</span>`}</div><small>${num(r.stored)} in launchpads</small></div>`).join("") : "<small>No final product configured</small>"}${launchpadRows(p)}<details><summary>All production & storage</summary>${p.production.map((r) => `<div class="production"><span>${esc(r.name)}<small>${esc(r.kind)} · ${esc(r.status)}</small></span><strong>${num(r.perHour)}/h</strong></div>`).join("")}<h3>Storage</h3>${p.storage.map((l) => `<small>${esc(l.kind)} ${l.id}</small>${l.contents.length ? l.contents.map((i) => `<div class="production"><span>${esc(i.name)}</span><strong>${num(i.amount)}</strong></div>`).join("") : "<small>Empty</small>"}`).join("")}</details></article>`).join("")}</div>`;
 }
 setInterval(
   () =>
@@ -436,7 +448,7 @@ function cloneLocations(clones) {
 }
 async function clonesPage() {
  const chars=await api("/operations/clones");
- return intro("Clones","Jump clones sorted by location. Readiness is estimated from the last EVE snapshot.")+'<small>Switching clones within the same Upwell structure can bypass the jump cooldown. Destination access and other in-game restrictions still apply.</small><div class="clone-grid">'+groupedCharacters(chars,c=>`<section class="panel compact"><div class="panelhead">${portrait(c)}<div class="actions">${kind==="pi"?`<small class="pi-planet-count">${c.data.length} of up to 6 planets occupied</small>`:""}<small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>`:""}${!c.data?empty("Awaiting clone sync"):`<div class="clone-readiness"><strong>Next Clone Jump</strong> - <span data-clone-ready="${esc(c.data.ready_at||"")}">${cloneTimer(c.data.ready_at)}</span></div><div class="clone-capacity" title="Stored jump clones / capacity from active Infomorph Psychology skills; excludes your active body">Total Clones <strong>${c.data.clones.length}/${c.data.capacity??'—'}</strong></div><details class="clone-active asset-location" open><summary>Active clone · ${c.data.active_implants.length} implants</summary><div class="clone-implants">${implantList(c.data.active_implants)}</div></details>${cloneLocations(c.data.clones)}`}</section>`)+'</div>';
+ return intro("Clones","Jump clones sorted by location. Readiness is estimated from the last EVE snapshot.")+'<small>Switching clones within the same Upwell structure can bypass the jump cooldown. Destination access and other in-game restrictions still apply.</small><div class="clone-grid">'+groupedCharacters(chars,c=>`<section class="panel compact"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>`:""}${!c.data?empty("Awaiting clone sync"):`<div class="clone-readiness"><strong>Next Clone Jump</strong> - <span data-clone-ready="${esc(c.data.ready_at||"")}">${cloneTimer(c.data.ready_at)}</span></div><div class="clone-capacity" title="Stored jump clones / capacity from active Infomorph Psychology skills; excludes your active body">Total Clones <strong>${c.data.clones.length}/${c.data.capacity??'—'}</strong></div><details class="clone-active asset-location" open><summary>Active clone · ${c.data.active_implants.length} implants</summary><div class="clone-implants">${implantList(c.data.active_implants)}</div></details>${cloneLocations(c.data.clones)}`}</section>`)+'</div>';
 }
 setInterval(()=>document.querySelectorAll("[data-clone-ready]").forEach(el=>el.textContent=cloneTimer(el.dataset.cloneReady)),10000);
 const pageAlts={industry:false,pi:false,assets:false,characters:false};
@@ -468,7 +480,7 @@ async function industry() {
     `<div class="toolbar"><input class="blueprint-filter" aria-label="Search blueprints across visible characters" placeholder="Search blueprints across visible characters…"><small id="blueprint-results" role="status"></small></div>` +
     rows.map(
         (c) =>
-          `<section class="panel compact industry-character" data-industry-char="${c.id}" ${c.id===Number(selected)?'':'hidden'}><div class="panelhead">${portrait(c)}<div class="actions">${kind==="pi"?`<small class="pi-planet-count">${c.data.length} of up to 6 planets occupied</small>`:""}<small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
+          `<section class="panel compact industry-character" data-industry-char="${c.id}" ${c.id===Number(selected)?'':'hidden'}><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
             !c.data
               ? empty("Awaiting Industry sync")
               : `<h3>Jobs · ${c.data.jobs.length}</h3>${
@@ -655,6 +667,10 @@ root.addEventListener("click", async (e) => {
       const key=b.dataset.piFilter;piStatusFilters.has(key)?piStatusFilters.delete(key):piStatusFilters.add(key);applyPIStatusFilters();
     } else if (b.dataset.action === "page-alts" && Object.hasOwn(pageAlts,page)) {
       pageAlts[page]=!pageAlts[page];assetOffset=0;await render();
+    } else if(b.dataset.action==='pi-shared') {
+      piShared=!piShared;await render();
+    } else if(b.dataset.action==='pi-share') {
+      piShares=await api('/pi/shares');openDialog(piShareView());
     } else if(b.dataset.action==='pi-settings') {
       piDraftTargets=[...piDashboard.settings.targets];openDialog(piSettingsView(piDashboard));
     } else if(b.dataset.action==='update-view') {
@@ -934,11 +950,25 @@ dialog.addEventListener("click",documentClick);
 root.addEventListener("click",e=>{if(e.target.closest(".inline-fitting"))documentClick(e);});
 
 dialog.addEventListener("change",e=>{
+ if(e.target.id==='pi-share-recipient'){updatePIShareSelection();return;}
+ if(e.target.id==='pi-share-all'){dialog.querySelectorAll('[name=pilot]').forEach(el=>el.checked=e.target.checked);updatePIShareAll();return;}
+ if(e.target.name==='pilot'){updatePIShareAll();return;}
+
  if(e.target.id!=="add-character-group")return;
  const label=dialog.querySelector('#add-character-parent'),alt=e.target.value==='alt';
  label.hidden=!alt;label.querySelector('select').disabled=!alt;
 });
+dialog.addEventListener('click',async e=>{
+ if(e.target.id!=='pi-unshare')return;
+ const form=dialog.querySelector('#pi-share-form');if(!form.reportValidity())return;
+ form.querySelectorAll('[name=pilot]').forEach(el=>el.checked=false);updatePIShareAll();form.requestSubmit();
+});
 async function documentSubmit(e) {
+  if(e.target.id==='pi-share-form'){
+    e.preventDefault();const form=e.target,values=new FormData(form),buttons=form.querySelectorAll('button');buttons.forEach(b=>b.disabled=true);
+    try{await api('/pi/shares',{recipient_id:Number(values.get('recipient')),character_ids:values.getAll('pilot').map(Number)});dialog.close();await render();toast('PI sharing updated');}catch(error){dialog.querySelector('#pi-share-error').textContent=error.message;}finally{buttons.forEach(b=>b.disabled=false);}return;
+  }
+
   if(e.target.id==="pi-settings"){
     e.preventDefault();const values=new FormData(e.target),button=e.target.querySelector('[type=submit]');button.disabled=true;
     try{await api('/pi/settings',{perfect:Number(values.get('perfect')),critical:Number(values.get('critical')),targets:piDraftTargets},'POST');dialog.close();await render();}catch(error){document.querySelector('#pi-settings-error').textContent=error.message;}finally{button.disabled=false;}
