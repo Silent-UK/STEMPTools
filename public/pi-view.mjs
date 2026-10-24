@@ -12,7 +12,7 @@ export function extractionRows(p,settings){
 }
 export function piDashboardView(data){
  if(!data.targets.length)return '<div class="pi-setup"><span>Select P3/P4 targets to see your stock, potential output and Jita value.</span><button data-action="pi-settings">Choose products</button></div>';
- return `<div class="pi-overview-head"><div><strong>Production goals</strong><small>${data.partial?'Partial stock · some characters need a successful sync':'Stock across all linked characters'} · launchpads, storage and command centres</small></div></div><div class="pi-goals">${data.targets.map((t,index)=>`<article class="pi-goal"><div class="pi-goal-title"><span class="icon-label">${icon(t.id)}<strong>${esc(t.name)}</strong></span><small>P${t.tier} · Priority ${index+1}</small></div><div class="pi-ingredients">${t.ingredients.map(i=>`<div><span class="icon-label">${icon(i.id)}${esc(i.name)}</span><strong>${num(i.stored)}</strong><small>${i.available!==i.stored?num(i.available)+' available after earlier targets':i.quantity+' per batch'}</small></div>`).join('')}</div><div class="pi-result"><div><small>Already stored</small><strong>${num(t.existing)}</strong></div><div><small>If combined · additional</small><strong class="pi-potential">${num(t.additional)}</strong></div><div><small>Combined volume</small><strong>${volume(t.combined_m3)}</strong></div><div><small>Combined value</small><strong data-pi-value="${t.id}">Checking…</strong></div></div><small data-pi-price="${t.id}"></small></article>`).join('')}</div><details class="pi-calculation-note"><summary>How these totals work</summary><p>Targets use stock in priority order without counting ingredients twice. Existing selected end products are kept as finished stock. Combined volume includes existing finished stock plus potential additional output, excluding leftover ingredients. Lower-tier stock can be processed through intermediate recipes; materials may need hauling. Potential output does not include future extraction, factory time or taxes. Jita values assume all finished units sell at the lowest current sell listing; market depth is not simulated. EVE may only recalculate stored quantities when you view the colony in game.</p></details>`;
+ return `<div class="pi-overview-head"><div><strong>Production goals</strong><small>${data.partial?'Partial stock · some characters need a successful sync':'Stock across all linked characters'} · launchpads, storage and command centres</small></div></div><div class="pi-goals">${data.targets.map((t,index)=>`<article class="pi-goal"><div class="pi-goal-title"><span class="icon-label">${icon(t.id)}<strong>${esc(t.name)}</strong></span><small>P${t.tier} · Priority ${index+1}</small></div><div class="pi-ingredients">${t.ingredients.map(i=>`<div><span class="icon-label">${icon(i.id)}${esc(i.name)}</span><strong>${num(i.stored)}</strong><small>${i.available!==i.stored?num(i.available)+' available after earlier targets':i.quantity+' per batch'}</small></div>`).join('')}</div><div class="pi-result"><div><small>Already stored</small><strong>${num(t.existing)}</strong></div><div><small>If combined · additional</small><strong class="pi-potential">${num(t.additional)}</strong></div><div><small>Combined volume</small><strong>${volume(t.combined_m3)}</strong></div><div><small>Combined value</small><strong data-pi-value="${t.id}">Checking…</strong></div></div><small data-pi-price="${t.id}"></small></article>`).join('')}</div>`;
 }
 export function piTargetList(ids,products){
  return ids.length?ids.map((id,i)=>`<div class="pi-target-row"><span>${i+1}. ${esc(products.find(p=>p.id===id)?.name||id)}</span><button type="button" data-pi-move="${i}" data-direction="-1" ${i===0?'disabled':''} aria-label="Move target ${i+1} up">↑</button><button type="button" data-pi-move="${i}" data-direction="1" ${i===ids.length-1?'disabled':''} aria-label="Move target ${i+1} down">↓</button><button type="button" data-pi-remove="${id}" aria-label="Remove ${esc(products.find(p=>p.id===id)?.name||id)}">×</button></div>`).join(''):'<small>No end products selected.</small>';
@@ -25,4 +25,17 @@ export function launchpadRows(planet){
  const pads=planet.launchpads||planet.storage?.filter(s=>s.kind==='Launchpad')||[];
  const volume=n=>Number(n).toLocaleString('en-GB',{maximumFractionDigits:2});
  return pads.map((pad,i)=>{const u=pad.usage,known=u&&Number.isFinite(u.used);return `<div class="pi-launchpad"><span>Launchpad${pads.length>1?' '+(i+1):''}</span><strong class="${known?'corp-'+u.level:'muted'}" title="${known?volume(u.freePercent)+'% free · last EVE snapshot':'Stored item volume unavailable'}">${known?volume(u.used)+' m³ / '+volume(u.capacity)+' m³':'Volume unavailable'}</strong></div>`;}).join('');
+}
+
+export function piPlanetStatuses(planet,settings,now=Date.now()) {
+ const flags=new Set();
+ for(const r of planet.production||[]) {
+  if(r.kind!=='Extractor')continue;
+  if(r.status==='Stopped'||(r.expires&&Date.parse(r.expires)<=now)){flags.add('stopped');continue;}
+  if(!(r.expires&&Date.parse(r.expires)>now))continue;
+  if(!Number.isFinite(r.averagePerHour))continue;
+  if(r.averagePerHour<settings.critical)flags.add('critical');
+  else if(r.averagePerHour<settings.perfect)flags.add('attention');
+ }
+ return [...flags];
 }

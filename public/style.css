@@ -1145,3 +1145,4 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 .shell>aside .corp-nav nav button{padding-left:20px}
 .shell>aside .navlabel{padding:0 10px 3px}
 .shell>aside .account{padding-top:8px}
+.pi-status-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0}.pi-status-filters button{padding:5px 9px;font-size:12px}.pi-status-filters button[aria-pressed="true"]{background:var(--accent,#8bcfff);color:#101722;border-color:currentColor}.pi-status-filters small{margin-left:4px}[data-pi-status][hidden],[data-pi-character][hidden],#pi-filter-empty[hidden]{display:none!important}
