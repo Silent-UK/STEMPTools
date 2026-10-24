@@ -7,7 +7,7 @@ export function extractionRows(p,settings){
    const stopped=r.expires&&Date.parse(r.expires)<=Date.now(),rate=r.averagePerHour;
    const quality=rate==null?'unknown':rate>=settings.perfect?'perfect':rate<settings.critical?'critical':'attention';
    const label=stopped?'Reset needed':({unknown:'Rate unavailable',perfect:'Perfect',critical:'Critical',attention:'Requires attention'})[quality];
-   return `<div class="pi-extractor ${stopped?'stopped':quality}" data-extractor-expiry="${esc(r.expires||'')}" title="${rate==null?'Programme dates or output unavailable':`${num(r.programmeTotal)} units over ${Number(r.programmeHours).toLocaleString(undefined,{maximumFractionDigits:2})} hours · programme average`}"><div><span>${esc(r.name)}</span><strong>${num(rate==null?null:Math.floor(rate))}/hr</strong></div><small class="pi-extractor-state">${label}${stopped&&rate!==null?' · last programme':''}</small></div>`;
+   return `<div class="pi-extractor ${stopped?'stopped':quality}" data-extractor-expiry="${esc(r.expires||'')}" aria-label="${esc(r.name)}: ${label}" title="${rate==null?'Programme dates or output unavailable':`${num(r.programmeTotal)} units over ${Number(r.programmeHours).toLocaleString(undefined,{maximumFractionDigits:2})} hours · programme average`}"><div><span>${esc(r.name)}</span><strong>${num(rate==null?null:Math.floor(rate))}/hr</strong></div><small class="pi-extractor-state" ${!stopped&&quality!=='unknown'?'hidden':''}>${label}${stopped&&rate!==null?' · last programme':''}</small></div>`;
  }).join('');
 }
 export function piDashboardView(data){
