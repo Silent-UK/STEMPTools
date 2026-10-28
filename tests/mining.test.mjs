@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {collectMining,MINING_SCOPE} from '../lib/mining.mjs';
-import {miningSummary,miningView} from '../public/mining-view.mjs';
+import {miningSummary,miningView,combinedMining} from '../public/mining-view.mjs';
 const c={id:1,scopes:JSON.stringify([MINING_SCOPE])},now=Date.parse('2026-10-28T12:00:00Z'),cat={type:id=>id===1?{name:'Veldspar',volume:.1}:null};
 const row={date:'2026-10-28',type_id:1,solar_system_id:30000142,quantity:100};
 test('mining paginates, replaces cumulative quantities and retains historical records',async()=>{
@@ -22,4 +22,15 @@ test('daily chart aggregates systems, respects UTC filters and flags unknown vol
  const result=miningSummary(rows,{days:'7'},now);assert.equal(result.series.length,7);assert.equal(result.volume,10);assert.equal(result.units,200);assert.equal(result.unknown,1);assert.equal(result.active,1);
  assert.equal(miningSummary(rows,{days:'all',q:'Jita'},now).rows.length,2);
  const html=miningView({rows,started_at:now},{days:'7'},0,now);assert(!html.includes('<ore>'));assert(html.includes('&lt;ore&gt;'));assert(html.includes('unknown item volume excluded'));assert(!html.includes('NaN'));
+});
+
+test('combined mining includes mains and alts without merging away their separate entries',()=>{
+ const sample={...row,name:'Veldspar',system:'Jita',volume_m3:10};
+ const characters=[{id:1,name:'Main',updated:100,data:{rows:[sample],started_at:20}},{id:2,parent_id:1,name:'Alt <One>',updated:90,error:'Failed',data:{rows:[sample],started_at:10}},{id:3,name:'Unconnected'}];
+ const all=combinedMining(characters);assert.equal(all.rows.length,2);assert.equal(all.connected,2);assert.equal(all.total,3);assert.equal(all.started_at,10);assert.equal(all.updated,90);assert.deepEqual(all.missing,['Unconnected']);assert.deepEqual(all.failed,['Alt <One>']);
+ const totals=miningSummary(all.rows,{},now);assert.equal(totals.volume,20);assert.equal(totals.units,200);assert.equal(totals.active,1);assert.equal(totals.series.at(-1).volume_m3,20);
+ assert.equal(miningSummary(all.rows,{q:'Alt <One>'},now).units,100);
+ assert.equal(miningSummary(characters[0].data.rows,{},now).volume,10);
+ const html=miningView(all,{},0,now);assert(html.includes('<th>Pilot</th>'));assert(html.includes('data-mining-pilot="2"'));assert(html.includes('Alt &lt;One&gt;'));assert(!html.includes('Alt <One>'));
+ assert.equal(sample.character_id,undefined);assert.equal(combinedMining([]).updated,null);
 });
