@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {collectMining,MINING_SCOPE} from '../lib/mining.mjs';
-import {miningSummary,miningView,combinedMining} from '../public/mining-view.mjs';
+import {miningSummary,miningView,combinedMining,topMinedOres} from '../public/mining-view.mjs';
 const c={id:1,scopes:JSON.stringify([MINING_SCOPE])},now=Date.parse('2026-10-28T12:00:00Z'),cat={type:id=>id===1?{name:'Veldspar',volume:.1}:null};
 const row={date:'2026-10-28',type_id:1,solar_system_id:30000142,quantity:100};
 test('mining paginates, replaces cumulative quantities and retains historical records',async()=>{
@@ -33,4 +33,11 @@ test('combined mining includes mains and alts without merging away their separat
  assert.equal(miningSummary(characters[0].data.rows,{},now).volume,10);
  const html=miningView(all,{},0,now);assert(html.includes('<th>Pilot</th>'));assert(html.includes('data-mining-pilot="2"'));assert(html.includes('Alt &lt;One&gt;'));assert(!html.includes('Alt <One>'));
  assert.equal(sample.character_id,undefined);assert.equal(combinedMining([]).updated,null);
+});
+
+test('top ores aggregate across pilots and rank by selected measure with an eight-item limit',()=>{
+ const rows=Array.from({length:10},(_,i)=>({type_id:i,name:'Ore '+i,quantity:10-i,volume_m3:i*100}));
+ rows.push({...rows[0],quantity:20,volume_m3:null});
+ const volume=topMinedOres(rows);assert.equal(volume.length,8);assert.equal(volume[0].type_id,9);
+ const units=topMinedOres(rows,'quantity');assert.equal(units[0].type_id,0);assert.equal(units[0].quantity,30);assert.equal(units[0].unknown,1);assert.equal(units[0].volume_m3,0);
 });
