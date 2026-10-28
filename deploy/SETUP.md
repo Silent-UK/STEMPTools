@@ -75,3 +75,6 @@ The deployer fetches main, installs/checks/tests a separate release, switches cu
 Verify a main login, link one alt, let its initial job finish, and compare skills/PI/assets/Merc Dens against EVE. Unsupported scopes or revoked tokens will show a reconnect/refresh issue. First sync can take longer for large inventories. No fake data is loaded in production.
 
 Update SDE by repeating its download/import with the service stopped, then start it. Keep a copy of the old catalog for rollback. Existing application snapshots and documents are in the separate tools.sqlite file.
+
+## Optional Mining access
+Enable `esi-industry.read_character_mining.v1` on the EVE application. Each pilot opts in from Mining → Connect mining access. Regular login scopes remain unchanged; existing valid mining authorizations are preserved on ordinary login.

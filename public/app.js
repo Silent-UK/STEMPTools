@@ -1,3 +1,4 @@
+import {miningView} from './mining-view.mjs';
 import {corpIndustryView,jobTime} from "./corp-industry-view.mjs";
 import {moonBrowserView} from "./moon-browser-view.mjs";
 import {moonExtractions,fractureCountdown} from "./moon-extractions.mjs";
@@ -56,7 +57,7 @@ const eta = (v) =>
     : "Not provided";
 let me,
   chars = [],
-  page = location.hash==="#corp-structures"?"corp-structures":location.hash==="#corp"?"admin-corp":"overview",
+  page = location.hash==="#mining"?"mining":location.hash==="#corp-structures"?"corp-structures":location.hash==="#corp"?"admin-corp":"overview",
   selected,
   docs = [],
   assetOffset = 0,
@@ -120,6 +121,7 @@ const nav = [
   ["characters", "♙", "My Characters"],
   ["skills", "▤", "Skills & queue"],
   ["clones", "◉", "Clones"],
+  ["mining", "⛏", "Mining"],
   ["industry", "⚒", "Industry"],
   ["plans", "◇", "Skill plans"],
   ["fittings", "△", "Fittings"],
@@ -135,7 +137,7 @@ document.addEventListener("toggle",e=>{
  if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
 },true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.19.27</small></div></div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.20.0</small></div></div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main><header class="topbar"><span class="eyebrow">● PRIVATE CHARACTER WORKSPACE</span><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -167,6 +169,7 @@ async function render() {
     if (page === "dens" || page === "pi") html = await operations();
     if (page === "pi-market") html = `<div class="pi-market-page">${await piMarket()}</div>`;
     if (page === "assets") html = await assets();
+    if (page === "mining") html = await mining();
     if (page === "industry") html = await industry();
     if (page === "clones") html = await clonesPage();
     if(page.startsWith("admin-"))html=await adminPage();
@@ -464,12 +467,18 @@ async function clonesPage() {
  return intro("Clones","Jump clones sorted by location. Readiness is estimated from the last EVE snapshot.")+'<small>Switching clones within the same Upwell structure can bypass the jump cooldown. Destination access and other in-game restrictions still apply.</small><div class="clone-grid">'+groupedCharacters(chars,c=>`<section class="panel compact"><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>`:""}${!c.data?empty("Awaiting clone sync"):`<div class="clone-readiness"><strong>Next Clone Jump</strong> - <span data-clone-ready="${esc(c.data.ready_at||"")}">${cloneTimer(c.data.ready_at)}</span></div><div class="clone-capacity" title="Stored jump clones / capacity from active Infomorph Psychology skills; excludes your active body">Total Clones <strong>${c.data.clones.length}/${c.data.capacity??'—'}</strong></div><details class="clone-active asset-location" open><summary>Active clone · ${c.data.active_implants.length} implants</summary><div class="clone-implants">${implantList(c.data.active_implants)}</div></details>${cloneLocations(c.data.clones)}`}</section>`)+'</div>';
 }
 setInterval(()=>document.querySelectorAll("[data-clone-ready]").forEach(el=>el.textContent=cloneTimer(el.dataset.cloneReady)),10000);
-const pageAlts={industry:false,pi:false,assets:false,characters:false};
+const pageAlts={mining:false,industry:false,pi:false,assets:false,characters:false};
 function altFilter() {return `<div class="training-visibility"><button data-action="page-alts" aria-pressed="${pageAlts[page]}">${pageAlts[page]?"Hide alts":"Show alts"}</button></div>`;}
 function visibleCharacters(rows) {return characterGroups(rows).flatMap(g=>[...(g.main?[g.main]:[]),...(pageAlts[page]?g.alts:[])]);}
 function selectVisibleCharacter(rows) {if(!rows.some(c=>c.id===Number(selected))) {selected=rows[0]?.id;assetOffset=0;}}
 function characterTiles(rows,label) {
  return `<div class="training-overview character-picker">${characterGroups(rows).flatMap(g=>[...(g.main?[g.main]:[]),...g.alts]).map(c=>`<button class="training-card" data-select-char="${c.id}" aria-pressed="${Number(selected)===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${label(c)}</small></span></button>`).join('')}</div>`;
+}
+let miningFilters={days:'30',metric:'volume',q:''},miningOffset=0;
+async function mining(){
+ const rows=visibleCharacters(await api('/operations/mining'));selectVisibleCharacter(rows);
+ const c=rows.find(c=>c.id===Number(selected));
+ return intro('Mining','Personal mining ledger · daily quantity and volume. Updated hourly.')+altFilter()+characterTiles(rows,c=>c.data?num(c.data.rows.length)+' retained entries':'Connect mining access')+(!c?empty('No visible characters'):`<div class="panelhead mining-heading">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><a class="button" href="/auth/login?link=1&mining=1&character=${c.id}">Connect mining access</a><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<p class="notice error">${esc(c.error)}${c.data?' Last successful ledger retained.':''}</p>`:''}${c.data?miningView(c.data,miningFilters,miningOffset):'<section class="panel compact"><p>Connect this pilot’s mining access to import the available ledger.</p><small>The EVE application needs esi-industry.read_character_mining.v1 enabled. Select this same pilot when authorising.</small></section>'}`);
 }
 async function industry() {
   const rows = visibleCharacters(await api("/operations/industry"));
@@ -715,8 +724,10 @@ root.addEventListener("click", async (e) => {
       b.disabled=true;await api("/corporation/sync",{});toast("Corporation refresh queued. EVE cache times are respected.");await render();
     } else if (b.dataset.action === "add-character") {
       openDialog(`<h2>Add character</h2><form id="add-character-form" action="/auth/login" method="get"><input type="hidden" name="link" value="1"><label>Add as<select name="group" id="add-character-group"><option value="main">Main</option><option value="alt">Alt</option></select></label><label id="add-character-parent" hidden>Connected to<select name="parent" disabled>${chars.filter(c=>c.parent_id===c.id).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><p class="muted">Choose the character on EVE’s login screen. An already-linked character keeps its current group.</p><button class="primary">Continue to EVE login</button></form><hr><a href="/auth/login?corporation=1">Connect Sacred Templars CEO / Director access</a>`);
+    } else if (b.dataset.miningOffset!==undefined) {
+      miningOffset=Math.max(0,Number(b.dataset.miningOffset));await render();
     } else if (b.dataset.selectChar) {
-      selected=Number(b.dataset.selectChar);
+      selected=Number(b.dataset.selectChar);miningOffset=0;
       if(page==='characters'&&chars.find(c=>c.id===selected)?.parent_id!==selected)pageAlts.characters=true;
       assetOffset=0;
       await render();
@@ -840,6 +851,7 @@ root.addEventListener("input", (e) => {
   }
 });
 root.addEventListener("submit", async (e) => {
+  if(e.target.id==='mining-filter'){e.preventDefault();const f=new FormData(e.target);miningFilters={days:String(f.get('days')),metric:String(f.get('metric')),q:String(f.get('q')||'')};miningOffset=0;await render();return;}
   if(e.target.id==='whitelist-add'){e.preventDefault();const f=new FormData(e.target);try{await api('/admin/whitelist',{corporation_id:Number(f.get('corporation_id'))});await render();}catch(error){toast(error.message);}return;}
   if(e.target.id==='corp-industry-filter'){e.preventDefault();const f=new FormData(e.target);corpIndustryFilters={q:String(f.get('q')||''),status:String(f.get('status')||'')};render();}
   if(e.target.id==='moon-survey-search'){

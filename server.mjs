@@ -1,3 +1,4 @@
+import {MINING_SCOPE} from './lib/mining.mjs';
 import {whitelistService} from "./lib/whitelist.mjs";
 import {surveyList} from './lib/moon-surveys.mjs';
 import {assetMatches} from "./public/asset-tree.mjs";
@@ -106,13 +107,15 @@ export function createApp(config) {
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.19.27" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
-    const corporation=req.query.corporation === "1";
+    const corporation=req.query.corporation === "1",mining=req.query.mining === "1";
+    if(mining && (!req.session||corporation))return res.sendStatus(400);
+    const miningCharacter=mining?ownedCharacter(db,req.session.user_id,req.query.character):null;
     if(corporation && !req.session)return res.sendStatus(401);
-    const linking = corporation || req.query.link === "1";
+    const linking = corporation || mining || req.query.link === "1";
     if (linking && !req.session)
       return res
         .status(401)
@@ -140,6 +143,7 @@ export function createApp(config) {
       verifier,
       Date.now() + 600000,
     );
+    if(mining)db.prepare("INSERT INTO oauth_mining VALUES(?,?)").run(hash(state),miningCharacter.id);
     if(corporation)db.prepare("INSERT INTO oauth_corporations VALUES(?)").run(hash(state));
     if(groupMode)db.prepare("INSERT INTO oauth_character_groups VALUES(?,?,?)").run(hash(state),groupMode,groupParent);
     res.cookie("tools_oauth", browser, { ...cookieOptions, maxAge: 600000 });
@@ -148,7 +152,7 @@ export function createApp(config) {
       response_type: "code",
       client_id: config.client,
       redirect_uri: config.base + "/auth/callback",
-      scope: (corporation?CORP_SCOPES:SCOPES).join(" "),
+      scope: (corporation?CORP_SCOPES:mining?[...SCOPES,MINING_SCOPE]:SCOPES).join(" "),
       state,
       code_challenge: Buffer.from(hash(verifier), "hex").toString("base64url"),
       code_challenge_method: "S256",
@@ -166,6 +170,7 @@ export function createApp(config) {
       return res.status(400).send("Login expired or invalid. Start again.");
     const corporation=!!db.prepare("SELECT 1 FROM oauth_corporations WHERE state=?").get(hash(state));
     if(corporation && !req.session)return res.sendStatus(401);
+    const miningFlow=db.prepare("SELECT character_id FROM oauth_mining WHERE state=?").get(hash(state));
     const grouping=db.prepare("SELECT mode,parent_id FROM oauth_character_groups WHERE state=?").get(hash(state));
     db.prepare("DELETE FROM oauth WHERE state=?").run(hash(state));
     res.clearCookie("tools_oauth", cookieOptions);
@@ -184,8 +189,9 @@ export function createApp(config) {
       id = await (config.verifyToken || verifyToken)(
         token.access_token,
         config.client,
-        corporation?CORP_SCOPES:SCOPES,
+        corporation?CORP_SCOPES:miningFlow?[...SCOPES,MINING_SCOPE]:SCOPES,
       );
+    if(miningFlow && id.id!==miningFlow.character_id)throw Object.assign(Error('Choose the pilot whose mining access you are connecting.'),{status:403});
     if(corporation) {
       const verifiedCorp=await (config.verifyCorporation||verifyCorporation)(token.access_token,id.id,config.corpNetwork||fetch);
       if(verifiedCorp.id!==STEMP_ID||!["CEO","Director"].includes(verifiedCorp.role))throw Object.assign(Error("Corporation Management is for Sacred Templars CEOs and Directors."),{status:403});
@@ -232,6 +238,7 @@ export function createApp(config) {
         );
 
       }
+      const keepMining=existing && !existing.reconnect && JSON.parse(existing.scopes).includes(MINING_SCOPE) && !id.scopes.includes(MINING_SCOPE);
       db.prepare(
         "INSERT INTO characters VALUES(?,?,?,?,?,?,?,0) ON CONFLICT(id) DO UPDATE SET name=excluded.name,tokens=excluded.tokens,scopes=excluded.scopes,expires=excluded.expires,reconnect=0",
       ).run(
@@ -239,9 +246,9 @@ export function createApp(config) {
         uid,
         id.name,
         id.owner,
-        box.seal(token),
-        JSON.stringify(id.scopes),
-        id.expires,
+        keepMining?existing.tokens:box.seal(token),
+        keepMining?existing.scopes:JSON.stringify(id.scopes),
+        keepMining?existing.expires:id.expires,
       );
       if(flow.user_id && grouping && !existing) {
         const parent=grouping.mode==="main"?id.id:grouping.parent_id;
@@ -269,7 +276,7 @@ export function createApp(config) {
       maxAge: 7 * 86400000,
     });
     if(!flow.user_id)db.prepare("INSERT INTO user_logins VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_login=excluded.last_login").run(user,Date.now());
-    res.redirect("/");
+    res.redirect(miningFlow?"/#mining":"/");
   });
   app.use("/api", (req, res, next) => {
     if (!req.session)
@@ -479,7 +486,7 @@ export function createApp(config) {
     } catch {res.json({price:null,source:"EVE market average"});}
   });
   app.get("/api/operations/:kind", (req, res) => {
-    if (!["pi", "dens", "industry", "clones"].includes(req.params.kind))
+    if (!["pi", "dens", "industry", "clones", "mining"].includes(req.params.kind))
       return res.sendStatus(404);
     const chars = db
       .prepare(

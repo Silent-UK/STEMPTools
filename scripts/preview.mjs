@@ -119,7 +119,8 @@ for (const [id, name] of [
   const wallet={balance:1234567890.12};
   const clones={capacity:10,ready_at:null,active_implants:[{id:9899,name:"Memory Augmentation - Standard"}],clones:[{name:"Combat",location_id:60003760,location:"Example trade hub",implants:[{id:9899,name:"Memory Augmentation - Standard"}]}]};
   const industry={jobs:[{name:"Rifter",product_type_id:587,blueprint_type_id:688,activity_id:1,runs:3,status:"active",end_date:new Date(Date.now()+3600000).toISOString(),location:"Example trade hub"}],blueprints:[]};
-  for (const [kind, data] of Object.entries({ skills, pi, dens, assets, wallet, clones, industry }))
+  const mining={started_at:Date.now()-29*86400000,rows:Array.from({length:24},(_,i)=>({date:new Date(Date.now()-i*86400000).toISOString().slice(0,10),type_id:1230,name:'Veldspar',solar_system_id:30000142,system:i%3?'Jita':'Amarr',quantity:Math.round((Math.sin(i*1.6)+1.4)*120000),volume_m3:Math.round((Math.sin(i*1.6)+1.4)*12000)}))};
+  for (const [kind, data] of Object.entries({ skills, pi, dens, assets, wallet, clones, industry, mining }))
     db.prepare("INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)").run(
       id,
       kind,

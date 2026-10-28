@@ -1356,3 +1356,30 @@ test('PI market uses highest Jita buy, lowest sell and midpoint with complete ca
  const missing=jitaPricing(db,{request:async()=>({pages:1,expires:Date.now()+60000,data:[order(100,false)]})},true);
  const q=(await missing([9848]))[0];assert.equal(q.buy,null);assert.equal(q.sell,100);assert.equal(q.average,null);
 }));
+
+test('mining snapshots stay private and failed pagination preserves the previous ledger',()=>fixture(async({db,user,request})=>{
+ const a=user(501,'Miner'),b=user(502,'Other');let fail=false;
+ db.prepare('UPDATE characters SET scopes=? WHERE id=501').run(JSON.stringify(['esi-industry.read_character_mining.v1']));
+ const eve={get:async()=>{throw Error('No other snapshots')},request:async path=>{if(fail&&path.endsWith('=2'))throw Error('ESI unavailable');return {pages:2,data:[{date:new Date().toISOString().slice(0,10),type_id:path.endsWith('=1')?1:2,solar_system_id:30000142,quantity:100}]}}};
+ const sync=syncService(db,eve,{...fakeCat,type:id=>({name:'Ore '+id,volume:.1})});sync.queue(a.uid,501,true);await sync.tick();
+ const before=db.prepare("SELECT data FROM snapshots WHERE character_id=501 AND kind='mining'").get().data;assert.equal(JSON.parse(before).rows.length,2);
+ fail=true;sync.queue(a.uid,501,true);await sync.tick();assert.equal(db.prepare("SELECT data FROM snapshots WHERE character_id=501 AND kind='mining'").get().data,before);
+ const own=await(await request('/api/operations/mining',{session:a.session})).json();assert.equal(own[0].data.rows.length,2);assert.match(own[0].error,/retained/);
+ const other=await(await request('/api/operations/mining',{session:b.session})).json();assert.equal(other.length,1);assert.equal(other[0].id,502);assert.equal(other[0].data,null);
+ assert.equal((await request('/api/operations/mining')).status,401);
+ assert.equal((await request('/auth/login?link=1&mining=1&character=501',{session:b.session})).status,404);
+ const auth=await request('/auth/login?link=1&mining=1&character=501',{session:a.session});assert.equal(auth.status,302);assert(new URL(auth.headers.get('location')).searchParams.get('scope').includes('esi-industry.read_character_mining.v1'));
+ const regular=await request('/auth/login');assert(!new URL(regular.headers.get('location')).searchParams.get('scope').includes('esi-industry.read_character_mining.v1'));
+}));
+
+test('mining authorization is bound to its selected pilot and survives ordinary main login',()=>fixture(async({db,user,request,identity})=>{
+ const a=user(601,'Miner');const before=db.prepare('SELECT tokens FROM characters WHERE id=601').get().tokens;
+ const start=await request('/auth/login?link=1&mining=1&character=601',{session:a.session});const url=new URL(start.headers.get('location')),browser=start.headers.get('set-cookie').match(/tools_oauth=([^;]+)/)[1];
+ identity({id:602,name:'Wrong pilot',owner:'owner-602',expires:Date.now()+100000,scopes:['esi-industry.read_character_mining.v1']});
+ const wrong=await request('/auth/callback?state='+url.searchParams.get('state')+'&code=x',{cookie:'tools_oauth='+browser+'; tools_session='+a.session});assert.equal(wrong.status,403);assert.equal(db.prepare('SELECT tokens FROM characters WHERE id=601').get().tokens,before);
+ db.prepare('UPDATE characters SET scopes=? WHERE id=601').run(JSON.stringify(['esi-industry.read_character_mining.v1']));
+ const normal=await request('/auth/login'),normalUrl=new URL(normal.headers.get('location')),normalBrowser=normal.headers.get('set-cookie').match(/tools_oauth=([^;]+)/)[1];
+ identity({id:601,name:'Miner',owner:'owner-601',expires:Date.now()+100000,scopes:[]});
+ const login=await request('/auth/callback?state='+normalUrl.searchParams.get('state')+'&code=x',{cookie:'tools_oauth='+normalBrowser});assert.equal(login.status,302);
+ const saved=db.prepare('SELECT tokens,scopes FROM characters WHERE id=601').get();assert.equal(saved.tokens,before);assert(JSON.parse(saved.scopes).includes('esi-industry.read_character_mining.v1'));
+}));
