@@ -77,4 +77,4 @@ Verify a main login, link one alt, let its initial job finish, and compare skill
 Update SDE by repeating its download/import with the service stopped, then start it. Keep a copy of the old catalog for rollback. Existing application snapshots and documents are in the separate tools.sqlite file.
 
 ## Optional Mining access
-Enable `esi-industry.read_character_mining.v1` on the EVE application. Each pilot opts in from Mining → Connect mining access. Regular login scopes remain unchanged; existing valid mining authorizations are preserved on ordinary login.
+Enable `esi-industry.read_character_mining.v1` on the EVE application. Normal login and reconnect request this scope, as does Mining → Connect mining access. Existing pilots must reconnect once to grant it.

@@ -1369,17 +1369,17 @@ test('mining snapshots stay private and failed pagination preserves the previous
  assert.equal((await request('/api/operations/mining')).status,401);
  assert.equal((await request('/auth/login?link=1&mining=1&character=501',{session:b.session})).status,404);
  const auth=await request('/auth/login?link=1&mining=1&character=501',{session:a.session});assert.equal(auth.status,302);assert(new URL(auth.headers.get('location')).searchParams.get('scope').includes('esi-industry.read_character_mining.v1'));
- const regular=await request('/auth/login');assert(!new URL(regular.headers.get('location')).searchParams.get('scope').includes('esi-industry.read_character_mining.v1'));
+ const regular=await request('/auth/login');assert(new URL(regular.headers.get('location')).searchParams.get('scope').includes('esi-industry.read_character_mining.v1'));
 }));
 
-test('mining authorization is bound to its selected pilot and survives ordinary main login',()=>fixture(async({db,user,request,identity})=>{
+test('mining authorization is bound to its selected pilot and is requested and saved by ordinary reconnect',()=>fixture(async({db,user,request,identity})=>{
  const a=user(601,'Miner');const before=db.prepare('SELECT tokens FROM characters WHERE id=601').get().tokens;
  const start=await request('/auth/login?link=1&mining=1&character=601',{session:a.session});const url=new URL(start.headers.get('location')),browser=start.headers.get('set-cookie').match(/tools_oauth=([^;]+)/)[1];
  identity({id:602,name:'Wrong pilot',owner:'owner-602',expires:Date.now()+100000,scopes:['esi-industry.read_character_mining.v1']});
  const wrong=await request('/auth/callback?state='+url.searchParams.get('state')+'&code=x',{cookie:'tools_oauth='+browser+'; tools_session='+a.session});assert.equal(wrong.status,403);assert.equal(db.prepare('SELECT tokens FROM characters WHERE id=601').get().tokens,before);
  db.prepare('UPDATE characters SET scopes=? WHERE id=601').run(JSON.stringify(['esi-industry.read_character_mining.v1']));
- const normal=await request('/auth/login'),normalUrl=new URL(normal.headers.get('location')),normalBrowser=normal.headers.get('set-cookie').match(/tools_oauth=([^;]+)/)[1];
- identity({id:601,name:'Miner',owner:'owner-601',expires:Date.now()+100000,scopes:[]});
- const login=await request('/auth/callback?state='+normalUrl.searchParams.get('state')+'&code=x',{cookie:'tools_oauth='+normalBrowser});assert.equal(login.status,302);
- const saved=db.prepare('SELECT tokens,scopes FROM characters WHERE id=601').get();assert.equal(saved.tokens,before);assert(JSON.parse(saved.scopes).includes('esi-industry.read_character_mining.v1'));
+ const normal=await request('/auth/login?link=1',{session:a.session}),normalUrl=new URL(normal.headers.get('location')),normalBrowser=normal.headers.get('set-cookie').match(/tools_oauth=([^;]+)/)[1];
+ identity({id:601,name:'Miner',owner:'owner-601',expires:Date.now()+100000,scopes:['esi-industry.read_character_mining.v1']});
+ const login=await request('/auth/callback?state='+normalUrl.searchParams.get('state')+'&code=x',{cookie:'tools_oauth='+normalBrowser+'; tools_session='+a.session});assert.equal(login.status,302);
+ const saved=db.prepare('SELECT tokens,scopes FROM characters WHERE id=601').get();assert.notEqual(saved.tokens,before);assert(JSON.parse(saved.scopes).includes('esi-industry.read_character_mining.v1'));
 }));

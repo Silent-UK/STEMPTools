@@ -1,4 +1,3 @@
-import {MINING_SCOPE} from './lib/mining.mjs';
 import {whitelistService} from "./lib/whitelist.mjs";
 import {surveyList} from './lib/moon-surveys.mjs';
 import {assetMatches} from "./public/asset-tree.mjs";
@@ -107,7 +106,7 @@ export function createApp(config) {
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.2" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.3" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -152,7 +151,7 @@ export function createApp(config) {
       response_type: "code",
       client_id: config.client,
       redirect_uri: config.base + "/auth/callback",
-      scope: (corporation?CORP_SCOPES:mining?[...SCOPES,MINING_SCOPE]:SCOPES).join(" "),
+      scope: (corporation?CORP_SCOPES:SCOPES).join(" "),
       state,
       code_challenge: Buffer.from(hash(verifier), "hex").toString("base64url"),
       code_challenge_method: "S256",
@@ -189,7 +188,7 @@ export function createApp(config) {
       id = await (config.verifyToken || verifyToken)(
         token.access_token,
         config.client,
-        corporation?CORP_SCOPES:miningFlow?[...SCOPES,MINING_SCOPE]:SCOPES,
+        corporation?CORP_SCOPES:SCOPES,
       );
     if(miningFlow && id.id!==miningFlow.character_id)throw Object.assign(Error('Choose the pilot whose mining access you are connecting.'),{status:403});
     if(corporation) {
@@ -238,7 +237,6 @@ export function createApp(config) {
         );
 
       }
-      const keepMining=existing && !existing.reconnect && JSON.parse(existing.scopes).includes(MINING_SCOPE) && !id.scopes.includes(MINING_SCOPE);
       db.prepare(
         "INSERT INTO characters VALUES(?,?,?,?,?,?,?,0) ON CONFLICT(id) DO UPDATE SET name=excluded.name,tokens=excluded.tokens,scopes=excluded.scopes,expires=excluded.expires,reconnect=0",
       ).run(
@@ -246,9 +244,9 @@ export function createApp(config) {
         uid,
         id.name,
         id.owner,
-        keepMining?existing.tokens:box.seal(token),
-        keepMining?existing.scopes:JSON.stringify(id.scopes),
-        keepMining?existing.expires:id.expires,
+        box.seal(token),
+        JSON.stringify(id.scopes),
+        id.expires,
       );
       if(flow.user_id && grouping && !existing) {
         const parent=grouping.mode==="main"?id.id:grouping.parent_id;
