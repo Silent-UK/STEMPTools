@@ -1,3 +1,4 @@
+import miningRecipes from './lib/mining-recipes.json' with {type:'json'};
 import {whitelistService} from "./lib/whitelist.mjs";
 import {surveyList} from './lib/moon-surveys.mjs';
 import {assetMatches} from "./public/asset-tree.mjs";
@@ -106,7 +107,7 @@ export function createApp(config) {
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.19" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.20" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -428,6 +429,13 @@ export function createApp(config) {
   const piRecipes=()=>cat.piRecipes?.()||[];
   const piSettings=user=>JSON.parse(db.prepare("SELECT data FROM pi_settings WHERE user_id=?").get(user)?.data||"null")||defaultPISettings();
   const pricePI=jitaPricing(db,eve),marketPI=jitaPricing(db,eve,true);
+  app.get('/api/mining/refining',async(req,res)=>{
+    const saved=db.prepare("SELECT s.data FROM snapshots s JOIN characters c ON c.id=s.character_id WHERE c.user_id=? AND s.kind='mining'").all(req.session.user_id);
+    const ids=new Set(saved.flatMap(s=>JSON.parse(s.data).rows.map(r=>r.type_id)));
+    const recipes=Object.fromEntries([...ids].filter(id=>miningRecipes[id]).map(id=>[id,miningRecipes[id]]));
+    const outputs=[...new Set(Object.values(recipes).flatMap(r=>r.materials.map(m=>m.id)))];
+    res.json({recipes,prices:await pricePI(outputs)});
+  });
   app.get('/api/pi/market',async(req,res)=>{
     const recipes=piRecipes(),fuelNames=['Coolant','Enriched Uranium','Mechanical Parts','Oxygen','Robotics'];
     const groups=[{name:'Fuel Blocks',description:'PI ingredients used to manufacture fuel blocks.',items:fuelNames.map(name=>({id:cat.named(name),name})).filter(r=>r.id)},...[2,3,4].map(tier=>({name:'P'+tier,items:recipes.filter(r=>r.tier===tier).sort((a,b)=>a.name.localeCompare(b.name)).map(r=>({id:r.id,name:r.name}))}))];

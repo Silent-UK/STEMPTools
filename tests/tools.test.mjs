@@ -1366,7 +1366,7 @@ test('mining snapshots stay private and failed pagination preserves the previous
  fail=true;sync.queue(a.uid,501,true);await sync.tick();assert.equal(db.prepare("SELECT data FROM snapshots WHERE character_id=501 AND kind='mining'").get().data,before);
  const own=await(await request('/api/operations/mining',{session:a.session})).json();assert.equal(own[0].data.rows.length,2);assert.match(own[0].error,/retained/);
  const other=await(await request('/api/operations/mining',{session:b.session})).json();assert.equal(other.length,1);assert.equal(other[0].id,502);assert.equal(other[0].data,null);
- assert.equal((await request('/api/operations/mining')).status,401);
+ assert.equal((await request('/api/operations/mining')).status,401);assert.equal((await request('/api/mining/refining')).status,401);const refining=await(await request('/api/mining/refining',{session:b.session})).json();assert.deepEqual(refining.recipes,{});assert.deepEqual(refining.prices,[]);
  assert.equal((await request('/auth/login?link=1&mining=1&character=501',{session:b.session})).status,404);
  const auth=await request('/auth/login?link=1&mining=1&character=501',{session:a.session});assert.equal(auth.status,302);assert(new URL(auth.headers.get('location')).searchParams.get('scope').includes('esi-industry.read_character_mining.v1'));
  const regular=await request('/auth/login');assert(new URL(regular.headers.get('location')).searchParams.get('scope').includes('esi-industry.read_character_mining.v1'));

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {collectMining,MINING_SCOPE} from '../lib/mining.mjs';
-import {miningSummary,miningView,combinedMining,topMinedOres} from '../public/mining-view.mjs';
+import {miningSummary,miningView,combinedMining,topMinedOres,refinedMining} from '../public/mining-view.mjs';
 const c={id:1,scopes:JSON.stringify([MINING_SCOPE])},now=Date.parse('2026-10-28T12:00:00Z'),cat={type:id=>id===1?{name:'Veldspar',volume:.1}:null};
 const row={date:'2026-10-28',type_id:1,solar_system_id:30000142,quantity:100};
 test('mining paginates, replaces cumulative quantities and retains historical records',async()=>{
@@ -40,4 +40,16 @@ test('top ores aggregate across pilots and rank by selected measure with an eigh
  rows.push({...rows[0],quantity:20,volume_m3:null});
  const volume=topMinedOres(rows);assert.equal(volume.length,8);assert.equal(volume[0].type_id,9);
  const units=topMinedOres(rows,'quantity');assert.equal(units[0].type_id,0);assert.equal(units[0].quantity,30);assert.equal(units[0].unknown,1);assert.equal(units[0].volume_m3,0);
+});
+
+test('refining uses whole batches, 90% yield, pilot separation and unknown prices',()=>{
+ const recipe={1:{portion:100,materials:[{id:34,name:'Tritanium',quantity:415}]}};
+ const rows=[{type_id:1,name:'Veldspar',quantity:150,character_id:1,solar_system_id:1},{type_id:1,name:'Veldspar',quantity:50,character_id:1,solar_system_id:1},{type_id:1,name:'Veldspar',quantity:90,character_id:2,solar_system_id:1},{type_id:99,name:'Gas',quantity:10}];
+ const r=refinedMining(rows,recipe,[{id:34,price:4}]);assert.equal(r.outputs[0].quantity,747);assert.equal(r.leftover,90);assert.equal(r.total,2988);assert.deepEqual(r.unavailable,['Gas']);
+ assert.equal(refinedMining(rows,recipe,[]).missing,1);
+});
+test('ice recipes retain correct outputs and portion sizes from static data',async()=>{
+ const {default:recipes}=await import('../lib/mining-recipes.json',{with:{type:'json'}});
+ const r=refinedMining([{type_id:17976,name:'White Glaze IV-Grade',quantity:10}],recipes);
+ assert.equal(r.outputs.find(m=>m.id===17888).quantity,4347);assert.equal(r.outputs.find(m=>m.id===16275).quantity,9);
 });
