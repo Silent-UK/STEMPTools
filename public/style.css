@@ -1184,3 +1184,5 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 .clone-grid .panel{padding:10px}.clone-grid .panelhead{margin-bottom:4px}.clone-grid{gap:8px;margin-top:8px}
 
 @media(min-width:1500px){.clone-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.clone-grid .clone-header{grid-template-columns:minmax(0,1fr) auto;gap:4px 8px}.clone-grid .clone-header .actions{grid-column:1/-1;justify-content:flex-end}.clone-grid .pilot{min-width:0;overflow-wrap:anywhere}.clone-grid .asset-location summary{overflow-wrap:anywhere}}
+
+.overview-totals{gap:10px;margin-bottom:10px}.overview-totals .card{padding:10px 14px}.overview-totals .stat{font-size:24px;margin:5px 0 3px}.overview-character-row{padding:5px 4px;gap:8px}.overview-character-identity .portrait{width:30px;height:30px}.overview-character-row .actions button,.overview-character-row .actions .button{padding:5px 4px}.overview-character-row select,.overview-character-row input{padding:5px 6px;font-size:11px}.overview-character-group>details>summary{padding:5px 4px}.overview-health{gap:8px;margin-top:10px}.overview-health .card{padding:8px 12px}
