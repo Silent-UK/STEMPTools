@@ -138,7 +138,7 @@ document.addEventListener("toggle",e=>{
  if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
 },true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.20.20</small></div></div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main><header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.20.21</small></div></div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main><header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -297,10 +297,12 @@ async function skills() {
       .join("")}</section>`
   );
 }
+const documentFilters={plan:'',fitting:''};
+function documentTags(){return ['Personal','Corp','Alliance',...[...new Set(docs.map(d=>d.tag||'Personal'))].filter(t=>!['Personal','Corp','Alliance'].includes(t)).sort((a,b)=>a.localeCompare(b))];}
 async function documents() {
   docs = await api("/documents");
   const kind = page === "plans" ? "plan" : "fitting",
-    rows = docs.filter((d) => d.kind === kind);
+    rows = docs.filter((d) => d.kind === kind&&(!documentFilters[kind]||(d.tag||'Personal')===documentFilters[kind]));
   return (
     intro(
       kind === "plan" ? "Skill plans" : "Fitting hangar",
@@ -312,13 +314,13 @@ async function documents() {
     (kind === "fitting"
       ? '<div class="notice">Skill readiness checks the hull and fitted items. It does not simulate CPU, powergrid, damage, tank or fitting legality.</div>'
       : `<div class="cards plan-totals"><div class="card"><small>Personal plans</small><strong>${rows.filter(d=>d.mine&&!d.shared).length}</strong></div><div class="card"><small>Corp plans</small><strong>${rows.filter(d=>d.shared).length}</strong><small>Shared with signed-in Tools members</small></div></div>`) +
-    `<section class="panel">${
+    `<div class="document-tag-filter"><label>Tag <select id="document-tag-filter" data-kind="${kind}"><option value="">All tags</option>${documentTags().map(t=>`<option ${documentFilters[kind]===t?'selected':''} value="${esc(t)}">${esc(t)}</option>`).join('')}</select></label></div><section class="panel">${
       rows.length
         ? table(
-            ["Name", "Created by", "Visibility", ""],
+            ["Name", "Tag", "Created by", "Visibility", ""],
             rows.map(
               (d) =>
-                `<tr><td><button class="fitting-name" data-document="${esc(d.id)}">${d.kind === "fitting" && d.ship ? `<img class="fitting-list-ship" src="https://images.evetech.net/types/${Number(d.ship.id)}/render?size=64" alt="${esc(d.ship.name)}" loading="lazy">` : ""}${esc(d.name)}</button><small>${date(d.updated)}</small></td><td>${esc(d.author)} ${d.mine ? tag("YOURS", "dim") : ""}</td><td>${tag(d.shared ? "Members" : "Private", d.shared ? "purple" : "dim")}</td><td><button data-document="${esc(d.id)}" aria-expanded="false">${d.kind === "fitting" ? "View" : "Open & compare →"}</button></td></tr>${d.kind === "fitting" ? `<tr class="fitting-expansion" data-fitting-row="${esc(d.id)}" hidden><td colspan="4"><div class="inline-fitting" data-fitting-content="${esc(d.id)}"></div></td></tr>` : ""}`,
+                `<tr><td><button class="fitting-name" data-document="${esc(d.id)}">${d.kind === "fitting" && d.ship ? `<img class="fitting-list-ship" src="https://images.evetech.net/types/${Number(d.ship.id)}/render?size=64" alt="${esc(d.ship.name)}" loading="lazy">` : ""}${esc(d.name)}</button><small>${date(d.updated)}</small></td><td>${tag(d.tag||'Personal','dim')}</td><td>${esc(d.author)} ${d.mine ? tag("YOURS", "dim") : ""}</td><td>${tag(d.shared ? "Members" : "Private", d.shared ? "purple" : "dim")}</td><td><button data-document="${esc(d.id)}" aria-expanded="false">${d.kind === "fitting" ? "View" : "Open & compare →"}</button></td></tr>${d.kind === "fitting" ? `<tr class="fitting-expansion" data-fitting-row="${esc(d.id)}" hidden><td colspan="5"><div class="inline-fitting" data-fitting-content="${esc(d.id)}"></div></td></tr>` : ""}`,
             ),
           )
         : empty(
@@ -655,7 +657,7 @@ let planEntries = [],
 function createDocument(kind, body) {
   planEntries = [];
   openDialog(
-    `<h2>${kind === "plan" ? "New skill plan" : "New fitting"}</h2><form id="document-form" data-kind="${kind}"><label>Name<input name="name" required maxlength="150" placeholder="${kind === "plan" ? "Avatar pilot" : "Fleet setup"}"></label>${kind === "plan" ? `<div class="formrow"><input id="catalog-query" aria-label="Search catalogue" placeholder="Search a skill or ship…"><select id="catalog-mode" aria-label="Search category"><option value="skills">Skills</option><option value="ships">Ships</option></select><button type="button" data-action="catalog">Find</button></div><div id="catalog-results"></div><details class="skill-import"><summary>Import from clipboard / text</summary><label>Skill list<textarea id="skill-import-text" rows="6" maxlength="100000" placeholder="Motion Prediction III&#10;Motion Prediction V&#10;Gunnery V"></textarea></label><div class="actions"><button type="button" data-action="paste-skills">Paste clipboard</button><button type="button" data-action="import-skills">Import skills</button><small id="skill-import-status" role="status">Repeated skills use the highest level. Existing skills are kept.</small></div></details><div id="plan-entries"></div>` : `<label>EFT fitting<textarea name="eft" required placeholder="[Avatar, Fleet setup]&#10;Damage Control II&#10;&#10;">${esc(body || "")}</textarea></label><small>Paste an EFT export from EVE or Pyfa. Unknown items are reported before saving.</small>`}<label><input type="checkbox" name="shared"> Share with signed-in Tools members</label><button class="primary">Save ${kind}</button></form>`,
+    `<h2>${kind === "plan" ? "New skill plan" : "New fitting"}</h2><form id="document-form" data-kind="${kind}"><label>Name<input name="name" required maxlength="150" placeholder="${kind === "plan" ? "Avatar pilot" : "Fleet setup"}"></label>${kind === "plan" ? `<div class="formrow"><input id="catalog-query" aria-label="Search catalogue" placeholder="Search a skill or ship…"><select id="catalog-mode" aria-label="Search category"><option value="skills">Skills</option><option value="ships">Ships</option></select><button type="button" data-action="catalog">Find</button></div><div id="catalog-results"></div><details class="skill-import"><summary>Import from clipboard / text</summary><label>Skill list<textarea id="skill-import-text" rows="6" maxlength="100000" placeholder="Motion Prediction III&#10;Motion Prediction V&#10;Gunnery V"></textarea></label><div class="actions"><button type="button" data-action="paste-skills">Paste clipboard</button><button type="button" data-action="import-skills">Import skills</button><small id="skill-import-status" role="status">Repeated skills use the highest level. Existing skills are kept.</small></div></details><div id="plan-entries"></div>` : `<label>EFT fitting<textarea name="eft" required placeholder="[Avatar, Fleet setup]&#10;Damage Control II&#10;&#10;">${esc(body || "")}</textarea></label><small>Paste an EFT export from EVE or Pyfa. Unknown items are reported before saving.</small>`}<label>Tag<input name="tag" list="document-tag-options" maxlength="40" required value="Personal"><datalist id="document-tag-options">${documentTags().map(t=>`<option value="${esc(t)}"></option>`).join('')}</datalist></label><small>Choose a tag or enter your own. Tags do not change sharing permissions.</small><label><input type="checkbox" name="shared"> Share with signed-in Tools members</label><button class="primary">Save ${kind}</button></form>`,
   );
 }
 function showEntries() {
@@ -964,6 +966,7 @@ async function documentClick(e) {
       createDocument(d.kind, d.kind === "fitting" ? d.body : undefined);
       document.querySelector("[name=name]").value =
         d.name + (b.dataset.copyDoc ? " (copy)" : "");
+      document.querySelector("#document-form [name=tag]").value=d.tag||"Personal";
       if (b.dataset.editDoc) {
         document.querySelector("#document-form").dataset.id = d.id;
         document.querySelector("[name=shared]").checked = !!d.shared;
@@ -1042,6 +1045,7 @@ async function documentSubmit(e) {
         {
           kind: form.dataset.kind,
           name: data.name,
+          tag: data.tag,
           body: form.dataset.kind === "plan" ? planEntries : data.eft,
           shared: data.shared === "on",
         },
@@ -1142,3 +1146,5 @@ async function skillComparison(){
 root.addEventListener('change',e=>{if(e.target.id==='compare-matches'){compareMatches=e.target.checked;document.getElementById('compare-results').innerHTML=comparisonTable(comparePilots,compareMatches);}});
 
 root.addEventListener('change',async e=>{if(['compare-show-alts','compare-base'].includes(e.target.id)){compareIds=new FormData(document.getElementById('skill-compare-form')).getAll('pilot').map(Number);if(e.target.id==='compare-base')compareBase=Number(e.target.value);else compareShowAlts=e.target.checked;await render();}});
+
+root.addEventListener('change',async e=>{if(e.target.id==='document-tag-filter'){documentFilters[e.target.dataset.kind]=e.target.value;await render();}});

@@ -107,7 +107,7 @@ export function createApp(config) {
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.20" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.21" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -596,7 +596,7 @@ export function createApp(config) {
     res.json(
       db
         .prepare(
-          "SELECT d.id,d.owner,d.kind,d.name,d.shared,d.updated,CASE WHEN d.kind='fitting' THEN d.body END fitting_body,u.name author FROM documents d JOIN users u ON u.id=d.owner WHERE d.owner=? OR d.shared=1 ORDER BY d.updated DESC",
+          "SELECT d.id,d.owner,d.kind,d.name,d.shared,d.updated,COALESCE((SELECT tag FROM document_tags WHERE document_id=d.id),'Personal') tag,CASE WHEN d.kind='fitting' THEN d.body END fitting_body,u.name author FROM documents d JOIN users u ON u.id=d.owner WHERE d.owner=? OR d.shared=1 ORDER BY d.updated DESC",
         )
         .all(req.session.user_id)
         .map(({fitting_body,...r}) => {
@@ -657,7 +657,13 @@ export function createApp(config) {
       mine: row.owner === req.session.user_id,
     });
   });
+  function documentTag(value){
+    if(value===undefined)return 'Personal';
+    if(typeof value!=='string'||!value.trim()||value.trim().length>40)throw Object.assign(Error('Enter a tag of 1–40 characters'),{status:400});
+    const clean=value.trim();return ['Personal','Corp','Alliance'].find(t=>t.toLowerCase()===clean.toLowerCase())||clean;
+  }
   app.post("/api/documents", (req, res) => {
+    const tag=documentTag(req.body.tag);
     const { kind, name, body, shared } = req.body;
     if (
       !["plan", "fitting"].includes(kind) ||
@@ -687,11 +693,13 @@ export function createApp(config) {
       shared === true ? 1 : 0,
       Date.now(),
     );
+    db.prepare("INSERT INTO document_tags VALUES(?,?)").run(id,tag);
     res.json({ id });
   });
   app.put("/api/documents/:id", (req, res) => {
     const row = visibleDocument(db, req.session.user_id, req.params.id);
     if (row.owner !== req.session.user_id) return res.sendStatus(403);
+    const tag=documentTag(req.body.tag??row.tag);
     const { name, body, shared } = req.body;
     if (typeof name !== "string" || !name.trim() || name.length > 150)
       throw Error("Enter a name up to 150 characters");
@@ -713,6 +721,7 @@ export function createApp(config) {
       Date.now(),
       row.id,
     );
+    db.prepare("INSERT INTO document_tags VALUES(?,?) ON CONFLICT(document_id) DO UPDATE SET tag=excluded.tag").run(row.id,tag);
     res.json({ id: row.id });
   });
   app.patch("/api/documents/:id", (req, res) => {

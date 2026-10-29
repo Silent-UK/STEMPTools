@@ -1383,3 +1383,14 @@ test('mining authorization is bound to its selected pilot and is requested and s
  const login=await request('/auth/callback?state='+normalUrl.searchParams.get('state')+'&code=x',{cookie:'tools_oauth='+normalBrowser+'; tools_session='+a.session});assert.equal(login.status,302);
  const saved=db.prepare('SELECT tokens,scopes FROM characters WHERE id=601').get();assert.notEqual(saved.tokens,before);assert(JSON.parse(saved.scopes).includes('esi-industry.read_character_mining.v1'));
 }));
+
+test('document tags persist, default safely, and respect document ownership',()=>fixture(async({user,request})=>{
+ const a=user(701,'Tag owner'),b=user(702,'Other');
+ const create=await request('/api/documents',{session:a.session,method:'POST',body:{kind:'plan',name:'Tagged',body:[{id:1,level:1}],tag:'  Mining  ',shared:true}});
+ assert.equal(create.status,200);const {id}=await create.json();
+ const list=await(await request('/api/documents',{session:b.session})).json();assert.equal(list.find(d=>d.id===id).tag,'Mining');
+ assert.equal((await request('/api/documents/'+id,{session:b.session,method:'PUT',body:{name:'No',body:[{id:1,level:1}],tag:'Corp'}})).status,403);
+ const update=await request('/api/documents/'+id,{session:a.session,method:'PUT',body:{name:'Tagged',body:[{id:1,level:1}],tag:'alliance'}});assert.equal(update.status,200);
+ assert.equal((await(await request('/api/documents/'+id,{session:a.session})).json()).tag,'Alliance');
+ assert.equal((await request('/api/documents',{session:a.session,method:'POST',body:{kind:'plan',name:'Invalid',body:[{id:1,level:1}],tag:'x'.repeat(41)}})).status,400);
+}));
