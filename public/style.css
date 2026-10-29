@@ -1176,3 +1176,7 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 .compare-skill-icon{width:18px;height:18px;flex-shrink:0;object-fit:contain}
 
 .my-queue-skill{display:flex;align-items:center;gap:5px;min-width:0}.my-queue-skill img{flex-shrink:0;object-fit:contain}.my-training-panel .my-queue-list .production>strong{text-align:center}.my-training-panel .my-queue-list .production>small{text-align:right;font-variant-numeric:tabular-nums}
+
+.clone-grid .panelhead{margin-bottom:6px}.clone-grid .asset-location{padding:4px 6px;margin:2px 0}.clone-grid .asset-location summary{padding:3px 0;font-size:11px}.clone-grid .clone-capacity{margin:3px 0 6px}.clone-grid .clone-location-entry{padding:4px 0 4px 12px}.clone-grid .clone-implants{margin:4px 0}.clone-region{font-size:10px;color:var(--muted);margin-left:8px}
+
+.clone-grid .clone-header{display:grid;grid-template-columns:minmax(120px,1fr) auto auto;align-items:center;gap:10px}.clone-header-stats{font-size:11px}.clone-header-stats .clone-capacity{margin:3px 0 0}.clone-grid .asset-location summary .clone-region{float:right;text-align:right;margin-left:12px}.clone-grid .asset-location summary:after{content:"";display:block;clear:both}@media(max-width:650px){.clone-grid .clone-header{grid-template-columns:1fr auto}.clone-header .actions{grid-column:1/-1;justify-content:flex-end}}

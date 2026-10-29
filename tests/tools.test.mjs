@@ -825,10 +825,10 @@ test("clones calculate cooldown, sort locations and preserve implants",()=>fixtu
  if(path.endsWith("/clones"))return {last_clone_jump_date:"2026-10-18T00:00:00Z",jump_clones:[{jump_clone_id:1,name:"Combat",location_id:2,location_type:"station",implants:[1]},{jump_clone_id:2,name:"Training",location_id:1,location_type:"station",implants:[]}]};
  if(path.endsWith("/implants"))return [1];
  if(path.endsWith("/skills"))return {skills:[{skill_id:33399,active_skill_level:5},{skill_id:24242,active_skill_level:5},{skill_id:33407,active_skill_level:3},{skill_id:73910,active_skill_level:0,trained_skill_level:5}]};
- throw Error("unused");},publicGet:async path=>({name:path.endsWith("/1")?"Alpha":"Zulu"}),request:async()=>{throw Error("unused");}};
+ throw Error("unused");},publicGet:async path=>{if(path.startsWith('/universe/stations/'))return {name:path.endsWith('/1')?'Alpha':'Zulu',system_id:path.endsWith('/1')?10:20};if(path==='/universe/systems/10')return {constellation_id:30};if(path==='/universe/constellations/30')return {region_id:40};if(path==='/universe/regions/40')return {name:'Test Region'};throw Error('Unavailable region');},request:async()=>{throw Error("unused");}};
  const svc=syncService(db,eve,fakeCat);svc.queue(a.uid);await svc.tick();
  const result=JSON.parse(db.prepare("SELECT data FROM snapshots WHERE kind='clones'").get().data);
- assert.equal(result.capacity,8);assert.equal(result.ready_at,"2026-10-18T19:00:00.000Z");assert.deepEqual(result.clones.map(c=>c.location),["Alpha","Zulu"]);assert.equal(result.active_implants.length,1);assert.equal(result.clones[1].implants.length,1);
+ assert.equal(result.capacity,8);assert.equal(result.ready_at,"2026-10-18T19:00:00.000Z");assert.deepEqual(result.clones.map(c=>c.location),["Alpha","Zulu"]);assert.equal(result.active_implants.length,1);assert.equal(result.clones[1].implants.length,1);assert.equal(result.clones[0].region,"Test Region");assert.equal(result.clones[1].region,null);
 }));
 
 test("linked plan adds effective-use requirements to fitting readiness",()=>fixture(async({db,user,request})=>{
