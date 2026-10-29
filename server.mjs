@@ -47,6 +47,7 @@ export function createApp(config) {
   const ownerUser=db.prepare("SELECT id FROM users WHERE main_id=?").get(config.owner);
   const legacy=db.prepare("SELECT * FROM corporation_connections WHERE corporation_id=?").get(STEMP_ID);
   if(ownerUser&&legacy)db.prepare("INSERT OR IGNORE INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(ownerUser.id,legacy.character_id,legacy.character_name,legacy.owner_hash,STEMP_ID,legacy.tokens,JSON.stringify(["esi-characters.read_corporation_roles.v1"]),0,legacy.role,0);
+  db.exec("CREATE TABLE IF NOT EXISTS inspections(session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE, target_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE)");
   const app = express();
   app.disable("x-powered-by");
   app.use(
@@ -97,6 +98,18 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
+  app.post('/api/inspect', (req,res)=>{
+    if(!req.session)return res.sendStatus(401);
+    if(req.session.main_id!==config.owner)return res.sendStatus(403);
+    try{assertOrigin(req,config.base);}catch{return res.sendStatus(403);}
+    if(!req.is('application/json'))return res.sendStatus(415);
+    if(req.body.exit===true){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return res.json({ok:true});}
+    const target=db.prepare('SELECT id,main_id FROM users WHERE id=?').get(Number(req.body.user_id)||0);
+    if(!target)return res.sendStatus(404);
+    if(target.main_id===config.owner)return res.status(400).json({error:'Already viewing your own account'});
+    db.prepare('INSERT INTO inspections VALUES(?,?) ON CONFLICT(session_id) DO UPDATE SET target_id=excluded.target_id').run(req.session.id,target.id);
+    res.json({ok:true});
+  });
   app.use(async(req,res,next)=>{
     const path=req.path.toLowerCase();
     if(!req.session || !(path.startsWith('/api/')||path.startsWith('/auth/')) || path==='/api/logout')return next();
@@ -109,7 +122,18 @@ export function createApp(config) {
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.26" }));
+  app.use((req,res,next)=>{
+    if(!req.session)return next();
+    const target=db.prepare('SELECT u.* FROM inspections i JOIN users u ON u.id=i.target_id WHERE i.session_id=?').get(req.session.id);
+    if(!target)return next();
+    if(req.session.main_id!==config.owner){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return next();}
+    if(req.path.toLowerCase().startsWith('/auth'))return res.status(403).send('Exit Inspect before connecting characters.');
+    if(req.path.toLowerCase().startsWith('/api')&&!['GET','HEAD'].includes(req.method))return res.status(403).json({error:'Inspect is read-only. Exit Inspect to make changes.'});
+    req.inspect={name:target.name,main_id:target.main_id};
+    req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:target.admin};
+    next();
+  });
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.27" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -295,7 +319,7 @@ export function createApp(config) {
     }
     next();
   });
-  app.get("/api/me", async (req,res)=>res.json({name:req.session.name,main_id:req.session.main_id,admin:req.session.main_id===config.owner,corporation:await corp.access(req.session.user_id)}));
+  app.get("/api/me", async (req,res)=>res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:req.session.main_id===config.owner,corporation:await corp.access(req.session.user_id)}));
   app.use("/api/corporation",async(req,res,next)=>{
     if(!await corp.access(req.session.user_id))return res.status(403).json({error:"Sacred Templars CEO or Director access is required. Connect corporation access again."});
     next();

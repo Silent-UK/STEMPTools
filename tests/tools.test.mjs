@@ -1405,3 +1405,19 @@ test('contracts sync, privacy and missing permission remain isolated',()=>fixtur
  const other=await(await request('/api/operations/contracts',{session:b.session})).json();assert.equal(other.length,1);assert.equal(other[0].data,null);
  sync.queue(b.uid,602,true);await sync.tick();assert.equal(db.prepare("SELECT count(*) n FROM sync_errors WHERE character_id=602 AND kind='contracts'").get().n,0);
 }));
+
+test('admin inspection is session-bound, read-only, private and reversible',()=>fixture(async({db,user,request})=>{
+ const admin=user(100,'Admin'),target=user(701,'Sno'),other=user(702,'Other');
+ assert.equal((await request('/api/inspect',{session:other.session,method:'POST',body:{user_id:target.uid}})).status,403);
+ assert.equal((await request('/api/inspect',{session:admin.session,method:'POST',body:{user_id:target.uid},origin:'https://evil.example'})).status,403);
+ assert.equal((await request('/api/inspect',{session:admin.session,method:'POST',body:{user_id:target.uid}})).status,200);
+ const me=await(await request('/api/me',{session:admin.session})).json();assert.equal(me.name,'Sno');assert.equal(me.admin,false);assert.equal(me.inspect.name,'Sno');
+ const chars=await(await request('/api/characters',{session:admin.session})).json();assert.deepEqual(chars.map(c=>c.id),[701]);
+ assert.equal((await request('/api/admin/users',{session:admin.session})).status,403);
+ assert.equal((await request('/api/sync',{session:admin.session,method:'POST',body:{}})).status,403);
+ assert.equal((await request('/auth/login?link=1',{session:admin.session})).status,403);
+ assert.equal(db.prepare('SELECT * FROM user_activity WHERE user_id=?').get(target.uid),undefined);
+ assert.equal((await(await request('/api/me',{session:other.session})).json()).name,'Other');
+ assert.equal((await request('/api/inspect',{session:admin.session,method:'POST',body:{exit:true}})).status,200);
+ const restored=await(await request('/api/me',{session:admin.session})).json();assert.equal(restored.name,'Admin');assert.equal(restored.admin,true);assert.equal(restored.inspect,null);
+}));
