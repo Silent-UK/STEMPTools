@@ -100,14 +100,16 @@ export function createApp(config) {
   app.use(async(req,res,next)=>{
     const path=req.path.toLowerCase();
     if(!req.session || !(path.startsWith('/api/')||path.startsWith('/auth/')) || path==='/api/logout')return next();
-    try {await whitelist.check(req.session.main_id);next();}
+    try {await whitelist.check(req.session.main_id);
+      if(path.startsWith('/api/'))db.prepare('INSERT INTO user_activity VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_seen=excluded.last_seen WHERE user_activity.last_seen<excluded.last_seen-60000').run(req.session.user_id,Date.now());
+      next();}
     catch(e) {
       if(e.status===403){db.prepare('DELETE FROM sessions WHERE user_id=?').run(req.session.user_id);res.clearCookie('tools_session',cookieOptions);}
       if(path.startsWith('/api/'))return res.status(e.status).json({error:e.message});
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.21" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.22" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -790,7 +792,7 @@ export function createApp(config) {
   }
   app.get("/api/admin/users",(req,res)=>{
     const chars=adminCharacters();
-    res.json(db.prepare("SELECT u.id,u.name,l.last_login FROM users u LEFT JOIN user_logins l ON l.user_id=u.id ORDER BY u.name").all().map(u=>({...u,characters:chars.filter(c=>c.user_id===u.id)})));
+    res.json(db.prepare("SELECT u.id,u.name,u.main_id,l.last_login,COALESCE(a.last_seen,l.last_login) last_online,a.last_seen FROM users u LEFT JOIN user_logins l ON l.user_id=u.id LEFT JOIN user_activity a ON a.user_id=u.id ORDER BY last_online DESC,u.name COLLATE NOCASE").all().map(u=>({...u,characters:chars.filter(c=>c.user_id===u.id)})));
   });
   app.get("/api/admin/esi",(req,res)=>res.json({characters:adminCharacters(),buckets:[0,10,20,30,40,50]}));
   app.get("/api/admin/corporations",(req,res)=>res.json(db.prepare("SELECT corporation_id,name,character_id,character_name,verified,role FROM corporation_connections ORDER BY name").all()));
