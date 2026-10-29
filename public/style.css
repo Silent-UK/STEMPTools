@@ -1172,3 +1172,5 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 .compare-page .panel{padding:12px;margin-bottom:10px}.compare-page h2{font-size:14px;margin:0 0 6px}.compare-page .panelhead{margin-bottom:6px}.compare-page .compare-picker{gap:4px 12px;margin-bottom:6px}.compare-page button{padding:6px 10px;font-size:12px}.compare-page p{font-size:11px;margin:6px 0}.compare-page .compare-snapshots{gap:4px 12px;margin-bottom:4px}.compare-page .skill-compare-table th,.compare-page .skill-compare-table td{padding:4px 6px;font-size:11px}.compare-pilot-name,.compare-skill-name{display:flex;align-items:center;gap:6px}.compare-pilot-name img{width:24px;height:24px;border-radius:4px;flex-shrink:0}.compare-skill-name svg{flex-shrink:0;color:var(--accent)}.skill-compare-table .skill-matching{color:#69d8a3;background:rgba(63,180,120,.09)}.skill-compare-table .compare-delta{display:inline;margin-left:6px;font-size:10px}
 
 .compare-picker label[hidden]{display:none}
+
+.compare-skill-icon{width:18px;height:18px;flex-shrink:0;object-fit:contain}
