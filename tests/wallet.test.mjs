@@ -11,11 +11,16 @@ test('wallet follows journal pages and transaction cursors, retains history and 
 });
 test('wallet rejects incomplete pages and a repeating transaction cursor',async()=>{
  await assert.rejects(collectWalletHistory(c,{request:async()=>({pages:0,data:[]})},cat),/journal/);
- await assert.rejects(collectWalletHistory(c,{request:async p=>p.includes('journal')?{pages:1,data:[]}:{data:[trade]}},cat),/transaction/);
+ await assert.rejects(collectWalletHistory(c,{request:async p=>p.includes('journal')?{pages:1,data:[]}:{data:[trade,{...trade,transaction_id:6}]}},cat),/transaction/);
  await assert.rejects(collectWalletHistory({...c,scopes:'[]'}, {},cat),/Reconnect/);
 });
 test('wallet views keep journal and market totals separate, filter and escape text',()=>{
  const pilots=[{id:1,name:'<Pilot>',data:{names:{99:'<Trader>'},journal:[{id:1,date:trade.date,amount:20,description:'Gift'}],transactions:[{...trade,name:'<Ore>'}]}}];
  const filters={mode:'transactions',days:'all',q:'',direction:''};assert.equal(walletRows(pilots,filters)[0].amount,-30);assert.equal(walletRows(pilots,{...filters,mode:'journal'})[0].amount,20);assert.equal(walletRows(pilots,{...filters,direction:'in'}).length,0);
  const html=walletView(pilots,filters);assert(html.includes('&lt;Ore&gt;'));assert(!html.includes('<Trader>'));assert(html.includes('-30.00'));
+});
+
+test('wallet accepts inclusive cursor overlap and stops at the final boundary',async()=>{
+ const calls=[];const eve={request:async path=>{calls.push(path);if(path.includes('journal'))return {pages:1,data:[]};if(path.includes('from_id=4'))return {data:[{...trade,transaction_id:4}]};if(path.includes('from_id=5'))return {data:[trade,{...trade,transaction_id:4}]};if(path.includes('transactions'))return {data:[trade]};return {data:[]};}};
+ const result=await collectWalletHistory(c,eve,cat);assert.deepEqual(result.transactions.map(r=>r.transaction_id),[5,4]);assert.equal(calls.filter(p=>p.includes('transactions')).length,3);
 });
