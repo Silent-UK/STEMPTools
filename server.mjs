@@ -109,7 +109,7 @@ export function createApp(config) {
       res.status(e.status).type('text').send(e.message);
     }
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.24" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.25" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -494,7 +494,7 @@ export function createApp(config) {
     } catch {res.json({price:null,source:"EVE market average"});}
   });
   app.get("/api/operations/:kind", (req, res) => {
-    if (!["pi", "dens", "industry", "clones", "mining", "wallet-history"].includes(req.params.kind))
+    if (!["pi", "dens", "industry", "clones", "mining", "wallet-history", "contracts"].includes(req.params.kind))
       return res.sendStatus(404);
     const chars = db
       .prepare(

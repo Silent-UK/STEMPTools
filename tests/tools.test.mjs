@@ -1394,3 +1394,14 @@ test('document tags persist, default safely, and respect document ownership',()=
  assert.equal((await(await request('/api/documents/'+id,{session:a.session})).json()).tag,'Alliance');
  assert.equal((await request('/api/documents',{session:a.session,method:'POST',body:{kind:'plan',name:'Invalid',body:[{id:1,level:1}],tag:'x'.repeat(41)}})).status,400);
 }));
+
+test('contracts sync, privacy and missing permission remain isolated',()=>fixture(async({db,user,request})=>{
+ const a=user(601,'Contractor'),b=user(602,'Other');
+ db.prepare('UPDATE characters SET scopes=? WHERE id=601').run(JSON.stringify(['esi-contracts.read_character_contracts.v1']));
+ const sync=syncService(db,{get:async()=>{throw Error('Other sync unavailable')},request:async path=>({pages:1,data:path.includes('?page=')?[{contract_id:11,type:'courier',status:'outstanding'}]:[]})},fakeCat);
+ sync.queue(a.uid,601,true);await sync.tick();
+ assert.equal(JSON.parse(db.prepare("SELECT data FROM snapshots WHERE character_id=601 AND kind='contracts'").get().data).contracts[0].contract_id,11);
+ assert.equal((await request('/api/operations/contracts')).status,401);
+ const other=await(await request('/api/operations/contracts',{session:b.session})).json();assert.equal(other.length,1);assert.equal(other[0].data,null);
+ sync.queue(b.uid,602,true);await sync.tick();assert.equal(db.prepare("SELECT count(*) n FROM sync_errors WHERE character_id=602 AND kind='contracts'").get().n,0);
+}));
