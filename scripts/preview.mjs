@@ -88,7 +88,7 @@ for (const [id, name] of [
         anarchy: { level: "Level1", amount: 36 },
         development: { level: "Level3", amount: 74 },
       },
-      operations: [
+      operations: id === 1000002 ? [] : [
         {
           state: "Available",
           expires: new Date(Date.now() + 8*3600000).toISOString(),

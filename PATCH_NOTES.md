@@ -1,3 +1,7 @@
+# STEMP Tools v0.23.3
+
+- **Mercenary Dens:** separate Operations and Expires columns, aligned across pilots. Expires shows a dash when no active operation is reported.
+
 # STEMP Tools v0.23.2
 
 - **Corp Assets:** resolve station and third-party citadel types for location pictures, including older cached asset results. Inaccessible locations remain unnamed rather than showing an incorrect structure.
