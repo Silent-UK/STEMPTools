@@ -86,3 +86,6 @@ Enable `esi-markets.read_character_orders.v1` and `esi-fittings.read_fittings.v1
 
 ### v0.22.1 unified connection
 Normal login and linking now request every configured personal and corporation scope together. Ensure the EVE application allows both scope sets, then reconnect existing pilots once. Eligible STEMP CEO/director access is registered automatically; users no longer need a separate corporation connection. Scope grants do not bypass role or membership checks.
+
+### v0.23.0 title permissions
+Enable `esi-characters.read_titles.v1` on the EVE application before deployment. Existing pilots reconnect to grant it. Assigned personal roles and titles sync for restricted group rules regardless of page visibility. No manual database migration is required.

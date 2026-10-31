@@ -36,3 +36,13 @@ test('external source adapters reject changed schemas and cap Eve Who history to
  const rows=Array.from({length:20},(_,i)=>({id:i+1,start_date:'2026/10/31 12:00',end_date:'2026/11/01 12:00'}));
  assert.equal(evewhoChanges({characters:rows},'joiners').length,10);assert.equal(evewhoChanges({characters:rows},'leavers')[0].detail,'2026/11/01 12:00 UTC');assert.throws(()=>evewhoChanges({},'joiners'),/Invalid/);
 });
+
+
+test('role/title conditions require matching corporation and the same fresh pilot',()=>store(db=>{
+ const now=Date.now(),rules=[{kind:'role',id:'Director',corporation_id:668298004},{kind:'title',id:5,corporation_id:668298004}];
+ const save=(id,kind,data,updated=now)=>db.prepare('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,kind,JSON.stringify(data),updated,now+3600000);
+ save(101,'roles',{corporation_id:668298004,roles:['Director']});save(102,'titles',{corporation_id:668298004,titles:[{title_id:5}]});assert.equal(eligible(db,1,rules,now),false);
+ save(101,'titles',{corporation_id:999,titles:[{title_id:5}]});assert.equal(eligible(db,1,rules,now),false);
+ save(101,'titles',{corporation_id:668298004,titles:[{title_id:5}]});assert.equal(eligible(db,1,rules,now),true);
+ save(101,'roles',{corporation_id:668298004,roles:['Director']},now-86400001);assert.equal(eligible(db,1,rules,now),false);
+}));

@@ -85,13 +85,13 @@ for (const [id, name] of [
       skyhook: { planet_id: 40000001 },
       infomorphs: { amount: 18200 },
       evolution: {
-        anarchy: { level: "Level1", amount: 22 },
+        anarchy: { level: "Level1", amount: 36 },
         development: { level: "Level3", amount: 74 },
       },
       operations: [
         {
           state: "Available",
-          expires: new Date(Date.now() + 86400000).toISOString(),
+          expires: new Date(Date.now() + 8*3600000).toISOString(),
           definition: { anarchyImpact: -20, developmentImpact: 10 },
         },
       ],
@@ -153,7 +153,7 @@ db.prepare('UPDATE corp_authorizations SET scopes=?').run(JSON.stringify(CORP_SC
 db.prepare('UPDATE characters SET scopes=?').run(JSON.stringify(SCOPES));
 const now=Date.now(),divisions={hangar:[{division:1,name:'Fleet Ships'},{division:2,name:'Industry Stock'}],wallet:Array.from({length:7},(_,i)=>({division:i+1,name:i===0?'Master Wallet':'Division '+(i+1)}))};
 const sampleRoles={roles:['Accountant'],roles_at_hq:['Hangar_Query_1','Hangar_Take_1'],grantable_roles:['Account_Take_2']};
-const samplePilots=[{id:1000001,name:'Example Main',joined:'2020-05-01T12:00:00Z',last_login:new Date(now-7200000).toISOString(),ship:'Rifter',location:'Example Citadel',signed_up:true,titles:[{id:1,name:'Logistics Officer'}],direct_roles:sampleRoles,rights:pilotAccess(sampleRoles,[{roles:['Account_Take_2']}],divisions)},{id:1000010,name:'Example Director',joined:'2018-01-01T12:00:00Z',last_login:new Date(now-86400000).toISOString(),ship:'Avatar',location:'Example Citadel',signed_up:false,titles:[{id:2,name:'Director'}],direct_roles:{roles:['Director']},rights:pilotAccess({roles:['Director']},[],divisions)}];
+const samplePilots=[{id:1000001,name:'Example Main',joined:'2020-05-01T12:00:00Z',last_login:new Date(now-7200000).toISOString(),ship:'Rifter',location:'Example Citadel',signed_up:true,titles:[{id:1,name:'<color=0xff00ff00>STEMP Member<color=0xff808080>'}],direct_roles:sampleRoles,rights:pilotAccess(sampleRoles,[{roles:['Account_Take_2']}],divisions)},{id:1000010,name:'Example Director',joined:'2018-01-01T12:00:00Z',last_login:new Date(now-86400000).toISOString(),ship:'Avatar',location:'Example Citadel',signed_up:false,titles:[{id:2,name:'Director'}],direct_roles:{roles:['Director']},rights:pilotAccess({roles:['Director']},[],divisions)}];
 const cache=(name,data)=>db.prepare('INSERT OR REPLACE INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/'+name,JSON.stringify({...data,updated:now,error:null}),now+3600000);
 cache('pilots',{rows:samplePilots,divisions,warnings:[]});
 cache('assets',{rows:[{item_id:9001,type_id:587,name:'Rifter',location_id:124,root_location_id:124,location:'Example Citadel',location_flag:'CorpSAG1',quantity:1,is_singleton:true},{item_id:9002,type_id:2048,name:'Damage Control II',location_id:9001,root_location_id:124,location:'Example Citadel',location_flag:'LoSlot0',quantity:1},{item_id:9003,type_id:34,name:'Tritanium',location_id:124,root_location_id:124,location:'Example Citadel',location_flag:'CorpSAG2',quantity:1000000}],locations:{124:'Example Citadel'}});
@@ -167,7 +167,10 @@ for(const [uid,id,name] of [[2,1000011,'Example Logistics Pilot'],[3,1000012,'Ex
 }
 db.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,0)').run(1000014,2,'Example Logistics Alt','preview','unused',JSON.stringify(SCOPES),now+3600000);
 db.prepare("INSERT INTO sync_errors VALUES(1000014,'skills','Sample refresh issue — previous data retained.')").run();
+db.prepare('UPDATE characters SET scopes=? WHERE id=1000003').run(JSON.stringify(SCOPES.filter(s=>s!=='esi-characters.read_titles.v1')));
+for(const [id,amount] of [[1000001,1000000],[1000002,2000000],[1000003,3000000]])db.prepare('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,'wallet-history',JSON.stringify({journal:[{id,date:new Date().toISOString(),ref_type:'bounty_prizes',amount}],transactions:[],names:{},started_at:Date.now()}),Date.now(),Date.now()+3600000);
 const { app } = createApp({
+ corpNetwork:async url=>{const p=new URL(url).pathname;return new Response(JSON.stringify(p.endsWith('/members')?[1000001,1000002,1000003,1000011,1000014,1000099]:p.endsWith('/membertracking')?[1000001,1000002,1000003,1000011,1000014,1000099].map((id,i)=>({character_id:id,logon_date:new Date(Date.now()-i*3600000).toISOString(),location_id:124,ship_type_id:587})):[]),{headers:{'content-type':'application/json','cache-control':'max-age=3600'}});},
  membershipLookup:async()=>({corporation_id:668298004}),
   verifyCorporation:async()=>({id:668298004,role:"Director"}),
   db,

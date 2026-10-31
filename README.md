@@ -173,3 +173,7 @@ Sidebar sections now open independently and retain their open/closed state acros
 
 ## v0.22.3 — consistent sidebar alignment
 Removed old corporation-only link indentation. Corporation Management now uses the same icon and text alignment as every other sidebar section.
+
+## v0.23.0 — portraits, notifications and membership rules
+
+See PATCH_NOTES.md for user-facing changes. Personal title collection adds `esi-characters.read_titles.v1`; reconnect existing pilots. Role/title requirements are STEMP-scoped, require fresh snapshots and combine with other requirements on the same pilot. Den notifications use owned cached snapshots, stop when Dens is disabled and flag stale data.

@@ -1,3 +1,19 @@
+# STEMP Tools v0.23.0
+## Portraits, Permissions & Pilot Views · 31 October 2026
+
+- **Overview:** reconnect notice when linked pilots are missing current ESI scopes, with affected pilots listed.
+- **Ratting:** pilot portraits, mains by default, an alt toggle, and period, total earned and daily average stats. Alt income stays included in main totals.
+- **Industry:** All Characters view includes linked mains and alts.
+- **Mercenary Dens:** tighter rows, removed numeric den IDs and combined keys / estimated ISK.
+- **Notifications:** a warning menu appears for operations expiring within 12 hours and anarchy at level 2 or higher, or approaching level 2 at 35/40. Warnings use cached ESI data and flag stale snapshots.
+- **Memberlist:** portraits, sorting, account grouping and counts for pilots, registered people and unregistered pilots.
+- **Roles and Access:** renamed Pilots, added portraits and in-game title colours, removed activity columns and expanded compact hangar/wallet access details.
+- **Corp Assets:** station and structure pictures where the location type is known.
+- **Admin Groups:** restricted membership can require an assigned corporation role or title, alongside ship and skill conditions. Every condition must match one pilot using fresh data.
+- **Admin Users:** slightly larger text.
+
+Existing pilots should reconnect to grant `esi-characters.read_titles.v1`. Daily averages use UTC calendar days for the current day/week/month, the selected number of days for rolling periods, and retained wallet history for All Time.
+
 # STEMP Tools v0.22.1
 ## The Management Update · 31 October 2026
 

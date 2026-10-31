@@ -1567,3 +1567,22 @@ test('temporary corporation verification failure does not block ordinary login',
   assert.equal(r.status,302);assert.equal(db.prepare('SELECT count(*) n FROM users').get().n,1);assert.equal(db.prepare('SELECT count(*) n FROM corp_authorizations').get().n,0);
  },fakeCat,{verifyCorporation:async()=>{throw Object.assign(Error('ESI offline'),{status:502});}});
 });
+
+
+test('scope notices and den notifications stay account-owned and respect disabled dens',()=>fixture(async({db,user,request})=>{
+ const a=user(1601,'Owner'),b=user(1602,'Other');
+ const chars=await(await request('/api/characters',{session:a.session})).json();assert(chars[0].missing_scopes.includes('esi-characters.read_titles.v1'));assert.equal(chars[0].tokens,undefined);
+ db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(1601,'dens',JSON.stringify([{id:1,evolution:{anarchy:{level:'Level2',amount:40}},operations:[]}]),Date.now(),Date.now()+3600000);
+ assert.equal((await(await request('/api/notifications',{session:a.session})).json()).length,1);assert.deepEqual(await(await request('/api/notifications',{session:b.session})).json(),[]);assert.equal((await request('/api/notifications')).status,401);
+ await request('/api/settings',{session:a.session,method:'POST',body:{dens:false}});assert.deepEqual(await(await request('/api/notifications',{session:a.session})).json(),[]);
+}));
+
+test('admin role/title group requirements are scoped to STEMP and validated',()=>fixture(async({db,user,request})=>{
+ const admin=user(100,'Admin'),a=user(1701,'Applicant'),post=(body,session=admin.session)=>request('/api/admin/groups',{session,method:'POST',body});
+ const group={name:'Members',mode:'restricted',rules:[{kind:'role',id:'Director'},{kind:'title',id:5}],pages:['corp-moons']};
+ assert.equal((await post(group,a.session)).status,403);assert.equal((await post(group)).status,200);
+ const g=db.prepare('SELECT * FROM access_groups').get();assert(JSON.parse(g.rules).every(r=>r.corporation_id===668298004));assert.equal((await post({...group,rules:[{kind:'role',id:'<script>'}]})).status,400);
+ const apply=()=>request('/api/groups/'+g.id+'/apply',{session:a.session,method:'POST',body:{}});assert.equal((await apply()).status,400);
+ for(const [kind,data] of [['roles',{corporation_id:668298004,roles:['Director']}],['titles',{corporation_id:668298004,titles:[{title_id:5}]}]])db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(1701,kind,JSON.stringify(data),Date.now(),Date.now()+3600000);
+ assert.equal((await apply()).status,200);
+}));

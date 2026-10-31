@@ -123,7 +123,7 @@ function canMoveCharacter(c,direction) {
 function groupControl(c) {return `<select data-group-char="${c.id}" aria-label="Main or alt group for ${esc(c.name)}" ${c.main?'disabled':''}><option value="${c.id}" ${c.parent_id===c.id?'selected':''}>Main</option>${chars.filter(m=>m.parent_id===m.id&&m.id!==c.id).map(m=>`<option value="${m.id}" ${c.parent_id===m.id?'selected':''}>Alt of ${esc(m.name)}</option>`).join('')}</select>`;}
 const management=managementUI({api,esc,intro,table,num,date,empty,context:()=>({me,chars}),toast,refresh:async reload=>{if(reload){me=await api('/me');renderedPage=null;}await render();}});
 const expansion=expansionUI({api,esc,intro,table,num,date,empty,context:()=>({me,chars}),toast,refresh:()=>render()});
-const corpNav=[['corp-overview','◈','Overview'],['corp-members','♙','Memberlist'],['corp-pilots','♙','Pilots'],['corp-assets','▦','Corp Assets'],['corp-wallet','◈','Wallet'],['corp-industry','⚒','Industry'],['corp-structures','▥','Structures'],['corp-moons','☾','Moon Mining'],['corp-surveys','☷','Moon Surveys']];
+const corpNav=[['corp-overview','◈','Overview'],['corp-members','♙','Memberlist'],['corp-pilots','♙','Roles and Access'],['corp-assets','▦','Corp Assets'],['corp-wallet','◈','Wallet'],['corp-industry','⚒','Industry'],['corp-structures','▥','Structures'],['corp-moons','☾','Moon Mining'],['corp-surveys','☷','Moon Surveys']];
 function navigationButton([id,icon,name]){return `<button data-nav="${id}" class="${page===id?'active':''}"><span>${icon}</span>${name}</button>`;}
 const nav = [
   ["overview", "◈", "Overview"],
@@ -168,9 +168,12 @@ function rememberSidebar(){
 }
 function sidebarOpen(section){return sidebarPreferences()[section]??(sidebarSection()===section);}
 document.addEventListener('toggle',e=>{if(e.target.isConnected&&e.target.matches?.('.sidebar-section[data-sidebar]'))rememberSidebar();},true);
+let siteNotifications=[];
+function notificationMenu(){return siteNotifications.length?`<details class="notification-menu"><summary>⚠ ${siteNotifications.length} Notification${siteNotifications.length===1?'':'s'}</summary><div role="list">${siteNotifications.map(n=>`<div role="listitem"><button data-nav="dens"><strong>${esc(n.pilot)} · ${esc(n.location)}</strong><span>${esc(n.message)}${n.expires?' '+eta(n.expires)+' remaining.':''}</span>${n.stale?'<small>Snapshot is stale or its latest sync failed.</small>':''}</button></div>`).join('')}</div></details>`:'';}
+function refreshNotificationMenu(){const slot=document.querySelector('#notification-slot');if(!slot)return;const open=slot.querySelector('details')?.open;slot.innerHTML=notificationMenu();if(open&&slot.querySelector('details'))slot.querySelector('details').open=true;}
 function shell() {
   rememberSidebar();
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.22.3</small></div></div><div><details class="personal-nav sidebar-section" data-sidebar="personal" ${sidebarOpen('personal')?'open':''}><summary>My Characters</summary><nav>${nav.filter(([id])=>me.preferences?.[id]!==false).map(navigationButton).join('')}</nav></details><details class="management-nav sidebar-section" data-sidebar="management" ${sidebarOpen('management')?'open':''}><summary>Management</summary><nav>${[['groups','◇','Groups'],['settings','⚙','Settings']].map(navigationButton).join('')}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" data-sidebar="inspect" ${sidebarOpen('inspect')?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${me.corporation?`<details class="corp-nav sidebar-section" data-sidebar="corporation" ${sidebarOpen('corporation')?'open':''}><summary>Corporation Management</summary><nav>${corpNav.filter(([id])=>me.corporate_pages?.includes(id)).map(navigationButton).join('')}${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" data-sidebar="admin" ${sidebarOpen('admin')?'open':''}><summary>Admin</summary><nav>${[["admin-groups","◇","Groups"],["admin-links","↗","Links"],["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.23.0</small></div></div><div><details class="personal-nav sidebar-section" data-sidebar="personal" ${sidebarOpen('personal')?'open':''}><summary>My Characters</summary><nav>${nav.filter(([id])=>me.preferences?.[id]!==false).map(navigationButton).join('')}</nav></details><details class="management-nav sidebar-section" data-sidebar="management" ${sidebarOpen('management')?'open':''}><summary>Management</summary><nav>${[['groups','◇','Groups'],['settings','⚙','Settings']].map(navigationButton).join('')}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" data-sidebar="inspect" ${sidebarOpen('inspect')?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${me.corporation?`<details class="corp-nav sidebar-section" data-sidebar="corporation" ${sidebarOpen('corporation')?'open':''}><summary>Corporation Management</summary><nav>${corpNav.filter(([id])=>me.corporate_pages?.includes(id)).map(navigationButton).join('')}${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" data-sidebar="admin" ${sidebarOpen('admin')?'open':''}><summary>Admin</summary><nav>${[["admin-groups","◇","Groups"],["admin-links","↗","Links"],["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<span id="notification-slot">${notificationMenu()}</span><button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -188,7 +191,8 @@ async function render() {
   const content = document.querySelector("#content");
   if(!samePage) content.innerHTML = empty("Loading your workspace…");
   try {
-    chars = await api("/characters");
+    [chars,siteNotifications]=await Promise.all([api("/characters"),api("/notifications")]);
+    refreshNotificationMenu();
     snapshotSignature=snapshotKey(chars);
     document.querySelector("[data-action=update-view]")?.setAttribute("hidden","");
     selected =
@@ -201,7 +205,7 @@ async function render() {
     if (page === "characters") html = await myCharacters();
     if (page === "compare") html = await skillComparison();
     if (page === "plans" || page === "fittings") html = await documents();
-    if (page === "dens" || page === "pi") html = await operations();
+    if (page === "dens" || page === "pi") {html = await operations();if(page==="dens")html=`<div class="dens-page">${html}</div>`;}
     if (page === "pi-market") html = `<div class="pi-market-page">${await piMarket()}</div>`;
     if (page === "assets") html = await assets();
     if (page === "mining") html = await mining();
@@ -257,7 +261,7 @@ function overview() {
     working = chars.filter((c) => c.job).length,
     issues = chars.filter((c) => c.reconnect || c.errors.length).length;
   return (
-    `<div class="cards overview-totals"><div class="card"><div class="label">Total Skillpoints</div><div class="stat">${num(chars.some(c=>c.total_sp!==null)?chars.reduce((n,c)=>n+(c.total_sp||0),0):null)}</div></div><div class="card"><div class="label">Total ISK</div><div class="stat">${num(chars.some(c=>c.isk!==null)?chars.reduce((n,c)=>n+(c.isk||0),0):null)}</div></div></div><section class="panel"><div class="panelhead"><h2>Your characters</h2><div class="actions overview-view-toggle" aria-label="Character display"><button data-overview-mode="combined" aria-pressed="${!overviewExpanded}">Combine alts</button><button data-overview-mode="expanded" aria-pressed="${overviewExpanded}">Expand</button></div></div>${
+    `${chars.some(c=>c.missing_scopes?.length)?`<section class="notice scope-notice"><strong>Additional Scopes have been added to the site for ESI, please reconnect your accounts to get access to these features.</strong><details><summary>${chars.filter(c=>c.missing_scopes?.length).length} Pilot(s) Need Reconnection</summary>${chars.filter(c=>c.missing_scopes?.length).map(c=>`<div class="production"><span>${esc(c.name)} · ${c.missing_scopes.length} missing scope(s)</span><a href="/auth/login?link=1">Reconnect</a></div>`).join('')}</details></section>`:''}<div class="cards overview-totals"><div class="card"><div class="label">Total Skillpoints</div><div class="stat">${num(chars.some(c=>c.total_sp!==null)?chars.reduce((n,c)=>n+(c.total_sp||0),0):null)}</div></div><div class="card"><div class="label">Total ISK</div><div class="stat">${num(chars.some(c=>c.isk!==null)?chars.reduce((n,c)=>n+(c.isk||0),0):null)}</div></div></div><section class="panel"><div class="panelhead"><h2>Your characters</h2><div class="actions overview-view-toggle" aria-label="Character display"><button data-overview-mode="combined" aria-pressed="${!overviewExpanded}">Combine alts</button><button data-overview-mode="expanded" aria-pressed="${overviewExpanded}">Expand</button></div></div>${
       chars.length
         ? overviewCharacters()
         : empty("Add your first character")
@@ -432,7 +436,7 @@ async function operations() {
     ) +
     (kind==="pi"?piSharingSummary():"") +
     (kind==="dens" ? denOverview(rows) : (piShared?'<p class="muted">Read-only PI shared with you. All shared pilots are shown.</p>':piDashboardView(piDashboard))+piFilterBar()) +
-    (kind === "pi" ? "" : `<div class="notice">Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data.</div>`) +
+    (kind === "pi" ? "" : `<div class="den-snapshot-note">Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data.</div>`) +
     (pending ? `<div class="notice">${pending} character${pending === 1 ? '' : 's'} awaiting a successful sync. ${kind==='pi'&&piShared?'The owner needs to sync these pilots.':'Use Refresh all characters to retry.'}</div>` : '') +
     (populated.length ? (kind==="pi" ? (items,render)=>items.map(render).join('') : groupedCharacters)(populated,
         (c) =>
@@ -479,7 +483,7 @@ function dens(rows) {
  if(!rows.length)return empty("No Mercenary Dens reported");
  return `<div class="den-table">${table(["Den / planet","State","Keys / estimated ISK","Development","Anarchy","Workforce","Operations"],rows.map(d=>{
  const impact=workforceImpact(d), ops=activeOperations(d);
- return `<tr><td><strong class="icon-label">${eveIcon(d.type_id)}${esc(d.planet?.name||d.skyhook?.planet_id)}</strong><small>Den ${esc(d.id)}</small>${d.reinforcement_timer?`<small class="pilot-missing">Reinforced · ${date(d.reinforcement_timer.end)}</small>`:''}</td><td>${tag(d.state,d.state==='Running'?'':'warn')}</td><td><strong>${num(d.infomorphs?.amount)}</strong><small>${denPrice.price==null?'Value unavailable':num((d.infomorphs?.amount||0)*denPrice.price)+' ISK'}</small></td><td>${denMeter(d.evolution?.development)}</td><td>${denMeter(d.evolution?.anarchy,true)}</td><td>${tag(impact==null?'Unknown':impact===0?'No impact':'−'+impact+'%',impact>0?'warn':'')}<small>${impact>0?'Workforce reduction':''}</small></td><td>${d.operations_error?`<small class="pilot-missing">${esc(d.operations_error)}</small>`:''}${ops.length?ops.map(o=>`<details class="den-operation"><summary>${esc(o.definition?.name?.en||'Tactical operation')} · ${esc(o.state)}<small><span data-den-expiry="${esc(o.expires)}">Expires in ${eta(o.expires)}</span></small></summary><small>${date(o.expires)} UTC</small>${o.definition?`<p>${esc(o.definition.description?.en||'')}</p><small>Anarchy ${num(o.definition.anarchyImpact)} · Development +${num(o.definition.developmentImpact)}</small>`:''}</details>`).join(''):d.operations_error?'':'<small>No active MTOs reported</small>'}</td></tr>`;
+ return `<tr><td><strong class="icon-label">${eveIcon(d.type_id)}${esc(d.planet?.name||d.skyhook?.planet_id)}</strong>${d.reinforcement_timer?`<small class="pilot-missing">Reinforced · ${date(d.reinforcement_timer.end)}</small>`:''}</td><td>${tag(d.state,d.state==='Running'?'':'warn')}</td><td><span class="den-key-value"><strong>${num(d.infomorphs?.amount)}</strong> / ${denPrice.price==null?'Value unavailable':num((d.infomorphs?.amount||0)*denPrice.price)+' ISK'}</span></td><td>${denMeter(d.evolution?.development)}</td><td>${denMeter(d.evolution?.anarchy,true)}</td><td>${tag(impact==null?'Unknown':impact===0?'No impact':'−'+impact+'%',impact>0?'warn':'')}<small>${impact>0?'Workforce reduction':''}</small></td><td>${d.operations_error?`<small class="pilot-missing">${esc(d.operations_error)}</small>`:''}${ops.length?ops.map(o=>`<details class="den-operation"><summary>${esc(o.definition?.name?.en||'Tactical operation')} · ${esc(o.state)}<small><span data-den-expiry="${esc(o.expires)}">Expires in ${eta(o.expires)}</span></small></summary><small>${date(o.expires)} UTC</small>${o.definition?`<p>${esc(o.definition.description?.en||'')}</p><small>Anarchy ${num(o.definition.anarchyImpact)} · Development +${num(o.definition.developmentImpact)}</small>`:''}</details>`).join(''):d.operations_error?'':'<small>No active MTOs reported</small>'}</td></tr>`;
  }))}</div>`;
 }
 function blueprintStations(blueprints) {
@@ -529,9 +533,12 @@ async function mining(){
  const data=isAll?(combined.connected?combined:null):c?.data;
  return intro('Mining','Combined mining across all mains and alts. Select a pilot for their breakdown. All characters always includes alts.')+altFilter()+picker+heading+(data?miningView({...data,refining},miningFilters,miningOffset):empty(isAll?'No mining ledgers imported yet. Select a pilot to connect mining access.':'Connect this pilot’s mining access to import their available ledger.'));
 }
+let industryPilot=null;
 async function industry() {
-  const rows = visibleCharacters(await api("/operations/industry"));
-  selectVisibleCharacter(rows);
+  const all=await api('/operations/industry'),visible=visibleCharacters(all);
+  if(industryPilot!==null&&!visible.some(c=>c.id===industryPilot))industryPilot=null;
+  const rows=industryPilot===null?all:visible;
+  const picker=`<div class="training-overview character-picker"><button class="training-card" data-industry-all="1" aria-pressed="${industryPilot===null}"><span><strong>All Characters</strong><small>${all.length} pilots · including alts</small></span></button>${visible.map(c=>`<button class="training-card" data-industry-pilot="${c.id}" aria-pressed="${industryPilot===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.data?c.data.jobs.length+' jobs':'Awaiting Sync'}</small></span></button>`).join('')}</div>`;
   const activities = {
     1: "Manufacturing",
     3: "TE research",
@@ -547,11 +554,11 @@ async function industry() {
       "Industry",
       "Jobs and blueprints across your characters. Updated hourly.",
     ) +
-    altFilter() + characterTiles(rows,c=>c.data?`Jobs - ${c.data.jobs.filter(j=>j.status==="active"&&Date.parse(j.end_date)>Date.now()).length}`:"Awaiting sync") +
+    altFilter() + picker + `<div class="compact-stats"><div><small>View</small><strong>${industryPilot===null?'All Characters':esc(all.find(c=>c.id===industryPilot)?.name)}</strong></div><div><small>Jobs</small><strong>${rows.filter(c=>industryPilot===null||c.id===industryPilot).reduce((n,c)=>n+(c.data?.jobs.length||0),0)}</strong></div><div><small>Blueprints</small><strong>${rows.filter(c=>industryPilot===null||c.id===industryPilot).reduce((n,c)=>n+(c.data?.blueprints.length||0),0)}</strong></div></div>` +
     `<div class="toolbar"><input class="blueprint-filter" aria-label="Search blueprints across visible characters" placeholder="Search blueprints across visible characters…"><small id="blueprint-results" role="status"></small></div>` +
     rows.map(
         (c) =>
-          `<section class="panel compact industry-character" data-industry-char="${c.id}" ${c.id===Number(selected)?'':'hidden'}><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
+          `<section class="panel compact industry-character" data-industry-char="${c.id}" ${industryPilot===null||c.id===industryPilot?'':'hidden'}><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
             !c.data
               ? empty("Awaiting Industry sync")
               : `<h3>Jobs · ${c.data.jobs.length}</h3>${
@@ -790,6 +797,8 @@ root.addEventListener("click", async (e) => {
       miningPilot=b.dataset.miningAll?null:Number(b.dataset.miningPilot);if(miningPilot!==null&&chars.find(c=>c.id===miningPilot)?.parent_id!==miningPilot)pageAlts.mining=true;miningOffset=0;await render();
     } else if (b.dataset.miningOffset!==undefined) {
       miningOffset=Math.max(0,Number(b.dataset.miningOffset));await render();
+    } else if (b.dataset.industryAll||b.dataset.industryPilot) {
+      industryPilot=b.dataset.industryAll?null:Number(b.dataset.industryPilot);selected=industryPilot||selected;await render();
     } else if (b.dataset.selectChar) {
       selected=Number(b.dataset.selectChar);miningOffset=0;
       if(page==='characters'&&chars.find(c=>c.id===selected)?.parent_id!==selected)pageAlts.characters=true;
@@ -890,7 +899,7 @@ root.addEventListener("input", (e) => {
   }
   if (e.target.classList.contains("blueprint-filter")) {
     const searching=!!e.target.value.trim();
-    document.querySelectorAll(".industry-character").forEach(section=>section.hidden=searching ? ![...section.querySelectorAll("[data-blueprint]")].some(row=>!row.hidden) : Number(section.dataset.industryChar)!==Number(selected));
+    document.querySelectorAll(".industry-character").forEach(section=>section.hidden=searching ? ![...section.querySelectorAll("[data-blueprint]")].some(row=>!row.hidden) : !(industryPilot===null||Number(section.dataset.industryChar)===industryPilot));
     const count=[...document.querySelectorAll("[data-blueprint]")].filter(row=>!row.hidden).length;
     document.querySelector("#blueprint-results").textContent=searching ? `${count} matching blueprint entries across your characters` : "";
   }
@@ -1139,7 +1148,7 @@ try {
   setInterval(async()=>{
     if(checkingSnapshots || document.hidden)return;
     checkingSnapshots=true;
-    try{const latest=await api("/characters");if(snapshotKey(latest)!==snapshotSignature)document.querySelector("[data-action=update-view]")?.removeAttribute("hidden");}catch{}finally{checkingSnapshots=false;}
+    try{siteNotifications=await api("/notifications");refreshNotificationMenu();const latest=await api("/characters");if(snapshotKey(latest)!==snapshotSignature)document.querySelector("[data-action=update-view]")?.removeAttribute("hidden");}catch{}finally{checkingSnapshots=false;}
   },30000);
 } catch {
   login();
@@ -1178,6 +1187,7 @@ async function myCharacters(){
 setInterval(()=>{const target=document.querySelector('#my-character-training');if(page==='characters'&&target&&myCharacterSnapshot?.id===Number(selected)){target.innerHTML=characterTraining(myCharacterSnapshot.data);applyVisualStyles();}},10000);
 
 function applyVisualStyles(){
+ document.querySelectorAll('[data-eve-color]').forEach(el=>{if(/^#[a-f0-9]{8}$/i.test(el.dataset.eveColor))el.style.color=el.dataset.eveColor;});
  document.querySelectorAll('[data-viz-width]').forEach(el=>el.style.width=Math.max(0,Math.min(100,Number(el.dataset.vizWidth)||0))+'%');
  document.querySelectorAll('[data-viz-gradient]').forEach(el=>el.style.background='conic-gradient('+el.dataset.vizGradient+')');
  document.querySelectorAll('[data-asset-indent]').forEach(el=>el.style.paddingLeft=Math.max(0,Math.min(192,Number(el.dataset.assetIndent)||0))+'px');

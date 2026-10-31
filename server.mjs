@@ -137,7 +137,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:target.admin};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.22.3" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.23.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -380,6 +380,7 @@ export function createApp(config) {
     res.json(
       rows.map((c) => ({
         ...c,
+        missing_scopes:SCOPES.filter(scope=>!JSON.parse(db.prepare('SELECT scopes FROM characters WHERE id=? AND user_id=?').get(c.id,req.session.user_id).scopes).includes(scope)),
         total_sp: JSON.parse(db.prepare("SELECT data FROM snapshots WHERE character_id=? AND kind='skills'").get(c.id)?.data || "null")?.skills?.total_sp ?? null,
         isk: JSON.parse(db.prepare("SELECT data FROM snapshots WHERE character_id=? AND kind='wallet'").get(c.id)?.data || "null")?.balance ?? null,
         main: c.id === req.session.main_id,
