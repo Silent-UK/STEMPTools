@@ -1272,3 +1272,11 @@ input.slide-toggle:focus-visible{outline:2px solid #8ed0ff;outline-offset:3px;}
 :root{background:var(--theme-bg);}
 
 .users-directory button.account-delete{color:#ff667d;border-color:#a73750;background:#49162955;padding:4px;width:27px;height:26px;min-width:27px;flex:none;}.users-directory button.account-delete:hover{background:#8b203a;color:#fff;border-color:#ff667d;}
+
+/* Notifications keep a clear warning colour across all themes. */
+.notification-menu>summary{background:#811f2d;border-color:#f16b79;color:#fff0f2;}
+.notification-menu>summary:hover,.notification-menu[open]>summary{background:#a12b3b;}
+.notification-menu>div{background:#35131b;border-color:#f16b79;color:#fff0f2;}
+.notification-menu button{background:#35131b;color:#fff0f2;border-bottom-color:#8b3b49;}
+.notification-menu button:hover,.notification-menu button:focus-visible{background:#60202e;}
+.notification-menu small{color:#ffc5cd;}

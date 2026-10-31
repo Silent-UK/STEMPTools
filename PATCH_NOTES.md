@@ -1,3 +1,11 @@
+# STEMP Tools v0.28.0
+
+- **Notifications:** Red warning button and panel across all themes.
+- Clones show station/citadel names and solar systems; temporary access failures retain names from that pilot’s previous clones or assets.
+
+- **Corp Assets:** Region filter alongside item/location search, with an Unknown Region option when ESI cannot resolve a location. Empty offices remain last within the results.
+- **Memberlist:** Last Location now shows the solar system for docked station/citadel and in-space locations. Unresolvable sites show System unavailable rather than a raw structure ID. Locations remain the last reported tracking snapshot.
+
 # STEMP Tools v0.27.0
 
 - **Admin Users:** owner-only red bin icon permanently deletes an account after a named confirmation. Removes linked pilots, private snapshots/caches, tokens, jobs, sessions, documents, preferences, sharing and memberships. The site owner is protected.
