@@ -169,3 +169,7 @@ The sidebar is compacted further in v0.22.1: smaller rows/icons and branding, co
 
 ## v0.22.2 — remembered sidebar sections
 Sidebar sections now open independently and retain their open/closed state across navigation and reloads in the same browser, separately for each account. This replaces the single-open-section accordion. Menu and section heading text increases from 11px to 12px while retaining compact spacing.
+
+
+## v0.22.3 — consistent sidebar alignment
+Removed old corporation-only link indentation. Corporation Management now uses the same icon and text alignment as every other sidebar section.
