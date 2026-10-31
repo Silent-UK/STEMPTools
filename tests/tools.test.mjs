@@ -1586,3 +1586,27 @@ test('admin role/title group requirements are scoped to STEMP and validated',()=
  for(const [kind,data] of [['roles',{corporation_id:668298004,roles:['Director']}],['titles',{corporation_id:668298004,titles:[{title_id:5}]}]])db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(1701,kind,JSON.stringify(data),Date.now(),Date.now()+3600000);
  assert.equal((await apply()).status,200);
 }));
+
+
+test("admin rebalance minimizes moves, preserves jobs and is idempotent",async()=>{
+ await fixture(async({db,user,request})=>{
+  const owner=user(100,"Owner"),other=user(101,"Member");
+  for(let i=102;i<113;i++)user(i,"Pilot "+i);
+  db.prepare('UPDATE character_buckets SET minute=20,next_due=1234').run();
+  db.prepare("INSERT INTO jobs(character_id,status) VALUES(100,'running'),(101,'queued')").run();
+  const before=db.prepare('SELECT * FROM jobs ORDER BY character_id').all();
+  assert.equal((await request('/api/admin/esi/rebalance',{session:other.session,body:{},method:'POST'})).status,403);
+  const result=await request('/api/admin/esi/rebalance',{session:owner.session,body:{},method:'POST'});
+  assert.equal(result.status,200);assert.deepEqual(await result.json(),{moved:10,total:13});
+  const counts=[0,10,20,30,40,50].map(m=>db.prepare('SELECT count(*) n FROM character_buckets WHERE minute=?').get(m).n);
+  assert.deepEqual(counts,[2,2,3,2,2,2]);
+  assert.deepEqual(db.prepare('SELECT * FROM jobs ORDER BY character_id').all(),before);
+  for(const b of db.prepare('SELECT * FROM character_buckets').all()){
+   if(b.minute===20)assert.equal(b.next_due,1234);
+   else {assert.ok(b.next_due>Date.now());assert.equal(new Date(b.next_due).getUTCMinutes(),b.minute);}
+  }
+  const schedule=db.prepare('SELECT * FROM character_buckets ORDER BY character_id').all();
+  assert.deepEqual(await (await request('/api/admin/esi/rebalance',{session:owner.session,body:{},method:'POST'})).json(),{moved:0,total:13});
+  assert.deepEqual(db.prepare('SELECT * FROM character_buckets ORDER BY character_id').all(),schedule);
+ });
+});

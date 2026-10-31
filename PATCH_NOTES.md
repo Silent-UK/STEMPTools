@@ -1,3 +1,8 @@
+# STEMP Tools v0.23.1
+
+- **ESI Status:** admin Rebalance button evenly distributes characters across the six hourly buckets with as few moves as possible. Existing queued/running jobs continue; moved characters use the next future UTC slot.
+- **Admin menu:** Users now appears first.
+
 # STEMP Tools v0.23.0
 ## Portraits, Permissions & Pilot Views · 31 October 2026
 

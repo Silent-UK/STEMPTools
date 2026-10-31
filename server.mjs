@@ -137,7 +137,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:target.admin};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.23.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.23.1" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -860,6 +860,7 @@ export function createApp(config) {
     const chars=adminCharacters();
     res.json(db.prepare("SELECT u.id,u.name,u.main_id,l.last_login,COALESCE(a.last_seen,l.last_login) last_online,a.last_seen FROM users u LEFT JOIN user_logins l ON l.user_id=u.id LEFT JOIN user_activity a ON a.user_id=u.id ORDER BY last_online DESC,u.name COLLATE NOCASE").all().map(u=>({...u,characters:chars.filter(c=>c.user_id===u.id)})));
   });
+  app.post("/api/admin/esi/rebalance",(req,res)=>res.json(sync.rebalance()));
   app.get("/api/admin/esi",(req,res)=>res.json({characters:adminCharacters(),buckets:[0,10,20,30,40,50]}));
   app.get("/api/admin/corporations",(req,res)=>res.json(db.prepare("SELECT corporation_id,name,character_id,character_name,verified,role FROM corporation_connections ORDER BY name").all()));
   app.get('/api/admin/whitelist',(req,res)=>res.json(db.prepare('SELECT * FROM login_whitelist ORDER BY name').all()));
