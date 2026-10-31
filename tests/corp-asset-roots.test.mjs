@@ -22,3 +22,10 @@ test('corporation structure snapshot identifies anchors without catalogue metada
  const result=corporationAssetRoots([{item_id:101,type_id:1,location_id:30000001},{item_id:102,type_id:2,location_id:101}],{type:()=>null},[{id:101}]);
  assert.deepEqual(result.map(a=>a.root_location_id),[101,101]);
 });
+
+
+test('office wrappers are contents of a station, not standalone stations',()=>{
+ const cat={type:id=>({name:'Type '+id,category_id:3,group_id:id===27?16:15})};
+ const result=corporationAssetRoots([{item_id:101,type_id:27,location_id:60000001},{item_id:102,type_id:27,location_id:101}],cat);
+ assert.deepEqual(result.map(a=>a.root_location_id),[60000001,60000001]);
+});
