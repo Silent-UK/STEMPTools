@@ -137,7 +137,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:target.admin};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.22.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.22.2" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");

@@ -9,7 +9,7 @@
 
 ### Settings & Navigation
 - New **My Characters** and **Management** sidebar headings, with consistent capitalisation throughout the menu.
-- Smaller sidebar rows, icons and branding. Sections work as an accordion, with the current page's section opening automatically.
+- Compact sidebar rows, icons and branding. Sections can stay open independently and remember their state across navigation and reloads, with slightly larger menu text (v0.22.2).
 - New **Settings** switches for Ratting, Market, Mining, Industry, Mercenary Dens and Planetary Industry.
 - Hidden features pause their dedicated syncing. Data needed elsewhere continues syncing, including Wallet history and PI shared with other players.
 - Turning a feature back on resumes its collection on the next sync and keeps its previously saved data.

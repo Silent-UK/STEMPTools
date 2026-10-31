@@ -165,3 +165,7 @@ Users now uses compact aligned columns for Pilot, Corporation, character count a
 Existing pilots must reconnect once to authorize the combined scope set. No extra scopes beyond v0.22.0 are introduced; all existing personal and corporation scopes must be enabled on the EVE application.
 
 The sidebar is compacted further in v0.22.1: smaller rows/icons and branding, collapsible Admin, and a native single-open-section accordion across My Characters, Management, Inspect Only, Corporation Management and Admin. Navigation opens the section containing the current page. Shorter desktop windows use an additional compact spacing rule; overflow remains available when needed.
+
+
+## v0.22.2 — remembered sidebar sections
+Sidebar sections now open independently and retain their open/closed state across navigation and reloads in the same browser, separately for each account. This replaces the single-open-section accordion. Menu and section heading text increases from 11px to 12px while retaining compact spacing.
