@@ -1,3 +1,10 @@
+# STEMP Tools v0.24.0
+
+- **Wallet history:** tolerate overlapping journal pages by deduplicating entry IDs. Sync errors now distinguish ESI HTTP failures, timeouts, cooldowns and wallet validation failures while retaining saved data.
+- **Admin Users:** the site owner can grant or remove admin access from each registered user row.
+- Granted admins can use site Admin tools and read-only account inspection, including scoped Mail and Contacts. Only the owner can manage admin grants; the owner cannot be demoted or inspected by another admin.
+- Admin permission changes apply on the next request, including existing sessions. Revoking an admin also clears their active inspections. Corporation ESI permissions remain separately checked.
+
 # STEMP Tools v0.23.3
 
 - **Mercenary Dens:** separate Operations and Expires columns, aligned across pilots. Expires shows a dash when no active operation is reported.

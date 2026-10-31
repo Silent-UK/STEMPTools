@@ -1035,21 +1035,35 @@ test('Jita valuation reads every page, excludes other stations and never caches 
  assert.equal((await price([9848]))[0].price,null);assert.equal(db.prepare('SELECT count(*) n FROM public_cache').get().n,0);
 }));
 
-test("administration is restricted to configured owner even if another account has admin flag",async()=>{
+test("only owner manages admin grants, delegated access updates immediately and inspection stays read-only",async()=>{
  await fixture(async({db,user,request})=>{
-  const owner=user(100,"Owner"),other=user(200,"Other");
-  db.prepare("UPDATE users SET admin=1 WHERE id=?").run(other.uid);
-  for(const path of ["users","esi","corporations","whitelist"]){
-   assert.equal((await request("/api/admin/"+path,{session:other.session})).status,403);
-   assert.equal((await request("/api/admin/"+path,{session:owner.session})).status,200);
-  }
-  assert.equal((await (await request("/api/me",{session:other.session})).json()).admin,false);
-  const result=await (await request("/api/admin/users",{session:owner.session})).json();
-  assert.equal(result.length,2);assert.equal(result[0].characters.length,1);
-  assert.ok(!JSON.stringify(result).includes("tokens"));assert.ok(!JSON.stringify(result).includes("owner_hash"));
-  assert.equal((await request("/auth/login?corporation=1",{session:other.session})).status,302);
+  const owner=user(100,"Owner"),other=user(200,"Other"),third=user(300,"Third");
+  const grant=(actor,id,admin)=>request('/api/admin/users/'+id+'/admin',{session:actor.session,body:{admin},method:'POST'});
+  assert.equal((await grant(other,other.uid,true)).status,403);
+  assert.equal((await request('/api/admin/users',{session:other.session})).status,403);
+  assert.equal((await grant(owner,other.uid,'yes')).status,400);
+  assert.equal((await grant(owner,9999,true)).status,404);
+  assert.equal((await grant(owner,owner.uid,false)).status,400);
+  assert.equal((await grant(owner,other.uid,true)).status,200);
+  assert.equal((await (await request('/api/me',{session:other.session})).json()).admin,true);
+  for(const path of ['users','esi','corporations','whitelist','groups','links'])assert.equal((await request('/api/admin/'+path,{session:other.session})).status,200);
+  assert.equal((await grant(other,third.uid,true)).status,403);
+  assert.equal((await grant(other,other.uid,false)).status,403);
+  const users=await (await request('/api/admin/users',{session:owner.session})).json();
+  assert.equal(users.find(u=>u.id===owner.uid).owner,true);assert.equal(users.find(u=>u.id===other.uid).admin,true);
+  assert.ok(!JSON.stringify(users).includes('tokens'));assert.ok(!JSON.stringify(users).includes('owner_hash'));
+  assert.equal((await request('/api/inspect',{session:other.session,body:{user_id:owner.uid},method:'POST'})).status,400);
+  assert.equal((await request('/api/inspect',{session:other.session,body:{user_id:third.uid},method:'POST'})).status,200);
+  assert.equal((await request('/api/admin/users',{session:other.session})).status,403);
+  assert.equal((await request('/api/admin/esi/rebalance',{session:other.session,body:{},method:'POST'})).status,403);
+  assert.equal((await grant(owner,other.uid,false)).status,200);
+  assert.equal(db.prepare('SELECT count(*) n FROM inspections').get().n,0);
+  assert.equal((await (await request('/api/me',{session:other.session})).json()).admin,false);
+  assert.equal((await request('/api/admin/groups',{session:other.session})).status,403);
+  assert.equal((await request('/api/inspect',{session:other.session,body:{user_id:third.uid},method:'POST'})).status,403);
  });
 });
+
 test("buckets persist, enqueue once per UTC slot and manual refresh does not move schedule",async()=>{
  await fixture(async({db,user})=>{
   const u=user(100,"Owner"),sync=syncService(db,{},fakeCat);

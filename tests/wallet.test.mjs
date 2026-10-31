@@ -24,3 +24,17 @@ test('wallet accepts inclusive cursor overlap and stops at the final boundary',a
  const calls=[];const eve={request:async path=>{calls.push(path);if(path.includes('journal'))return {pages:1,data:[]};if(path.includes('from_id=4'))return {data:[{...trade,transaction_id:4}]};if(path.includes('from_id=5'))return {data:[trade,{...trade,transaction_id:4}]};if(path.includes('transactions'))return {data:[trade]};return {data:[]};}};
  const result=await collectWalletHistory(c,eve,cat);assert.deepEqual(result.transactions.map(r=>r.transaction_id),[5,4]);assert.equal(calls.filter(p=>p.includes('transactions')).length,3);
 });
+
+
+test('wallet journal deduplicates overlapping pages without dropping unique entries',async()=>{
+ const eve={request:async path=>path.includes('journal')?{pages:2,data:path.endsWith('=1')?[{id:3,date:trade.date,amount:30},{id:2,date:trade.date,amount:20}]:[{id:2,date:trade.date,amount:20},{id:1,date:trade.date,amount:10}]}:{data:[]}};
+ const result=await collectWalletHistory(c,eve,cat);assert.deepEqual(result.journal.map(r=>r.id),[3,2,1]);
+});
+
+test('sync diagnostics explain wallet and ESI failures without exposing arbitrary error contents',async()=>{
+ const {syncFailureMessage}=await import('../lib/sync.mjs');
+ assert.match(syncFailureMessage(Error('Incomplete wallet journal')),/pagination/);
+ assert.match(syncFailureMessage({status:502,message:'private response'}),/HTTP 502/);
+ assert.match(syncFailureMessage({name:'TimeoutError'}),/timed out/);
+ assert.equal(syncFailureMessage(Error('secret token')), 'Refresh failed; previous data retained. Next sync will retry.');
+});

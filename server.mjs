@@ -1,3 +1,4 @@
+import {isSiteAdmin} from './lib/admin.mjs';
 import {fittingImportRoutes} from './lib/fitting-import-routes.mjs';
 import {managementRoutes} from './lib/management-routes.mjs';
 import {managementStore,preferences,grants,CORPORATE_PAGES} from './lib/management.mjs';
@@ -104,7 +105,7 @@ export function createApp(config) {
   });
   app.post('/api/inspect', (req,res)=>{
     if(!req.session)return res.sendStatus(401);
-    if(req.session.main_id!==config.owner)return res.sendStatus(403);
+    if(!isSiteAdmin(req.session,config.owner))return res.sendStatus(403);
     try{assertOrigin(req,config.base);}catch{return res.sendStatus(403);}
     if(!req.is('application/json'))return res.sendStatus(415);
     if(req.body.exit===true){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return res.json({ok:true});}
@@ -130,14 +131,14 @@ export function createApp(config) {
     if(!req.session)return next();
     const target=db.prepare('SELECT u.* FROM inspections i JOIN users u ON u.id=i.target_id WHERE i.session_id=?').get(req.session.id);
     if(!target)return next();
-    if(req.session.main_id!==config.owner){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return next();}
+    if(!isSiteAdmin(req.session,config.owner)){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return next();}
     if(req.path.toLowerCase().startsWith('/auth'))return res.status(403).send('Exit Inspect before connecting characters.');
     if(req.path.toLowerCase().startsWith('/api')&&!['GET','HEAD'].includes(req.method))return res.status(403).json({error:'Inspect is read-only. Exit Inspect to make changes.'});
     req.inspect={name:target.name,main_id:target.main_id};
-    req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:target.admin};
+    req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.23.3" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.24.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -349,7 +350,7 @@ export function createApp(config) {
   });
   fittingImportRoutes(app,{db,eve,cat});
   managementRoutes(app,{db,eve,corp,cat,config,whitelist});
-  app.get("/api/me", async (req,res)=>{const director=await corp.access(req.session.user_id),pages=grants(db,req.session.user_id);res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:req.session.main_id===config.owner,director,corporation:director||pages.length>0,corporate_pages:director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:director||pages.length?db.prepare("SELECT * FROM external_links ORDER BY name").all():[]});});
+  app.get("/api/me", async (req,res)=>{const director=await corp.access(req.session.user_id),pages=grants(db,req.session.user_id);res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:director||pages.length>0,corporate_pages:director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:director||pages.length?db.prepare("SELECT * FROM external_links ORDER BY name").all():[]});});
   app.use("/api/corporation",async(req,res,next)=>{
     const director=await corp.access(req.session.user_id),route=req.path.split('/')[1],required=({overview:'corp-overview',members:'corp-members',pilots:'corp-pilots',assets:'corp-assets',wallet:'corp-wallet',industry:'corp-industry',structures:'corp-structures',harvest:'corp-moons',surveys:'corp-surveys'})[route];
     if(!director&&(!['GET','HEAD'].includes(req.method)||!required||!grants(db,req.session.user_id).includes(required)))return res.status(403).json({error:"You do not have permission to view this corporation page."});
@@ -850,7 +851,7 @@ export function createApp(config) {
       })),
     );
   });
-  app.use("/api/admin",(req,res,next)=>req.session.main_id===config.owner?next():res.sendStatus(403));
+  app.use("/api/admin",(req,res,next)=>isSiteAdmin(req.session,config.owner)?next():res.sendStatus(403));
   function adminCharacters() {
     return db.prepare(`SELECT c.id,c.user_id,c.name,c.reconnect,b.minute,b.next_due,j.status AS job,a.attempted,
     (SELECT MAX(updated) FROM snapshots WHERE character_id=c.id) AS updated
@@ -858,9 +859,20 @@ export function createApp(config) {
   }
   app.get("/api/admin/users",(req,res)=>{
     const chars=adminCharacters();
-    res.json(db.prepare("SELECT u.id,u.name,u.main_id,l.last_login,COALESCE(a.last_seen,l.last_login) last_online,a.last_seen FROM users u LEFT JOIN user_logins l ON l.user_id=u.id LEFT JOIN user_activity a ON a.user_id=u.id ORDER BY last_online DESC,u.name COLLATE NOCASE").all().map(u=>({...u,characters:chars.filter(c=>c.user_id===u.id)})));
+    res.json(db.prepare("SELECT u.id,u.name,u.main_id,u.admin,l.last_login,COALESCE(a.last_seen,l.last_login) last_online,a.last_seen FROM users u LEFT JOIN user_logins l ON l.user_id=u.id LEFT JOIN user_activity a ON a.user_id=u.id ORDER BY last_online DESC,u.name COLLATE NOCASE").all().map(u=>({...u,owner:u.main_id===config.owner,admin:u.main_id===config.owner||u.admin===1,characters:chars.filter(c=>c.user_id===u.id)})));
   });
   app.post("/api/admin/esi/rebalance",(req,res)=>res.json(sync.rebalance()));
+  app.post('/api/admin/users/:id/admin',(req,res)=>{
+    if(req.session.main_id!==config.owner)return res.sendStatus(403);
+    const id=Number(req.params.id);
+    if(!Number.isSafeInteger(id)||id<1||typeof req.body.admin!=='boolean')return res.status(400).json({error:'Choose a user and admin status.'});
+    const target=db.prepare('SELECT main_id FROM users WHERE id=?').get(id);
+    if(!target)return res.sendStatus(404);
+    if(target.main_id===config.owner)return res.status(400).json({error:'The site owner always keeps admin access.'});
+    db.prepare('UPDATE users SET admin=? WHERE id=?').run(Number(req.body.admin),id);
+    if(!req.body.admin)db.prepare('DELETE FROM inspections WHERE session_id IN (SELECT id FROM sessions WHERE user_id=?)').run(id);
+    res.json({ok:true,admin:req.body.admin});
+  });
   app.get("/api/admin/esi",(req,res)=>res.json({characters:adminCharacters(),buckets:[0,10,20,30,40,50]}));
   app.get("/api/admin/corporations",(req,res)=>res.json(db.prepare("SELECT corporation_id,name,character_id,character_name,verified,role FROM corporation_connections ORDER BY name").all()));
   app.get('/api/admin/whitelist',(req,res)=>res.json(db.prepare('SELECT * FROM login_whitelist ORDER BY name').all()));

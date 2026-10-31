@@ -28,7 +28,7 @@ node scripts/preview.mjs
 Preview binds to 127.0.0.1:3014 with fictional data in a temporary database; it is never the production entry point. Production is `node --env-file=.env server.mjs`. See [deployment instructions](deploy/SETUP.md).
 
 ## Security and data
-Tokens are AES-256-GCM encrypted using ENCRYPTION_KEY, which must be backed up with the database. Sessions are hashed server-side. OAuth uses expiring single-use browser-bound state and PKCE; JWT issuer/audience/client/character-owner validation. Every private lookup is scoped to account ownership. Linking a character already held by another account is rejected. No automatic migration of transferred characters. Site admin manages the corporation login whitelist but has no API to read other pilots' private data. Login mains must be whitelisted; linked alts may be in other corporations.
+Tokens are AES-256-GCM encrypted using ENCRYPTION_KEY, which must be backed up with the database. Sessions are hashed server-side. OAuth uses expiring single-use browser-bound state and PKCE; JWT issuer/audience/client/character-owner validation. Every private lookup is scoped to account ownership. Linking a character already held by another account is rejected. No automatic migration of transferred characters. Site admins manage the corporation login whitelist and can use explicit, session-bound read-only inspection of other accounts. Only the configured owner can grant or revoke admin access. Login mains must be whitelisted; linked alts may be in other corporations.
 
 Data files live outside releases in /var/lib/stemp-tools. Back up tools.sqlite using SQLite online backup (or stop the service before copying it and its WAL), catalog.sqlite and the separately protected .env. Never commit them. Deleting an alt removes tokens and snapshots; EVE access can also be revoked in CCP's authorised applications page.
 
@@ -177,3 +177,7 @@ Removed old corporation-only link indentation. Corporation Management now uses t
 ## v0.23.0 — portraits, notifications and membership rules
 
 See PATCH_NOTES.md for user-facing changes. Personal title collection adds `esi-characters.read_titles.v1`; reconnect existing pilots. Role/title requirements are STEMP-scoped, require fresh snapshots and combine with other requirements on the same pilot. Den notifications use owned cached snapshots, stop when Dens is disabled and flag stale data.
+
+## v0.24.0 — delegated site administrators
+
+Owner-only Make Admin / Remove Admin controls are on Admin Users. Admin flags are read from the database on each authenticated request; revocation takes effect without signing out and clears active inspections. Site admins can use Admin endpoints and inspect non-owner accounts. Inspection remains read-only and does not carry the target account’s admin privileges. The owner retains access independently of their database flag. Corporation data still requires its own ESI role/page authorization. No manual migration is needed; existing users.admin stores grants.
