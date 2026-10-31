@@ -1,3 +1,8 @@
+# STEMP Tools v0.29.1
+
+- **Fitting Workbench:** Select a pilot to apply synced active core skills to CPU, powergrid, capacitor, hull hitpoints, speed, targeting and drone launch limits. Panels distinguish core-skill-adjusted estimates from base hull values. Full ship bonuses and module effects are still not simulated.
+- **Fitting Workbench:** Show mains by default in the pilot selector and requirements panel. Show Alts reveals linked alts; hiding alts clears an alt selection back to All Mains.
+
 # STEMP Tools v0.29.0
 
 - **Fittings:** Native fitting workbench with ship/item browser, slot editing, compatible ammo, module states, drones/cargo, EFT import/export, private saves and existing fitting loading. Updating an existing fit preserves sharing; other members can save a private copy. Pilot requirements use synced active skills.

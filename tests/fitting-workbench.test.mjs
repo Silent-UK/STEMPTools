@@ -20,3 +20,16 @@ test('base resources exclude offline modules and drone bandwidth uses launched c
  fit.items[0].state='offline';assert.equal(workbenchStats(fit).resources.cpu.used,0);assert.equal(workbenchStats(fit).capacitor.drain,0);
  assert.deepEqual(stats.layers[0].resists,[0,19.999999999999996,40,50]);
 });
+
+
+test('pilot stats apply active core skill levels without changing the saved hull',()=>{
+ const fit=validateWorkbench(source,cat),base=workbenchStats(fit),profile={id:100,name:'Skilled Pilot',updated:123,skills:[{skill_id:3426,active_skill_level:5,trained_skill_level:5},{skill_id:3413,active_skill_level:4},{skill_id:3418,active_skill_level:5},{skill_id:3417,active_skill_level:4},{skill_id:3419,active_skill_level:3},{skill_id:3436,active_skill_level:4}]};
+ const stats=workbenchStats(fit,profile);
+ assert.equal(stats.resources.cpu.total,125);assert.equal(stats.resources.powergrid.total,60);assert.equal(stats.capacitor.capacity,125);assert.equal(stats.capacitor.recharge,80);assert.equal(stats.layers[0].hp,114.99999999999999);
+ assert.equal(stats.profile.name,'Skilled Pilot');assert.equal(stats.profile.available,true);assert.match(stats.warnings.join(' '),/Drones skill limit/);
+ assert.equal(base.resources.cpu.total,100);assert.equal(fit.ship.attributes[48],100);
+ const inactive=workbenchStats(fit,{skills:[{skill_id:3426,active_skill_level:0,trained_skill_level:5}]});assert.equal(inactive.resources.cpu.total,100);
+});
+test('a pilot with no skill snapshot is explicitly shown as base values',()=>{
+ const stats=workbenchStats(validateWorkbench(source,cat),{id:100,name:'Unsynced',skills:null});assert.equal(stats.profile.available,false);assert.equal(stats.resources.cpu.total,100);assert.match(stats.warnings.join(' '),/Sync this pilot/);
+});
