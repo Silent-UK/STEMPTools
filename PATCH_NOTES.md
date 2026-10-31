@@ -1,3 +1,7 @@
+# STEMP Tools v0.25.1
+
+- **Corp Assets:** empty offices are labelled Empty Office and sorted after stocked locations, including across pagination. Emptiness is checked before applying search filters. Empty office entries within a stocked location sort after its other assets.
+
 # STEMP Tools v0.25.0
 
 - Links are visible to every signed-in account without corporation roles or page grants. Admin access is still required to manage them.

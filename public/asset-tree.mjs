@@ -4,7 +4,7 @@ export function assetTree(items) {
  const roots=[];
  for(const a of items){const parent=byId.get(String(a.location_id));if(parent&&parent!==a){const key=String(parent.item_id);if(!children.has(key))children.set(key,[]);children.get(key).push(a);}else roots.push(a);}
  const result=[],seen=new Set();
- const walk=(rows,depth)=>{for(const a of [...rows].sort((a,b)=>a.name.localeCompare(b.name)||String(a.item_id).localeCompare(String(b.item_id)))){const key=String(a.item_id);if(seen.has(key))continue;seen.add(key);result.push({...a,depth});walk(children.get(key)||[],depth+1);}};
+ const walk=(rows,depth)=>{for(const a of [...rows].sort((a,b)=>Number(Boolean(a.empty_office))-Number(Boolean(b.empty_office))||a.name.localeCompare(b.name)||String(a.item_id).localeCompare(String(b.item_id)))){const key=String(a.item_id);if(seen.has(key))continue;seen.add(key);result.push({...a,depth});walk(children.get(key)||[],depth+1);}};
  walk(roots,0);walk(items.filter(a=>!seen.has(String(a.item_id))),0);return result;
 }
 export function assetMatches(items,q,location) {
@@ -29,4 +29,14 @@ export function stackAssetRows(items) {
   else {const row={...item,count:1};groups.set(key,row);rows.push(row);}
  }
  return assetTree(rows);
+}
+
+// Office wrappers are empty only when the full inventory has no stored descendants.
+export function markEmptyOffices(items){
+ const byId=new Map(items.map(a=>[String(a.item_id),a])),occupied=new Set();
+ for(const item of items.filter(a=>a.type_id!==27&&a.quantity!==0)){
+  let parent=byId.get(String(item.location_id));const seen=new Set([String(item.item_id)]);
+  while(parent&&!seen.has(String(parent.item_id))){seen.add(String(parent.item_id));if(parent.type_id===27)occupied.add(String(parent.item_id));parent=byId.get(String(parent.location_id));}
+ }
+ return items.map(a=>({...a,empty_office:a.type_id===27&&!occupied.has(String(a.item_id))}));
 }

@@ -75,3 +75,13 @@ test('corp asset pictures resolve third-party citadels and backfill cached stati
  assert.deepEqual(calls,['/universe/structures/'+citadel,'/universe/stations/60003760']);
  await service.assets();assert.equal(calls.length,2);
 }));
+
+
+test('empty offices sort last and filtered-out contents do not turn a stocked office empty',()=>corpFixture(async db=>{
+ const rows=[{item_id:1,type_id:27,root_location_id:10,location_id:10,location:'AAA Empty Station',name:'Office',quantity:1},{item_id:2,type_id:27,root_location_id:20,location_id:20,location:'ZZZ Stocked Station',name:'Office',quantity:1},{item_id:3,type_id:587,root_location_id:20,location_id:2,location:'ZZZ Stocked Station',name:'Rifter',quantity:1}];
+ db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/assets',JSON.stringify({rows,locationTypes:{10:1,20:1},updated:1}),Date.now()+3600000);
+ const service=corpDataService({db,id:668298004,cat:{},access:async()=>true,snapshot:()=>({structures:[]})});
+ const result=await service.assets();assert.deepEqual(result.locations.map(l=>l.id),[20,10]);assert.equal(result.locations[1].empty_office,true);assert.equal(result.total,2);
+ const filtered=await service.assets({q:'Office'});assert.equal(filtered.locations.find(l=>l.id===20).empty_office,false);assert.equal(filtered.locations.find(l=>l.id===10).empty_office,true);
+ const found=await service.assets({q:'Empty Office'});assert.equal(found.locations.length,1);assert.equal(found.locations[0].id,10);assert.equal(found.total,0);
+}));
