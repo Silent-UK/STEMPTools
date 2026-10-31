@@ -1,0 +1,1 @@
+export const THEMES = {"nebula": "Nebula", "caldari": "Caldari Blue", "amarr": "Amarr Gold", "gallente": "Gallente Green", "minmatar": "Minmatar Rust", "cyberpunk": "Cyberpunk", "chrome": "Chrome", "dracula": "Dracula", "nord": "Nord", "solarized": "Solarized", "oled": "OLED Midnight"};

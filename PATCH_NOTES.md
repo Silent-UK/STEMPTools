@@ -1,3 +1,9 @@
+# STEMP Tools v0.26.0
+
+- **Settings:** Theme and Side Panel Font Size now use the same compact row layout as page switches.
+- New themes: Cyberpunk, Chrome, Dracula, Nord, Solarized and OLED Midnight, alongside the five existing palettes.
+- Theme choices are saved per account and shared between Settings and the quick theme picker.
+
 # STEMP Tools v0.25.1
 
 - **Corp Assets:** empty offices are labelled Empty Office and sorted after stocked locations, including across pagination. Emptiness is checked before applying search filters. Empty office entries within a stocked location sort after its other assets.

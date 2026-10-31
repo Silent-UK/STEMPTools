@@ -1639,3 +1639,14 @@ test('all members can see links and sidebar font size is validated and account-p
   assert.equal((await(await request('/api/me',{session:b.session})).json()).preferences.sidebar_font_size,undefined);
  });
 });
+
+
+test('appearance themes persist per account and reject unknown theme values',async()=>{
+ await fixture(async({user,request})=>{
+  const a=user(101,'A'),b=user(102,'B');
+  for(const theme of ['cyberpunk','chrome','dracula','nord','solarized','oled','nebula'])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{theme}})).status,200);
+  for(const theme of ['invalid','<script>',null,{},true])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{theme}})).status,400);
+  assert.equal((await(await request('/api/me',{session:a.session})).json()).preferences.theme,'nebula');
+  assert.equal((await(await request('/api/me',{session:b.session})).json()).preferences.theme,undefined);
+ });
+});
