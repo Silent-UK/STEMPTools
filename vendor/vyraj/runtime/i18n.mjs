@@ -1,0 +1,48 @@
+// Copyright (C) 2026 Vyraj. AGPL-3.0-only. Corresponding source: ../src/
+export const lang = 'en';
+const EN = {
+    "Atribut necunoscut: {name}": "Unknown attribute: {name}",
+    "Fit nou": "New fit",
+    "grup": "group",
+    "Item necunoscut în datele de fitting: {id}": "Unknown item in the fitting data: {id}",
+    "Itemul nu se poate fita.": "This item cannot be fitted.",
+    "Maxim {max} × {group} activ": "Max {max} × {group} active",
+    "Maxim {max} × {group} pe navă": "Max {max} × {group} per ship",
+    "Niciun modul din fit nu acceptă {name}.": "No module in the fit accepts {name}.",
+    "Nu mai sunt sloturi {k} libere.": "No free {k} slots left.",
+    "Poți monta maxim {n} × {group} pe navă.": "You can fit at most {n} × {group} per ship.",
+    "Prea multe drone lansate: {n} / {max} (skill-ul Drones)": "Too many drones launched: {n} / {max} (Drones skill)",
+    "Structură staționară": "Stationary structure",
+    "Subsisteme": "Subsystems",
+    "{label} depășit: {used} / {total}": "{label} exceeded: {used} / {total}",
+    "{name} adăugat la boostere": "{name} added to boosters",
+    "{name} adăugat la implanturi": "{name} added to implants",
+    "{name} adăugată în hangarul de drone": "{name} added to the drone bay",
+    "{name} nu are mărimea potrivită pentru nava asta.": "{name} is not the right size for this ship.",
+    "{name} nu e pentru nava asta.": "{name} is not for this ship.",
+    "{name} nu se poate fita pe navă.": "{name} cannot be fitted to the ship.",
+    "{name} încărcat în {n} module": "{name} loaded into {n} modules",
+    "{name} adăugat în hangarul de fighteri": "{name} added to the fighter bay",
+    "Sloturi high": "High slots",
+    "Sloturi medii": "Medium slots",
+    "Sloturi low": "Low slots",
+    "Sloturi rig": "Rig slots",
+    "Calibrare": "Calibration",
+    "Lățime de bandă drone": "Drone bandwidth",
+    "Hangar drone": "Drone bay",
+    "Hangar fighteri": "Fighter bay",
+    "Tuburi fighteri": "Fighter tubes",
+    "Fighteri ușori": "Light fighters",
+    "Fighteri de suport": "Support fighters",
+    "Fighteri grei": "Heavy fighters",
+    "Puncte de montaj turele": "Turret hardpoints",
+    "Puncte de montaj lansatoare": "Launcher hardpoints",
+    "Fregată": "Frigate",
+    "Distrugător": "Destroyer",
+    "Crucișător": "Cruiser",
+    "Crucișător de luptă": "Battlecruiser",
+    "Cuirasat": "Battleship"
+};
+export function tx(message, values = {}) {
+    return (EN[message] || message).replace(/\{(\w+)\}/g, (_, key)=>String(values[key] ?? key));
+}

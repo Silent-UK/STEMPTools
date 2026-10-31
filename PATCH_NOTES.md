@@ -1,3 +1,12 @@
+# STEMP Tools v0.30.0
+
+- **Fitting Workbench:** Replace limited base/core-skill estimates with VYRAJ's licensed Dogma fitting engine. Ship/role bonuses, active pilot skills and implants, module effects, fitting reductions, stacking and overheated bonuses now apply.
+- CPU/powergrid account for fitting skills. Shield extenders and armor plates add HP before percentage bonuses; hardeners and damage controls affect resistances according to state and stacking rules.
+- Add DPS/volley, EHP/active/passive tank and capacitor stability or lifetime. No pilot selected uses labelled All Skills V; synced pilot selections use their active skills. Launched drones determine drone DPS.
+- Heat damage is labelled as an estimate; rack heat and module placement affect live burnout. EHP/tank use uniform incoming damage.
+- Preserve mains-only defaults, Show Alts, saved fitting permissions and module state controls. Cost estimates include loaded magazines.
+- Include VYRAJ attribution, AGPL licence and a complete corresponding-source download without private configuration or player data.
+
 # STEMP Tools v0.29.1
 
 - **Fitting Workbench:** Select a pilot to apply synced active core skills to CPU, powergrid, capacitor, hull hitpoints, speed, targeting and drone launch limits. Panels distinguish core-skill-adjusted estimates from base hull values. Full ship bonuses and module effects are still not simulated.

@@ -48,6 +48,7 @@ async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
     scopes: [],
   };
   const { app, corp } = createApp({
+    fittingSimulator:()=>({}),
     base: "http://127.0.0.1",
     data: dir,
     key,
@@ -1707,6 +1708,9 @@ test('an in-flight sync cannot restore a deleted account snapshot or sync error'
 
 test('fitting workbench saves private copies, protects ownership and rejects other-account pilot checks',()=>fixture(async({db,user,request})=>{
  const a=user(7101,'Builder'),b=user(7102,'Other');
+ assert.equal((await request('/api/fitting-workbench/source')).status,401);
+ const source=await request('/api/fitting-workbench/source',{session:a.session});assert.equal(source.status,200);assert.match(source.headers.get('content-disposition'),/tools-fitting-source.zip/);
+ const license=await request('/api/fitting-workbench/license',{session:a.session});assert.equal(license.status,200);assert.match(await license.text(),/GNU AFFERO GENERAL PUBLIC LICENSE/);
  const fit={ship_id:1,name:'Workbench Test',items:[]};
  const create=await request('/api/fitting-workbench/save',{session:a.session,method:'POST',body:{fit}});assert.equal(create.status,200);const {id}=await create.json();
  assert.equal(db.prepare('SELECT shared FROM documents WHERE id=?').get(id).shared,0);

@@ -181,3 +181,7 @@ See PATCH_NOTES.md for user-facing changes. Personal title collection adds `esi-
 ## v0.24.0 — delegated site administrators
 
 Owner-only Make Admin / Remove Admin controls are on Admin Users. Admin flags are read from the database on each authenticated request; revocation takes effect without signing out and clears active inspections. Site admins can use Admin endpoints and inspect non-owner accounts. Inspection remains read-only and does not carry the target account’s admin privileges. The owner retains access independently of their database flag. Corporation data still requires its own ESI role/page authorization. No manual migration is needed; existing users.admin stores grants.
+
+## Fitting engine and licence
+
+This application integrates the VYRAJ fitting engine under AGPL-3.0-only. See LICENSE, vendor/vyraj/NOTICE.md and FITTING_WORKSPACE_REVIEW.md. The fitting workspace provides attribution and a corresponding-source download to all signed-in users. `npm test` regenerates the source archive before validation; rebuild it after final source/documentation changes before release.

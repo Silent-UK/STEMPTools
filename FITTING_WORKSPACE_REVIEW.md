@@ -1,13 +1,16 @@
-# Fitting workspace — local review
+# Fitting calculation engine
 
-Approved for release as v0.29.0. STEMP automatically deploys main; NARVI remains Git-only until its separate live setup is ready.
+Release v0.30.0 integrates VYRAJ's AGPL-3.0-only Dogma engine, with user approval. See vendor/vyraj/NOTICE.md for the upstream revision and integration changes; LICENSE contains the licence. The complete corresponding application source is downloadable by any signed-in user from Fitting Workbench → Corresponding Source. It contains code and build instructions, never private tokens, configuration or player data.
 
-The new entry is Fittings → Open Fitting Workbench. Saved fittings and in-game imports remain available. The workspace uses the site's themes, private/shared fitting permissions and account ownership checks. New saves are private; updating a fitting preserves its existing sharing setting. Shared fits can be opened and saved as private copies.
+Supported calculations include ship/role bonuses, active skill levels, active implants, module states and effects, stacking, overheated bonuses, CPU/powergrid, shield/armor/hull HP and resistances, DPS/volley, uniform-profile EHP/tank, capacitor stability or lifetime, navigation and targeting. No selected pilot means All Skills V, labelled in the selector and panels. An unsynced selected pilot uses level zero with an explicit warning. Drone DPS counts launched drones only. Cost estimates use EVE-wide market averages and loaded magazine quantities.
 
-Included: hull/item search, slot groups, loaded ammunition validation, module states, drone/cargo quantities, launched drones, EFT import/export, existing saved fit loading, private saving, base CPU/powergrid/calibration/drone limits, base hull defense/capacitor/navigation, selected-pilot core skill adjustments, active skill requirements and optional EVE market average cost breakdown.
+Heat damage is an estimate: rack heat, adjacent module placement and live timing change burnout. Capacitor and damage are fitting projections, not guarantees of live combat outcomes. EHP/tank use uniform incoming damage. Use module state controls and loaded ammunition to reflect the intended fit.
 
-Calculation limits: this is a loadout editor with base or selected-pilot core-skill-adjusted figures, not a full Dogma simulator. CPU/PG management, capacitor skills, basic HP, navigation, targeting and drone launch limits use synced active levels. Other skill effects, ship bonuses, module modifiers, stacking penalties and overheat effects are not applied to performance. No DPS, EHP, active tank, applied-damage chart or capacitor depletion time is claimed. Pilot checks assess required active skills, not fitting legality. Costs use EVE-wide averages, not Jita sell minima. Loaded ammo contributes one charge per launcher to this estimate, explicitly labelled in the interface.
+## Rebuilding
 
-Inspiration: https://github.com/madalinmiclea/vyraj at 7ded46c522f9aebd45c3cda2d1eacf35b873f261. That repository declares AGPL-3.0-only. No upstream source, styling or assets were copied into this implementation. The clone in .reference-vyraj is ignored and is only a local reference. EVE item images come from CCP's existing image service.
+- Node.js 24 or later: `npm run build:fitting-engine` transforms the included TypeScript sources to the checked-in runtime. No additional compiler package is needed.
+- Python 3: `python scripts/build-fitting-data.py path/to/ccp-sde-jsonl.zip` rebuilds lib/fitting-dogma.json from CCP's public JSONL SDE. The checked-in data is sufficient to run the simulator without this refresh step.
+- `npm test` rebuilds the corresponding-source ZIP using Node built-ins and runs checks. Run it after final code/docs changes so the source offer matches the deployed release.
+- Existing application setup is documented in README.md and deploy/SETUP.md. Private .env and database files are not part of the source offer.
 
-Review: run `node scripts/preview.mjs` in STEMP Tools, then open http://127.0.0.1:3014, choose Fittings and open the workbench. The preview uses a disposable database with fictional pilots. Saving there does not change production data.
+Only fitting engine dependencies were integrated; no other VYRAJ app modules were added. The Tools interface, saved fittings, private/shared permissions, mains/alt toggle, ESI imports and active-pilot selection remain native to this site.
