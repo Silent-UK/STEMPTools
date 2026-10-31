@@ -1,0 +1,92 @@
+const sections=['High slots','Mid slots','Low slots','Rigs','Subsystems','Drones','Cargo','Implants'];
+const categories=[['ships','Ships'],['equipment','Ship Equipment'],['rigs','Rigs & Subsystems'],['charges','Ammunition & Charges'],['drones','Drones & Fighters'],['implants','Implants & Boosters']];
+export function fittingWorkbenchUI({api,esc,intro,context,toast}){
+ let model=null,analysis=null,documentId=null,mine=true,dirty=false,pilot='',category='ships',query='',results=[],selectedAmmo=null,detail=null,prices=null,saved=[],requestId=0,searchId=0,error='',busy=false,searchTimer;
+ const icon=(id,size=32)=>`<img src="https://images.evetech.net/types/${Number(id)}/icon?size=64" width="${size}" height="${size}" alt="" loading="lazy">`;
+ const n=(v,d=1)=>Number(v||0).toLocaleString('en-GB',{maximumFractionDigits:d});
+ const clean=fit=>({ship_id:fit.ship_id,name:fit.name,items:fit.items.map(r=>({id:r.id,section:r.section,quantity:r.quantity,charge_id:r.charge_id,state:r.state,launched:r.launched}))});
+ function blank(ship){return {ship_id:ship.id,name:ship.name+' fitting',items:[]};}
+ function discard(){return !dirty||confirm('Discard your unsaved fitting changes?');}
+ function paint(){const holder=document.querySelector('.fit-bench');if(holder)holder.outerHTML=view();}
+ async function preview(){
+  if(!model)return;const id=++requestId;busy=true;error='';
+  try{const data=await api('/fitting-workbench/preview',{fit:model,pilot:pilot||undefined});if(id!==requestId)return;analysis=data;model=clean(data.fit);prices=null;}
+  catch(e){if(id===requestId){error=e.message;if(analysis)model=clean(analysis.fit);}}finally{if(id===requestId){busy=false;paint();}}
+ }
+ async function search(){
+  const id=++searchId;
+  try{const rows=await api('/fitting-workbench/items?'+new URLSearchParams({q:query,category}));if(id!==searchId)return;results=rows;const holder=document.querySelector('[data-fb-results]');if(holder)holder.innerHTML=resultList();}
+  catch(e){toast(e.message);}
+ }
+ function resultList(){return results.map(t=>`<div class="fb-browser-row">${icon(t.id,24)}<button type="button" data-fb-add="${t.id}" title="${category==='ships'?'Choose hull':'Add to fitting'}">${esc(t.name)}</button><button type="button" class="fb-info-button" data-fb-info="${t.id}" aria-label="Info for ${esc(t.name)}">ⓘ</button></div>`).join('')||'<p class="muted">No matching items.</p>';}
+ const metric=(label,value)=>`<div><small>${esc(label)}</small><strong>${value}</strong></div>`;
+ function bar(label,r,unit){const percent=r.total?100*r.used/r.total:0;return `<div class="fb-resource ${r.over?'fb-over':''}"><div><strong>${label}</strong><span>${n(r.used)} / ${n(r.total)} ${unit}</span></div><progress value="${Math.min(100,percent)}" max="100" aria-label="${label}"></progress>${r.over?'<small>Exceeds base hull capacity</small>':''}</div>`;}
+ function moduleRow(row,index){
+  const canLoad=[604,605,606,609,610].some(id=>row.attributes[id]);const states=row.attributes[6]||row.attributes[51]||row.attributes[73]?['offline','online','active','overheated']:['offline','online'];
+  return `<div class="fb-module">${icon(row.id)}<div class="fb-module-name"><button type="button" data-fb-info="${row.id}">${esc(row.name)}</button>${row.charge?`<small>${icon(row.charge.id,16)} ${esc(row.charge.name)} <button type="button" data-fb-unload="${index}" aria-label="Unload ammunition">×</button></small>`:''}${row.section==='Drones'?`<small>Carried <input type="number" data-fb-quantity="${index}" min="1" max="100000" value="${row.quantity}" aria-label="Quantity of ${esc(row.name)}"> · Launched <input type="number" data-fb-launched="${index}" min="0" max="${Math.min(5,row.quantity)}" value="${row.launched}" aria-label="Launched ${esc(row.name)}"></small>`:row.section==='Cargo'?`<small>Quantity <input type="number" data-fb-quantity="${index}" min="1" max="100000" value="${row.quantity}" aria-label="Quantity of ${esc(row.name)}"></small>`:''}</div><div class="fb-module-actions">${!['Drones','Cargo','Implants','Rigs'].includes(row.section)?`${canLoad?`<button type="button" data-fb-ammo="${index}" title="Choose compatible ammunition">Ammo</button>`:''}<select data-fb-state="${index}" aria-label="State of ${esc(row.name)}">${states.map(state=>`<option ${state===row.state?'selected':''} value="${state}">${state[0].toUpperCase()+state.slice(1)}</option>`).join('')}</select>`:''}<button type="button" class="danger" data-fb-remove="${index}" aria-label="Remove ${esc(row.name)}">×</button></div></div>`;
+ }
+ function stats(){
+  if(!analysis)return '';
+  const s=analysis.stats,c=s.capacitor,v=s.navigation;
+  return `<section class="fb-stats"><section class="panel compact"><h3>Resources <small>Base values</small></h3>${bar('CPU',s.resources.cpu,'tf')}${bar('Powergrid',s.resources.powergrid,'MW')}${bar('Calibration',s.resources.calibration,'')}${bar('Drone Bay',s.resources.drones,'m³')}${bar('Launched Bandwidth',s.resources.bandwidth,'Mbit/s')}${s.warnings.map(w=>`<p class="notice error">${esc(w)}</p>`).join('')}</section><section class="panel compact"><h3>Defense <small>Unmodified hull</small></h3><div class="fb-resistance-head"><span>Layer / HP</span><span>EM</span><span>Thermal</span><span>Kinetic</span><span>Explosive</span></div>${s.layers.map(l=>`<div class="fb-resistance"><span><strong>${l.name}</strong><small>${n(l.hp,0)} HP</small></span>${l.resists.map((r,i)=>`<span class="fb-resist fb-damage-${i}">${n(r,0)}%</span>`).join('')}</div>`).join('')}</section><section class="panel compact"><h3>Capacitor <small>Base values</small></h3><div class="fb-metrics">${metric('Capacity',n(c.capacity,0)+' GJ')}${metric('Recharge',n(c.recharge)+' s')}${metric('Peak Recharge',n(c.peak)+' GJ/s')}${metric('Module Draw',n(c.drain)+' GJ/s')}</div><small class="muted">Cycle averages; stability and depletion time need a full simulation.</small></section><section class="panel compact"><h3>Navigation & Targeting <small>Unmodified hull</small></h3><div class="fb-metrics">${metric('Speed',n(v.speed,0)+' m/s')}${metric('Signature',n(v.signature,0)+' m')}${metric('Targeting Range',n(v.targeting)+' km')}${metric('Scan Resolution',n(v.scan,0)+' mm')}${metric('Max Targets',n(v.targets,0))}${metric('Warp Speed',n(v.warp)+' AU/s')}</div></section><section class="panel compact"><h3>Pilot Requirements</h3>${analysis.readiness.map(c=>`<details class="fb-pilot"><summary><img src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><strong>${esc(c.name)}</strong><span class="${c.ready?'pilot-ready':c.ready===false?'fb-missing':'muted'}">${c.ready?'Skills Ready':c.ready===null?'Skills Not Synced':c.missing.length+' Missing Skills'}</span></summary>${c.missing.map(r=>`<div class="listrow"><span>${esc(r.name)}</span><strong>${r.active} → ${r.level}</strong></div>`).join('')}</details>`).join('')||'<small>No pilots selected.</small>'}</section><section class="panel compact"><div class="panelhead"><h3>Estimated Cost</h3><button type="button" data-fb-prices>Get Prices</button></div>${prices?`<strong class="fb-cost">${n(prices.total,0)} ISK${prices.missing?' + unpriced items':''}</strong><small>${esc(prices.source)}</small>${prices.missing?`<p class="notice">${prices.missing} item types have no market average. This is a partial estimate.</p>`:''}<details><summary>Cost Breakdown</summary>${prices.rows.map(r=>`<div class="listrow"><span>${esc(r.name)} ×${r.quantity}</span><strong>${r.price===null?'Unavailable':n(r.price*r.quantity,0)}</strong></div>`).join('')}</details>`:'<small>Optional EVE market averages. Prices are fetched only when requested.</small>'}</section></section>`;
+ }
+ function view(){
+  const {chars=[],me}=context(),fit=analysis?.fit;
+  return `<div class="fit-bench"><div class="fb-toolbar"><button type="button" data-fb-new>New Fit</button><select data-fb-load aria-label="Open a saved fitting"><option value="">Open Saved Fitting…</option>${saved.map(d=>`<option value="${esc(d.id)}" ${d.id===documentId?'selected':''}>${esc(d.name)}${d.mine?'':' · Shared'}</option>`).join('')}</select><button type="button" data-fb-import>Import EFT</button><button type="button" data-fb-export ${!model?'disabled':''}>Export EFT</button><button type="button" data-nav="fitting-import">Import In-Game</button><a class="button" href="#fittings">Saved Fits</a><span class="fb-status" role="status">${busy?'Updating…':dirty?'Unsaved changes':documentId?'Saved fitting':'Local fitting workspace'}</span></div>${error?`<p class="notice error" role="alert">${esc(error)}</p>`:''}<div class="fb-grid"><section class="fb-browser panel compact"><h3>Item Browser</h3><form data-fb-search><input name="q" maxlength="100" value="${esc(query)}" placeholder="Search items…" aria-label="Search fitting items"><select name="category" aria-label="Item category">${categories.map(([id,name])=>`<option value="${id}" ${id===category?'selected':''}>${name}</option>`).join('')}</select><button type="submit">Search</button></form>${selectedAmmo!==null?`<p class="notice">Choose ammo for ${esc(fit?.items[selectedAmmo]?.name||'selected module')}.<button type="button" data-fb-cancel-ammo>Cancel</button></p>`:''}<div data-fb-results>${resultList()}</div>${detail?`<details class="fb-item-info" open><summary>${esc(detail.name)}</summary><small>${esc(detail.section)} · ${n(detail.volume)} m³</small><dl>${[[50,'CPU (tf)'],[30,'Powergrid (MW)'],[1153,'Calibration'],[6,'Activation Cost (GJ)'],[73,'Duration (ms)'],[51,'Cycle (ms)'],[64,'Damage Multiplier'],[54,'Optimal Range (m)'],[158,'Falloff (m)']].filter(([id])=>detail.attributes[id]!==undefined).map(([id,name])=>`<dt>${name}</dt><dd>${n(detail.attributes[id])}</dd>`).join('')}</dl></details>`:''}</section><section class="fb-editor">${fit?`<div class="panel compact fb-hull"><img src="https://images.evetech.net/types/${fit.ship_id}/render?size=256" alt="${esc(fit.ship.name)}"><div><h2>${esc(fit.ship.name)}</h2><label>Fitting Name<input data-fb-name maxlength="150" value="${esc(model.name)}"></label><label>Pilot<select data-fb-pilot><option value="">All My Pilots</option>${chars.map(c=>`<option value="${c.id}" ${String(c.id)===pilot?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label></div><button type="button" class="primary" data-fb-save ${busy||me?.inspect?'disabled':''}>${documentId&&mine?'Save Changes':'Save Private Copy'}</button></div><p class="fb-calculation-note">Base catalogue figures: ship bonuses, skill bonuses, module effects, stacking and overheating are not simulated. DPS, EHP and capacitor lifetime are not yet calculated. Pilot requirements use synced active skills.</p><div class="fb-slot-groups">${sections.map(section=>{const rows=fit.items.map((r,i)=>({...r,index:i})).filter(r=>r.section===section),capacity=analysis.stats.capacities[section];if(section==='Subsystems'&&!rows.length&&!capacity)return '';return `<section class="panel compact fb-slot-group" data-slot="${esc(section)}"><h3>${section}<small>${rows.length}${capacity!==undefined?' / '+capacity:''}</small><button type="button" data-fb-section="${section}">+ Add</button></h3>${rows.map(r=>moduleRow(r,r.index)).join('')}${!rows.length?'<div class="fb-empty-slot">'+(capacity!==undefined?capacity+' base slots available':'No items added')+'</div>':''}</section>`;}).join('')}</div><details class="panel compact"><summary>EFT Text</summary><textarea readonly rows="8" aria-label="EFT export">${esc(analysis.eft)}</textarea><small>Module states and launched drones are stored with your site fitting. EFT carries the loadout only.</small></details>`:`<div class="panel fb-welcome"><span>△</span><h2>Build Your Fitting</h2><p>Choose a ship from the item browser, open a saved fit, or import an EFT export.</p><p class="muted">Your existing fittings stay available under Saved Fits.</p></div>`}</section>${stats()}</div></div>`;
+ }
+ async function open(id){if(!discard())return;const data=await api('/fitting-workbench/documents/'+encodeURIComponent(id));requestId++;busy=false;analysis=data;model=clean(data.fit);documentId=data.id;mine=data.mine;dirty=false;prices=null;selectedAmmo=null;error='';paint();}
+ async function add(id){
+  const item=await api('/fitting-workbench/items/'+id);
+  if(item.category===6){if(!discard())return;documentId=null;mine=true;model=blank(item);analysis=null;selectedAmmo=null;}
+  else{if(!model){toast('Choose a ship first.');return;}
+   if(category==='charges'&&selectedAmmo!==null){model.items[selectedAmmo].charge_id=item.id;selectedAmmo=null;}
+   else model.items.push({id:item.id,section:item.section,quantity:1,state:'active',launched:0});
+  }
+  dirty=true;await preview();
+ }
+ document.addEventListener('click',async e=>{
+  const button=e.target.closest('button');if(!button||!button.closest('.fit-bench')||![...button.attributes].some(a=>a.name.startsWith('data-fb-')))return;
+  e.preventDefault();e.stopPropagation();if(button.disabled)return;button.disabled=true;
+  try{
+   if(button.hasAttribute('data-fb-add'))await add(Number(button.dataset.fbAdd));
+   else if(button.hasAttribute('data-fb-info')){detail=await api('/fitting-workbench/items/'+button.dataset.fbInfo);paint();}
+   else if(button.hasAttribute('data-fb-save')){const result=await api('/fitting-workbench/save',{fit:model,id:mine?documentId:undefined});documentId=result.id;mine=true;dirty=false;saved=(await api('/documents')).filter(d=>d.kind==='fitting');toast('Fitting saved.');paint();}
+   else if(button.hasAttribute('data-fb-new')){if(discard()){requestId++;busy=false;model=null;analysis=null;documentId=null;dirty=false;selectedAmmo=null;category='ships';query='';paint();await search();}}
+   else if(button.hasAttribute('data-fb-remove')){model.items.splice(Number(button.dataset.fbRemove),1);selectedAmmo=null;dirty=true;await preview();}
+   else if(button.hasAttribute('data-fb-unload')){model.items[Number(button.dataset.fbUnload)].charge_id=null;dirty=true;await preview();}
+   else if(button.hasAttribute('data-fb-ammo')){selectedAmmo=Number(button.dataset.fbAmmo);category='charges';query='';paint();await search();}
+   else if(button.hasAttribute('data-fb-cancel-ammo')){selectedAmmo=null;paint();}
+   else if(button.hasAttribute('data-fb-section')){category=({Drones:'drones',Cargo:'charges',Implants:'implants',Rigs:'rigs',Subsystems:'rigs'})[button.dataset.fbSection]||'equipment';query='';selectedAmmo=null;paint();await search();document.querySelector('[data-fb-search] input')?.focus();}
+   else if(button.hasAttribute('data-fb-prices')){prices=await api('/fitting-workbench/prices',{fit:model});paint();}
+   else if(button.hasAttribute('data-fb-import')){if(!discard())return;const dialog=document.getElementById('fb-import-dialog');dialog.showModal();dialog.querySelector('textarea').focus();}
+   else if(button.hasAttribute('data-fb-export')){const blob=new Blob([analysis.eft],{type:'text/plain'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=model.name.replace(/[^\w .-]/g,'_')+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  }catch(err){error=err.message;toast(err.message);paint();}finally{button.disabled=false;}
+ },true);
+ document.addEventListener('change',async e=>{
+  if(!e.target.closest('.fit-bench'))return;const el=e.target;
+  try{
+   if(el.matches('[data-fb-load]')){if(el.value)await open(el.value);return;}
+   if(el.matches('[name=category]')){category=el.value;selectedAmmo=null;await search();return;}
+   if(!model)return;
+   if(el.hasAttribute('data-fb-pilot')){pilot=el.value;await preview();return;}
+   if(el.hasAttribute('data-fb-name'))model.name=el.value;
+   else if(el.hasAttribute('data-fb-state'))model.items[Number(el.dataset.fbState)].state=el.value;
+   else if(el.hasAttribute('data-fb-quantity')){const row=model.items[Number(el.dataset.fbQuantity)];row.quantity=Number(el.value);row.launched=Math.min(row.launched,row.quantity);}
+   else if(el.hasAttribute('data-fb-launched'))model.items[Number(el.dataset.fbLaunched)].launched=Number(el.value);
+   else return;
+   dirty=true;await preview();
+  }catch(err){toast(err.message);}
+ });
+ document.addEventListener('input',e=>{if(e.target.matches('[data-fb-search] input')){query=e.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(search,250);}});
+ document.addEventListener('submit',async e=>{
+  if(e.target.matches('[data-fb-search]')){e.preventDefault();e.stopPropagation();const values=new FormData(e.target);query=values.get('q');category=values.get('category');await search();}
+  if(e.target.matches('[data-fb-eft-import]')){e.preventDefault();e.stopPropagation();const dialog=e.target.closest('dialog');try{const text=new FormData(e.target).get('eft');const data=await api('/fitting-workbench/preview',{eft:text,pilot:pilot||undefined});requestId++;busy=false;analysis=data;model=clean(data.fit);documentId=null;mine=true;dirty=true;prices=null;error='';dialog.close();paint();}catch(err){e.target.querySelector('[role=alert]').textContent=err.message;}}
+ },true);
+ window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
+ return {async render(page){if(page!=='fitting-workbench')return null;
+   saved=(await api('/documents')).filter(d=>d.kind==='fitting');
+   if(!results.length)results=await api('/fitting-workbench/items?'+new URLSearchParams({category,q:query}));
+   if(!document.getElementById('fb-import-dialog')){const dialog=document.createElement('dialog');dialog.id='fb-import-dialog';dialog.className='fb-import-dialog';dialog.innerHTML=`<form data-fb-eft-import><h2>Import EFT Fitting</h2><label>Fitting Text<textarea name="eft" required maxlength="30000" rows="12" placeholder="[Rifter, My fit]&#10;Damage Control II"></textarea></label><p role="alert" class="fb-missing"></p><div class="actions"><button type="button" data-fb-close-import>Cancel</button><button class="primary">Load Fitting</button></div></form>`;dialog.querySelector('[data-fb-close-import]').addEventListener('click',()=>dialog.close());document.body.append(dialog);}
+   return intro('Fitting Workbench','Build a loadout, check your pilots and save it to your fittings. Base performance figures; pilot skill checks use your synced characters.')+view();
+  }};
+}

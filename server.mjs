@@ -1,3 +1,4 @@
+import {fittingWorkbenchRoutes} from './lib/fitting-workbench-routes.mjs';
 import {wipeAccount} from './lib/accounts.mjs';
 import {isSiteAdmin} from './lib/admin.mjs';
 import {fittingImportRoutes} from './lib/fitting-import-routes.mjs';
@@ -139,7 +140,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.28.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.29.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -350,6 +351,7 @@ export function createApp(config) {
     next();
   });
   fittingImportRoutes(app,{db,eve,cat});
+  fittingWorkbenchRoutes(app,{db,eve,cat});
   managementRoutes(app,{db,eve,corp,cat,config,whitelist});
   app.get("/api/me", async (req,res)=>{const director=await corp.access(req.session.user_id),pages=grants(db,req.session.user_id);res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:director||pages.length>0,corporate_pages:director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
   app.use("/api/corporation",async(req,res,next)=>{
@@ -782,6 +784,7 @@ export function createApp(config) {
       parseFitting(body, cat);
       valid = body;
     }
+    if(row.kind==="fitting")db.prepare("DELETE FROM fitting_workspaces WHERE document_id=?").run(row.id);
     db.prepare(
       "UPDATE documents SET name=?,body=?,shared=?,updated=? WHERE id=?",
     ).run(

@@ -1703,3 +1703,21 @@ test('an in-flight sync cannot restore a deleted account snapshot or sync error'
   for(const table of ['characters','snapshots','sync_errors','jobs','esi_cache'])assert.equal(db.prepare('SELECT count(*) n FROM '+table+(table==='characters'?' WHERE id=200':" WHERE character_id=200")).get().n,0,table);
  });
 });
+
+
+test('fitting workbench saves private copies, protects ownership and rejects other-account pilot checks',()=>fixture(async({db,user,request})=>{
+ const a=user(7101,'Builder'),b=user(7102,'Other');
+ const fit={ship_id:1,name:'Workbench Test',items:[]};
+ const create=await request('/api/fitting-workbench/save',{session:a.session,method:'POST',body:{fit}});assert.equal(create.status,200);const {id}=await create.json();
+ assert.equal(db.prepare('SELECT shared FROM documents WHERE id=?').get(id).shared,0);
+ assert.equal((await request('/api/fitting-workbench/documents/'+id,{session:b.session})).status,404);
+ assert.equal((await request('/api/fitting-workbench/save',{session:b.session,method:'POST',body:{id,fit}})).status,404);
+ assert.equal((await request('/api/fitting-workbench/preview',{session:a.session,method:'POST',body:{fit,pilot:7102}})).status,404);
+ const own=await(await request('/api/fitting-workbench/documents/'+id,{session:a.session})).json();assert.equal(own.mine,true);assert.equal(own.fit.name,'Workbench Test');
+ await request('/api/documents/'+id,{session:a.session,method:'PATCH',body:{shared:true}});
+ const shared=await(await request('/api/fitting-workbench/documents/'+id,{session:b.session})).json();assert.equal(shared.mine,false);
+ assert.equal((await request('/api/fitting-workbench/save',{session:b.session,method:'POST',body:{id,fit}})).status,403);
+ assert.equal((await request('/api/fitting-workbench/save',{session:a.session,method:'POST',body:{id,fit:{...fit,name:'Edited'}}})).status,200);
+ assert.equal(db.prepare('SELECT shared FROM documents WHERE id=?').get(id).shared,1);
+ assert.equal((await request('/api/documents/'+id,{session:a.session,method:'DELETE',body:{}})).status,200);assert.equal(db.prepare('SELECT 1 FROM fitting_workspaces WHERE document_id=?').get(id),undefined);
+}, {...fakeCat,type:id=>({id,name:'Test Hull',category_id:6,attributes:{}}),named:()=>1}));

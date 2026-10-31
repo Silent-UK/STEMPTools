@@ -167,6 +167,7 @@ for(const [uid,id,name] of [[2,1000011,'Example Logistics Pilot'],[3,1000012,'Ex
 }
 db.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,0)').run(1000014,2,'Example Logistics Alt','preview','unused',JSON.stringify(SCOPES),now+3600000);
 db.prepare("INSERT INTO sync_errors VALUES(1000014,'skills','Sample refresh issue — previous data retained.')").run();
+db.prepare('UPDATE characters SET reconnect=1 WHERE id=1000014').run();
 db.prepare('UPDATE characters SET scopes=? WHERE id=1000003').run(JSON.stringify(SCOPES.filter(s=>s!=='esi-characters.read_titles.v1')));
 for(const [id,amount] of [[1000001,1000000],[1000002,2000000],[1000003,3000000]])db.prepare('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,'wallet-history',JSON.stringify({journal:[{id,date:new Date().toISOString(),ref_type:'bounty_prizes',amount}],transactions:[],names:{},started_at:Date.now()}),Date.now(),Date.now()+3600000);
 const { app } = createApp({

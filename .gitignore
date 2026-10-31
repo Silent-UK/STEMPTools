@@ -3,3 +3,6 @@ data/
 .env
 *.log
 *.sqlite*
+
+# Local upstream reference; never part of the application.
+.reference-vyraj/

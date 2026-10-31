@@ -1,3 +1,10 @@
+# STEMP Tools v0.29.0
+
+- **Fittings:** Native fitting workbench with ship/item browser, slot editing, compatible ammo, module states, drones/cargo, EFT import/export, private saves and existing fitting loading. Updating an existing fit preserves sharing; other members can save a private copy. Pilot requirements use synced active skills.
+- Resource, defense, capacitor and navigation panels show labelled base catalogue figures. Full ship/skill/module effects, DPS, EHP and capacitor lifetime are not simulated. Optional cost breakdown uses EVE market averages.
+- **Admin Users:** ESI Status appears after Corporation, summarising all linked pilots. Reconnect requirements are red; sync issues remain distinct from invalid authentication. Expand a user for details.
+- Admin/Inspect controls stay on one line. Delete is in a separate reserved column with a divider and extra space; existing named confirmation and owner protection remain.
+
 # STEMP Tools v0.28.1
 
 - **Corp Assets:** Keep each owned citadel, engineering complex, refinery, Metenox and POS tower in its own location group, with contents and fittings beneath it. Loose in-space assets remain under their solar system.
