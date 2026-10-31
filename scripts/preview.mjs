@@ -1,3 +1,6 @@
+import {CORP_SCOPES} from '../lib/corp.mjs';
+import {SCOPES} from '../lib/eve.mjs';
+import {pilotAccess} from '../lib/corp-data.mjs';
 // Local UI review only. Uses an isolated temporary database with fictional data.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -145,6 +148,25 @@ db.prepare('UPDATE corp_snapshots SET data=? WHERE corporation_id=668298004').ru
 db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-industry',JSON.stringify({updated:Date.now(),error:null,rows:[{job_id:1,product_type_id:587,blueprint_type_id:688,name:'Rifter',activity_id:1,runs:20,installer:'Example Main',location:'Example Citadel',status:'active',end_date:new Date(Date.now()+9000000).toISOString()},{job_id:2,blueprint_type_id:688,name:'Rifter Blueprint',activity_id:5,runs:10,installer:'Example Industrial',location:'Example Citadel',status:'ready',end_date:new Date(Date.now()-900000).toISOString()},{job_id:3,product_type_id:587,blueprint_type_id:688,name:'Rifter',activity_id:1,runs:5,installer:'Example Main',location:'Example Citadel',status:'paused',end_date:new Date(Date.now()-900000).toISOString()}]}),0);
 db.prepare('UPDATE character_groups SET parent_id=1000001 WHERE character_id=1000003').run();
 db.prepare('INSERT INTO documents VALUES(?,?,?,?,?,?,?)').run('preview-fitting',1,'fitting','Preview Rifter',JSON.stringify('[Rifter, Preview Rifter]'),0,Date.now());
+// Sample data for management and market UI checks; never used by production.
+db.prepare('UPDATE corp_authorizations SET scopes=?').run(JSON.stringify(CORP_SCOPES));
+db.prepare('UPDATE characters SET scopes=?').run(JSON.stringify(SCOPES));
+const now=Date.now(),divisions={hangar:[{division:1,name:'Fleet Ships'},{division:2,name:'Industry Stock'}],wallet:Array.from({length:7},(_,i)=>({division:i+1,name:i===0?'Master Wallet':'Division '+(i+1)}))};
+const sampleRoles={roles:['Accountant'],roles_at_hq:['Hangar_Query_1','Hangar_Take_1'],grantable_roles:['Account_Take_2']};
+const samplePilots=[{id:1000001,name:'Example Main',joined:'2020-05-01T12:00:00Z',last_login:new Date(now-7200000).toISOString(),ship:'Rifter',location:'Example Citadel',signed_up:true,titles:[{id:1,name:'Logistics Officer'}],direct_roles:sampleRoles,rights:pilotAccess(sampleRoles,[{roles:['Account_Take_2']}],divisions)},{id:1000010,name:'Example Director',joined:'2018-01-01T12:00:00Z',last_login:new Date(now-86400000).toISOString(),ship:'Avatar',location:'Example Citadel',signed_up:false,titles:[{id:2,name:'Director'}],direct_roles:{roles:['Director']},rights:pilotAccess({roles:['Director']},[],divisions)}];
+const cache=(name,data)=>db.prepare('INSERT OR REPLACE INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/'+name,JSON.stringify({...data,updated:now,error:null}),now+3600000);
+cache('pilots',{rows:samplePilots,divisions,warnings:[]});
+cache('assets',{rows:[{item_id:9001,type_id:587,name:'Rifter',location_id:124,root_location_id:124,location:'Example Citadel',location_flag:'CorpSAG1',quantity:1,is_singleton:true},{item_id:9002,type_id:2048,name:'Damage Control II',location_id:9001,root_location_id:124,location:'Example Citadel',location_flag:'LoSlot0',quantity:1},{item_id:9003,type_id:34,name:'Tritanium',location_id:124,root_location_id:124,location:'Example Citadel',location_flag:'CorpSAG2',quantity:1000000}],locations:{124:'Example Citadel'}});
+cache('wallet',{rows:divisions.wallet.map(d=>({...d,balance:d.division*123456789,journal:[{id:d.division,date:new Date(now-3600000).toISOString(),amount:1000000,balance:d.division*123456789,ref_type:'bounty_prize_corporation_tax',first_party_id:1000001,second_party_id:668298004}],transactions:[{transaction_id:d.division,date:new Date(now-7200000).toISOString(),quantity:10,unit_price:800000,is_buy:true,type_id:587,name:'Rifter',client_id:1000001}]})),names:{1000001:'Example Main',668298004:'Sacred Templars'},warnings:[],started_at:now});
+const marketOrder={order_id:1,type_id:587,name:'Rifter',price:800000,volume_remain:10,volume_total:20,is_buy_order:true,issued:new Date(now-86400000).toISOString(),location_id:60003760,status:'active'};
+db.prepare('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?,?,NULL)').run(1000001,'market',JSON.stringify({active:[marketOrder,{...marketOrder,order_id:2,is_buy_order:false,price:950000}],history:[{...marketOrder,order_id:3,volume_remain:0,status:'fulfilled'},{...marketOrder,order_id:4,volume_remain:3,status:'cancelled'}],locations:{60003760:'Jita IV - Moon 4'},started_at:now}),now,now+3600000);
+for(const [uid,id,name] of [[2,1000011,'Example Logistics Pilot'],[3,1000012,'Example Recruit'],[4,1000013,'Example Industry Manager']]){
+ db.prepare('INSERT INTO users VALUES(?,?,?,0)').run(uid,id,name);
+ db.prepare("INSERT INTO characters VALUES(?,?,?,?,?,?,?,0)").run(id,uid,name,'preview','unused',JSON.stringify(SCOPES),now+3600000);
+ db.prepare('INSERT INTO user_logins VALUES(?,?)').run(uid,now-uid*3600000);
+}
+db.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,0)').run(1000014,2,'Example Logistics Alt','preview','unused',JSON.stringify(SCOPES),now+3600000);
+db.prepare("INSERT INTO sync_errors VALUES(1000014,'skills','Sample refresh issue — previous data retained.')").run();
 const { app } = createApp({
  membershipLookup:async()=>({corporation_id:668298004}),
   verifyCorporation:async()=>({id:668298004,role:"Director"}),
@@ -154,7 +176,7 @@ const { app } = createApp({
   base: "http://127.0.0.1:3014",
   key: "ab".repeat(32),
   owner: 1000001,
-  eve: {publicGet:async path=>path==="/markets/prices"?[{type_id:16634,average_price:1200},{type_id:16640,average_price:8000}]:{},request:async path=>{const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
+  eve: {get:async path=>path.endsWith('/fittings')?[{fitting_id:1,name:'Preview Saved Rifter',description:'Example saved in-game fitting',ship_type_id:587,items:[{type_id:2048,flag:'LoSlot0',quantity:1}]}]:[],publicGet:async path=>path==="/markets/prices"?[{type_id:16634,average_price:1200},{type_id:16640,average_price:8000}]:{},request:async(path,character,method,body)=>{if(path==='/characters/affiliation')return {pages:1,data:body.map(id=>({character_id:id,corporation_id:668298004}))};if(path==='/universe/names')return {data:body.map(id=>({id,name:id===668298004?'Sacred Templars':'Example '+id}))};const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
 });
 const server = http.createServer((req, res) => {
   req.headers.cookie = "tools_session=local-preview";

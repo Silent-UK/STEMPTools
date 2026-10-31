@@ -1,3 +1,6 @@
+import {fittingImportRoutes} from './lib/fitting-import-routes.mjs';
+import {managementRoutes} from './lib/management-routes.mjs';
+import {managementStore,preferences,grants,CORPORATE_PAGES} from './lib/management.mjs';
 import miningRecipes from './lib/mining-recipes.json' with {type:'json'};
 import {whitelistService} from "./lib/whitelist.mjs";
 import {surveyList} from './lib/moon-surveys.mjs';
@@ -43,6 +46,7 @@ export function createApp(config) {
     eve = config.eve || eveClient(db, box, config),
     sync = syncService(db, eve, cat),
     corp = corporationService(db,box,config,cat,eve);
+  managementStore(db);
   const whitelist=whitelistService(db,config.membershipLookup || (async id=>(await eve.request("/characters/"+id)).data));
   const ownerUser=db.prepare("SELECT id FROM users WHERE main_id=?").get(config.owner);
   const legacy=db.prepare("SELECT * FROM corporation_connections WHERE corporation_id=?").get(STEMP_ID);
@@ -133,7 +137,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:target.admin};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.20.28" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.22.1" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -228,6 +232,14 @@ export function createApp(config) {
       return res.redirect("/#corp-structures");
     }
     if(!flow.user_id)await whitelist.check(id.id,true);
+    let automaticCorp=null,automaticDenied=false;
+    if(id.scopes.includes('esi-characters.read_corporation_roles.v1')){
+      try{
+        const verified=await (config.verifyCorporation||verifyCorporation)(token.access_token,id.id,config.corpNetwork||fetch);
+        if(verified.id===STEMP_ID&&['CEO','Director'].includes(verified.role))automaticCorp=verified;
+        else automaticDenied=true;
+      }catch(e){if(e.status===403)automaticDenied=true;}
+    }
     const user = transaction(db, () => {
       const existing = db
         .prepare("SELECT * FROM characters WHERE id=?")
@@ -287,6 +299,22 @@ export function createApp(config) {
       }
       return uid;
     });
+    if(automaticCorp){
+      const reference=box.seal({linked_character_id:id.id});
+      transaction(db,()=>{
+        db.prepare("INSERT INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,corporation_id=excluded.corporation_id,tokens=excluded.tokens,scopes=excluded.scopes,expires=excluded.expires,role=excluded.role,verified=excluded.verified").run(user,id.id,id.name,id.owner,automaticCorp.id,reference,JSON.stringify(id.scopes),id.expires,automaticCorp.role,Date.now());
+        const owner=db.prepare('SELECT main_id FROM users WHERE id=?').get(user);
+        if(owner.main_id===config.owner)db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(automaticCorp.id,automaticCorp.name||'Sacred Templars',id.id,id.name,id.owner,reference,Date.now(),automaticCorp.role);
+      });
+      corp.connected(user);
+    }else if(automaticDenied){
+      // An ordinary linked alt must not replace another pilot's valid director grant.
+      transaction(db,()=>{
+        db.prepare('DELETE FROM corp_authorizations WHERE user_id=? AND character_id=?').run(user,id.id);
+        db.prepare('DELETE FROM corporation_connections WHERE character_id=? AND owner_hash=?').run(id.id,id.owner);
+      });
+      corp.invalidate(user);
+    }
     if(flow.user_id || !db.prepare("SELECT 1 FROM snapshots WHERE character_id=? LIMIT 1").get(id.id))sync.queue(user,id.id,true);
     const session = random();
     if (req.session)
@@ -319,11 +347,19 @@ export function createApp(config) {
     }
     next();
   });
-  app.get("/api/me", async (req,res)=>res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:req.session.main_id===config.owner,corporation:await corp.access(req.session.user_id)}));
+  fittingImportRoutes(app,{db,eve,cat});
+  managementRoutes(app,{db,eve,corp,cat,config,whitelist});
+  app.get("/api/me", async (req,res)=>{const director=await corp.access(req.session.user_id),pages=grants(db,req.session.user_id);res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:req.session.main_id===config.owner,director,corporation:director||pages.length>0,corporate_pages:director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:director||pages.length?db.prepare("SELECT * FROM external_links ORDER BY name").all():[]});});
   app.use("/api/corporation",async(req,res,next)=>{
-    if(!await corp.access(req.session.user_id))return res.status(403).json({error:"Sacred Templars CEO or Director access is required. Connect corporation access again."});
+    const director=await corp.access(req.session.user_id),route=req.path.split('/')[1],required=({overview:'corp-overview',members:'corp-members',pilots:'corp-pilots',assets:'corp-assets',wallet:'corp-wallet',industry:'corp-industry',structures:'corp-structures',harvest:'corp-moons',surveys:'corp-surveys'})[route];
+    if(!director&&(!['GET','HEAD'].includes(req.method)||!required||!grants(db,req.session.user_id).includes(required)))return res.status(403).json({error:"You do not have permission to view this corporation page."});
     next();
   });
+  app.get('/api/corporation/overview',async(req,res)=>res.json(await corp.overview()));
+  app.get('/api/corporation/pilots',async(req,res)=>res.json(await corp.pilots()));
+  app.get('/api/corporation/assets',async(req,res)=>res.json(await corp.assets(req.query)));
+  app.get('/api/corporation/wallet',async(req,res)=>res.json(await corp.wallets()));
+  app.get('/api/corporation/members',async(req,res)=>res.json(await corp.members()));
   app.get("/api/corporation/surveys/browser",async(req,res)=>res.json(await corp.surveys(req.query)));
   app.get("/api/corporation/surveys",(req,res)=>res.json(surveyList(req.query)));
   app.get("/api/corporation/industry",(req,res)=>res.json(corp.industrySnapshot()));
@@ -386,7 +422,12 @@ export function createApp(config) {
     const c = ownedCharacter(db, req.session.user_id, req.params.id);
     if (c.id === req.session.main_id)
       return res.status(400).json({ error: "The main cannot be unlinked" });
-    db.prepare("DELETE FROM characters WHERE id=?").run(c.id);
+    transaction(db,()=>{
+      db.prepare('DELETE FROM corp_authorizations WHERE user_id=? AND character_id=?').run(req.session.user_id,c.id);
+      db.prepare('DELETE FROM corporation_connections WHERE character_id=? AND owner_hash=?').run(c.id,c.owner_hash);
+      db.prepare("DELETE FROM characters WHERE id=?").run(c.id);
+    });
+    corp.invalidate(req.session.user_id);
     res.json({ ok: true });
   });
   app.post("/api/characters/:id/sync", (req, res) => {
@@ -518,7 +559,7 @@ export function createApp(config) {
     } catch {res.json({price:null,source:"EVE market average"});}
   });
   app.get("/api/operations/:kind", (req, res) => {
-    if (!["pi", "dens", "industry", "clones", "mining", "wallet-history", "contracts"].includes(req.params.kind))
+    if (!["pi", "dens", "industry", "clones", "mining", "wallet-history", "contracts", "market"].includes(req.params.kind))
       return res.sendStatus(404);
     const chars = db
       .prepare(

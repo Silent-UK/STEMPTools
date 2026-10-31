@@ -78,3 +78,11 @@ Update SDE by repeating its download/import with the service stopped, then start
 
 ## Optional Mining access
 Enable `esi-industry.read_character_mining.v1` on the EVE application. Normal login and reconnect request this scope, as does Mining → Connect mining access. Existing pilots must reconnect once to grant it.
+
+
+### v0.22.0 permissions
+Enable `esi-markets.read_character_orders.v1` and `esi-fittings.read_fittings.v1` for personal Market and saved fitting imports. Enable `esi-corporations.read_titles.v1`, `esi-corporations.read_divisions.v1` and `esi-wallet.read_corporation_wallets.v1` for the new corporation views. Reconnect affected pilots and the Corp ESI character after enabling the scopes. Existing corporation membership, tracking and assets scopes are also required for the corresponding pages. Group page grants control view access independently for Pilots, Corp Assets and Wallet. No manual SQL migration is needed.
+
+
+### v0.22.1 unified connection
+Normal login and linking now request every configured personal and corporation scope together. Ensure the EVE application allows both scope sets, then reconnect existing pilots once. Eligible STEMP CEO/director access is registered automatically; users no longer need a separate corporation connection. Scope grants do not bypass role or membership checks.

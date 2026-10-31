@@ -1,3 +1,5 @@
+import {expansionUI} from './expansion-view.mjs';
+import {managementUI} from './management-view.mjs';
 import {contractsView} from './contracts-view.mjs';
 import {walletView} from './wallet-view.mjs';
 import {comparisonTable} from './skill-compare.mjs';
@@ -119,30 +121,38 @@ function canMoveCharacter(c,direction) {
  const target=siblings[siblings.indexOf(c)+direction];return !!target&&!target.main;
 }
 function groupControl(c) {return `<select data-group-char="${c.id}" aria-label="Main or alt group for ${esc(c.name)}" ${c.main?'disabled':''}><option value="${c.id}" ${c.parent_id===c.id?'selected':''}>Main</option>${chars.filter(m=>m.parent_id===m.id&&m.id!==c.id).map(m=>`<option value="${m.id}" ${c.parent_id===m.id?'selected':''}>Alt of ${esc(m.name)}</option>`).join('')}</select>`;}
+const management=managementUI({api,esc,intro,table,num,date,empty,context:()=>({me,chars}),toast,refresh:async reload=>{if(reload){me=await api('/me');renderedPage=null;}await render();}});
+const expansion=expansionUI({api,esc,intro,table,num,date,empty,context:()=>({me,chars}),toast,refresh:()=>render()});
+const corpNav=[['corp-overview','◈','Overview'],['corp-members','♙','Memberlist'],['corp-pilots','♙','Pilots'],['corp-assets','▦','Corp Assets'],['corp-wallet','◈','Wallet'],['corp-industry','⚒','Industry'],['corp-structures','▥','Structures'],['corp-moons','☾','Moon Mining'],['corp-surveys','☷','Moon Surveys']];
+function navigationButton([id,icon,name]){return `<button data-nav="${id}" class="${page===id?'active':''}"><span>${icon}</span>${name}</button>`;}
 const nav = [
   ["overview", "◈", "Overview"],
   ["characters", "♙", "My Characters"],
-  ["skills", "▤", "Skills & queue"],
+  ["skills", "▤", "Skills & Queues"],
   ["clones", "◉", "Clones"],
   ["wallet", "◈", "Wallet"],
   ["contracts", "▧", "Contracts"],
+  ["ratting", "◈", "Ratting"],
+  ["market", "◈", "Market"],
   ["mining", "⛏", "Mining"],
   ["industry", "⚒", "Industry"],
-  ["plans", "◇", "Skill plans"],
+  ["plans", "◇", "Skill Plans"],
   ["fittings", "△", "Fittings"],
-  ["dens", "⬡", "Mercenary dens"],
-  ["pi", "◎", "Planetary industry"],
-  ["assets", "▦", "Asset search"],
+  ["dens", "⬡", "Mercenary Dens"],
+  ["pi", "◎", "Planetary Industry"],
+  ["assets", "▦", "Asset Search"],
 ];
-function corporationNavOpen() {
- try {const saved=localStorage.getItem("stemp-corp-nav-"+me.main_id);if(saved!==null)return saved==="open";}catch{}
- return page.startsWith("corp-");
+const knownPages=[...nav.map(n=>n[0]),...corpNav.map(n=>n[0]),"settings","groups","fitting-import","admin-groups","admin-links","inspect-mail","inspect-contacts","admin-users","admin-esi","admin-corp","admin-whitelist"];
+window.addEventListener("hashchange",()=>{const requested=location.hash.slice(1);if(me&&knownPages.includes(requested)){page=requested;render();}});
+function sidebarSection(){
+ if(page.startsWith('admin-'))return 'admin';
+ if(page.startsWith('corp-'))return 'corporation';
+ if(page.startsWith('inspect-'))return 'inspect';
+ if(['groups','settings'].includes(page))return 'management';
+ return 'personal';
 }
-document.addEventListener("toggle",e=>{
- if(e.target.isConnected&&e.target.matches?.(".corp-nav")&&me){try{localStorage.setItem("stemp-corp-nav-"+me.main_id,e.target.open?"open":"closed");}catch{}}
-},true);
 function shell() {
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.20.28</small></div></div><div><nav>${nav.map(([id, icon, name]) => `<button data-nav="${id}" class="${page === id ? "active" : ""}"><span>${icon}</span>${name}</button>`).join("")}</nav>${me.corporation?`<details class="corp-nav" ${corporationNavOpen()?"open":""}><summary>Corporation Management</summary><nav><button data-nav="corp-industry" class="${page==="corp-industry"?"active":""}"><span>⚒</span>Industry</button><button data-nav="corp-structures" class="${page==="corp-structures"?"active":""}"><span>▥</span>Structures</button><button data-nav="corp-moons" class="${page==="corp-moons"?"active":""}"><span>☾</span>Moon Mining</button><button data-nav="corp-surveys" class="${page==="corp-surveys"?"active":""}"><span>☷</span>Moon Surveys</button></nav></details>`:""}</div>${me.admin ? `<section class="admin-nav"><div class="navlabel">Admin</div><nav>${[["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></section>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.22.1</small></div></div><div><details class="personal-nav sidebar-section" name="tools-sidebar" ${sidebarSection()==='personal'?'open':''}><summary>My Characters</summary><nav>${nav.filter(([id])=>me.preferences?.[id]!==false).map(navigationButton).join('')}</nav></details><details class="management-nav sidebar-section" name="tools-sidebar" ${sidebarSection()==='management'?'open':''}><summary>Management</summary><nav>${[['groups','◇','Groups'],['settings','⚙','Settings']].map(navigationButton).join('')}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" name="tools-sidebar" ${sidebarSection()==='inspect'?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${me.corporation?`<details class="corp-nav sidebar-section" name="tools-sidebar" ${sidebarSection()==='corporation'?'open':''}><summary>Corporation Management</summary><nav>${corpNav.filter(([id])=>me.corporate_pages?.includes(id)).map(navigationButton).join('')}${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" name="tools-sidebar" ${sidebarSection()==='admin'?'open':''}><summary>Admin</summary><nav>${[["admin-groups","◇","Groups"],["admin-links","↗","Links"],["admin-users","♙","Users"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><details class="theme-picker"><summary aria-label="Choose theme" title="Choose theme">${accountIcon("theme")}</summary><div class="theme-options">${Object.entries(themes).map(([id,label])=>`<button data-theme="${id}" aria-pressed="${document.documentElement.dataset.theme===id}"><span class="theme-swatch swatch-${id}"></span>${label}</button>`).join("")}</div></details></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
 }
 function intro(title, description, actions = "") {
   return `<div class="intro"><div><h1>${title}</h1><p>${description}</p></div>${actions}</div>`;
@@ -153,6 +163,7 @@ function login() {
 let renderedPage=null, snapshotSignature="", checkingSnapshots=false;
 const snapshotKey=rows=>JSON.stringify(rows.map(c=>[c.id,c.job,c.reconnect,c.snapshots,c.errors]));
 async function render() {
+  if(me.preferences?.[page]===false)page="overview";
   const samePage=renderedPage===page, scrollY=window.scrollY;
   const run = ++renderId;
   if(!samePage) shell();
@@ -180,10 +191,13 @@ async function render() {
     if (page === "contracts") html = await contractsPage();
     if (page === "industry") html = await industry();
     if (page === "clones") html = await clonesPage();
-    if(page.startsWith("admin-"))html=await adminPage();
-    if(page.startsWith("corp-")){html=await corporationPage();if(page==="corp-structures")html=`<div class="structures-page">${html}</div>`;}
+    if(page.startsWith("admin-")&&!["admin-groups","admin-links"].includes(page))html=await adminPage();
+    if(page.startsWith("corp-")&&!["corp-overview","corp-members","corp-pilots","corp-assets","corp-wallet"].includes(page)){html=await corporationPage();if(page==="corp-structures")html=`<div class="structures-page">${html}</div>`;}
+    const expanded=await expansion.render(page);if(expanded!==null)html=`<div class="management-page">${expanded}</div>`;
+    const extra=await management.render(page);if(extra!==null)html=`<div class="management-page">${extra}</div>`;
     if (run === renderId) {
       content.innerHTML = html;
+      if(page.startsWith('corp-')&&!me.director)content.querySelectorAll('[data-action="corp-sync"],a[href="/auth/login?link=1"]').forEach(el=>el.remove());
       const heading=document.querySelector('.page-heading'),pageIntro=content.querySelector('.intro');
       if(pageIntro?.querySelector('h1')){
         heading.replaceChildren(pageIntro.firstElementChild);
@@ -217,7 +231,7 @@ function overviewPortrait(c,alts=[]) {
  return portrait(c).replace('</strong>','</strong>'+toggle);
 }
 function overviewCharacters() {
- const renderCharacter=(c,alts=[])=>`<div class="overview-character-row"><div class="overview-character-identity">${groupControl(c)}${overviewPortrait(c,alts)}</div><div class="numeric">${num(c.total_sp)}</div><div class="numeric">${c.isk==null?"—":c.isk.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>${subscriptionCell(c)}<div>${c.reconnect ? tag("Reconnect required", "warn") : c.job ? tag(c.job, "purple") : c.errors.length ? tag("Refresh issue", "warn") : tag(c.snapshots.length ? "Connected" : "Awaiting first sync", "dim")}${c.errors.map((e) => `<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("")}</div><div>${date(c.snapshots.length ? Math.min(...c.snapshots.map((s) => s.updated)) : null)}</div><div><div class="actions"><button data-sync-char="${c.id}">↻ Sync</button>${c.main ? "" : `<button data-move="${c.id}" data-direction="-1" aria-label="Move ${esc(c.name)} up" ${!canMoveCharacter(c,-1) ? "disabled" : ""}>↑</button><button data-move="${c.id}" data-direction="1" aria-label="Move ${esc(c.name)} down" ${!canMoveCharacter(c,1) ? "disabled" : ""}>↓</button>`}<a class="button" href="/auth/login?link=1">Reconnect</a>${c.main ? "" : `<button class="danger" data-unlink="${c.id}">Unlink</button>`}</div></div></div>`;
+ const renderCharacter=(c,alts=[])=>`<div class="overview-character-row"><div class="overview-character-identity">${groupControl(c)}${overviewPortrait(c,alts)}</div><div class="numeric">${num(c.total_sp)}</div><div class="numeric">${c.isk==null?"—":c.isk.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>${subscriptionCell(c)}<div>${c.reconnect ? tag("Reconnect required", "warn") : c.job ? tag(c.job, "purple") : c.errors.length ? tag("Refresh issue", "warn") : tag(c.snapshots.length ? "Connected" : "Awaiting first sync", "dim")}${c.errors.map((e) => `<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("")}</div><div>${date(c.snapshots.length ? Math.min(...c.snapshots.map((s) => s.updated)) : null)}</div><div><div class="actions">${c.parent_id!==c.id?`<button data-make-main="${c.id}">Make Main</button>`:""}<button data-sync-char="${c.id}">↻ Sync</button>${c.main ? "" : `<button data-move="${c.id}" data-direction="-1" aria-label="Move ${esc(c.name)} up" ${!canMoveCharacter(c,-1) ? "disabled" : ""}>↑</button><button data-move="${c.id}" data-direction="1" aria-label="Move ${esc(c.name)} down" ${!canMoveCharacter(c,1) ? "disabled" : ""}>↓</button>`}<a class="button" href="/auth/login?link=1">Reconnect</a>${c.main ? "" : `<button class="danger" data-unlink="${c.id}">Unlink</button>`}</div></div></div>`;
  return `<div class="overview-character-scroll"><div class="overview-character-list"><div class="overview-character-row overview-character-head"><span>Character</span><span>Skillpoints</span><span>ISK</span><span>Subscription</span><span>Data status</span><span>Last refreshed</span><span>Actions</span></div>${characterGroups(chars).map(g=>`<div class="overview-character-group">${g.main?renderCharacter(g.main,g.alts):''}${g.alts.length?`<div id="overview-alts-${g.id}" class="overview-alt-rows" ${overviewExpanded||expandedAltGroups.has(g.id)?'':'hidden'}>${g.alts.map(c=>renderCharacter(c)).join('')}</div>`:''}</div>`).join('')}</div></div>`;
 }
 function overview() {
@@ -311,11 +325,11 @@ async function documents() {
     rows = docs.filter((d) => d.kind === kind&&(!documentFilters[kind]||(d.tag||'Personal')===documentFilters[kind]));
   return (
     intro(
-      kind === "plan" ? "Skill plans" : "Fitting hangar",
+      kind === "plan" ? "Skill Plans" : "Fitting hangar",
       kind === "plan"
         ? "Create a training goal. See exactly what each character still needs."
         : "Save EFT setups, share with members and check pilot skill requirements.",
-      `<button class="primary" data-create="${kind}">+ New ${kind}</button>`,
+      `<div class="actions">${kind==="fitting"?'<button data-nav="fitting-import">Import In-Game Fittings</button>':""}<button class="primary" data-create="${kind}">+ New ${kind}</button></div>`,
     ) +
     (kind === "fitting"
       ? '<div class="notice">Skill readiness checks the hull and fitted items. It does not simulate CPU, powergrid, damage, tank or fitting legality.</div>'
@@ -392,7 +406,7 @@ async function operations() {
   if(kind==="dens") denPrice=await api("/market/keys").catch(()=>({price:null}));
   return (
     intro(
-      kind === "pi" ? "Planetary industry" : "Mercenary dens",
+      kind === "pi" ? "Planetary Industry" : "Mercenary Dens",
       kind === "pi"
         ? "Your colonies, production programmes and launchpad inventory."
         : "Every linked character’s dens and available tactical operations.",
@@ -560,12 +574,12 @@ function assetCharacterGroups(items) {
 async function assets() {
   const visible=visibleCharacters(chars);
   selectVisibleCharacter(visible);
-  if(!visible.length)return intro("Asset search", "Search the selected character, or tick Search All to include every main and alt.")+altFilter()+empty("No visible characters");
+  if(!visible.length)return intro("Asset Search", "Search the selected character, or tick Search All to include every main and alt.")+altFilter()+empty("No visible characters");
   assetFilters.character=assetSearchAll?"":String(selected||"");
   const qs = new URLSearchParams({ ...assetFilters, offset: assetOffset });
   const data = await api("/assets?" + qs);
   return (
-    intro("Asset search", "Search the selected character, or tick Search All to include every main and alt.") + altFilter() + characterTiles(visible,c=>c.snapshots.some(s=>s.kind==="assets")?"Assets synced":"Awaiting sync") +
+    intro("Asset Search", "Search the selected character, or tick Search All to include every main and alt.") + altFilter() + characterTiles(visible,c=>c.snapshots.some(s=>s.kind==="assets")?"Assets synced":"Awaiting sync") +
     `<form id="asset-search" class="toolbar"><label class="asset-search-all"><input type="checkbox" name="all" ${assetSearchAll?'checked':''}> Search All</label><input name="q" aria-label="Item name" placeholder="Search item name…" value="${esc(assetFilters.q)}"><input type="hidden" name="character" value="${Number(selected)||''}"><input name="location" aria-label="Location" placeholder="Filter location…" value="${esc(assetFilters.location)}"><button class="primary">Search</button></form><section class="panel"><div class="panelhead"><h2>${num(data.total)} matching stacks</h2><small>${data.locationCount ? assetOffset + 1 : 0}–${Math.min(assetOffset + 20, data.locationCount)} of ${num(data.locationCount)} locations</small></div>${
       data.locations.length
         ? data.locations
@@ -616,11 +630,11 @@ function exportHarvest(){
 let corpIndustryFilters={q:'',status:''};
 let surveyFilters={q:'',system:'',moon:'',refine:90,mode:'athanor'};
 async function corporationPage(){
- if(page==='corp-industry')return intro('Corporation Industry','Sacred Templars · running and undelivered jobs','<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?corporation=1">Reconnect Corp ESI</a>')+corpIndustryView(await api('/corporation/industry'),corpIndustryFilters);
+ if(page==='corp-industry')return intro('Corporation Industry','Sacred Templars · running and undelivered jobs','<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?link=1">Reconnect Character</a>')+corpIndustryView(await api('/corporation/industry'),corpIndustryFilters);
  if(page==='corp-surveys')return intro('Moon Surveys','Sacred Templars · moon composition directory')+moonBrowserView(await api('/corporation/surveys/browser?'+new URLSearchParams(surveyFilters)),surveyFilters);
  const moon=page==="corp-moons",data=await api(moon?"/corporation/harvest":"/corporation/structures"),rows=data.structures.filter(s=>!moon||s.kind==="Moon Drill");
  if(!moon)rows.sort(compareStructureTimers);
- const header=intro(moon?"Moon Mining":"Structures",moon?"Sacred Templars · corporation operations":"Sacred Templars · next timer first · overdue first, unknown last",'<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?corporation=1">Reconnect Corp ESI</a>');
+ const header=intro(moon?"Moon Mining":"Structures",moon?"Sacred Templars · corporation operations":"Sacred Templars · next timer first · overdue first, unknown last",'<button data-action="corp-sync">↻ Sync corporation</button><button data-action="update-view">Update view</button><a href="/auth/login?link=1">Reconnect Character</a>');
  const status=`<p class="muted corp-status">${data.updated?"Snapshot: "+date(data.updated):"Awaiting first sync"} · ${esc(data.job?.status||"Not queued")}${data.job?.error?`<br><span class="corp-warning">${esc(data.job.error)}</span>`:""}</p>`;
  if(!data.updated)return header+status+empty("Corporation data is being collected","Use Update view after the sync completes.");
  if(moon)return header+status+moonExtractions(data.extractions,data.refineries||[])+harvestTable(data);
@@ -628,8 +642,9 @@ async function corporationPage(){
  return header+status+totals+`<p class="muted">${moon?"Stored materials are the current harvest bay. Collections are minimum observed decreases between snapshots; exact collection times and lifetime production are not supplied by ESI.":"Fuel is reported bay stock. Top-ups project 7 or 30 days from now at current service rates; unknown rates stay unknown. Timers and estimates use UTC."}</p><section class="panel corp-rows">${rows.length?rows.map(s=>`<details><summary><span class="corp-name">${eveIcon(s.type_id)}<span><strong>${esc(s.name)}</strong><small>${esc(s.system)} · ${esc(s.type_name)}</small></span></span><span>${esc(moon?s.mining:s.state.replaceAll("_"," "))}${s.timer?`<small>State ends ${date(s.timer)} · ${eta(s.timer)}</small>`:""}</span><span>${corpStock(s)}</span><span>${corpRunway(s)}</span>${moon?`<span>${num(s.materials.reduce((n,i)=>n+i.quantity,0))} units<small>Empty detected: ${s.history.find(h=>h.emptied)?date(s.history.find(h=>h.emptied).to):"Not observed"}</small></span>`:""}</summary><div class="corp-expanded">${moon?`<h3>Harvest bay</h3>${table(["Material","Units"],s.materials.map(i=>`<tr><td>${eveIcon(i.type_id)} ${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}<h3>Observed collections</h3>${s.history.length?s.history.map(h=>`<details><summary>${h.emptied?"Emptied":"Collection observed"} · ${date(h.from)} – ${date(h.to)}</summary>${table(["Material","Minimum removed"],h.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}</details>`).join(""):"No collections observed yet."}`:`<h3>Timers & services</h3><p>${s.timer?"State timer: "+date(s.timer):"No active state timer reported"}${s.reinforce_hour!=null?" · Reinforcement window centred on "+String(s.reinforce_hour).padStart(2,"0")+":00 UTC (±2 hours)":""}${s.unanchors_at?" · Unanchors: "+date(s.unanchors_at):""}</p>${s.services?.map(v=>`<span class="tag">${esc(v.name)} · ${esc(v.state)}</span>`).join(" ")||"Service data not reported"}`}
  <h3>Fuel planning</h3>${table(["Bay snapshot","7-day top-up","30-day top-up"],[`<tr><td>${date(s.inventory_at)}</td><td>${corpTopup(s,7)}</td><td>${corpTopup(s,30)}</td></tr>`])}${s.kind==="POS"?`<small>POS fuel estimates cover recognised standard towers. Faction/unknown rates are not assumed. Strontium and other supplies:</small>${table(["Resource","In bay"],(s.fuels||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${num(i.quantity)}</td></tr>`))}`:""}</div></details>`).join(""):empty(moon?"No moon drills reported":"No structures reported")}</section>`;
 }
-function adminCharacterRows(list) {
- return table(["Character","ESI status","Bucket","Next slot","Last attempt","Last data"],list.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.reconnect?"Reconnect required":c.job|| (c.errors.length?"Needs attention":c.updated?"Synced":"Awaiting first sync"))}${c.errors.length?`<details><summary>${c.errors.length} issues</summary>${c.errors.map(e=>`<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("<br>")}</details>`:""}</td><td>:${String(c.minute).padStart(2,"0")}</td><td>${date(c.next_due)}</td><td>${c.attempted?date(c.attempted):"—"}</td><td>${c.updated?date(c.updated):"—"}</td></tr>`));
+function adminCharacterRows(list,affiliations=null) {
+ if(affiliations)return table(['Character','Corporation','ESI Status','Last Data','Sync Details'],list.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(affiliations[c.id]?.corporation_name||'Unavailable')}</td><td>${esc(c.reconnect?'Reconnect Required':c.job||(c.errors.length?'Needs Attention':c.updated?'Synced':'Awaiting First Sync'))}</td><td>${c.updated?date(c.updated):'—'}</td><td><details class="character-sync-detail"><summary>${c.errors.length?c.errors.length+' Issues':'Details'}</summary><small>Bucket :${String(c.minute).padStart(2,'0')} · Next ${date(c.next_due)}</small><small>Last Attempt ${c.attempted?date(c.attempted):'—'}</small>${c.errors.map(e=>`<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join('')}</details></td></tr>`));
+ return table(["Character",...(affiliations?["Corporation"]:[]),"ESI status","Bucket","Next slot","Last attempt","Last data"],list.map(c=>`<tr><td>${esc(c.name)}</td>${affiliations?`<td>${esc(affiliations[c.id]?.corporation_name||"Unavailable")}</td>`:""}<td>${esc(c.reconnect?"Reconnect required":c.job|| (c.errors.length?"Needs attention":c.updated?"Synced":"Awaiting first sync"))}${c.errors.length?`<details><summary>${c.errors.length} issues</summary>${c.errors.map(e=>`<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("<br>")}</details>`:""}</td><td>:${String(c.minute).padStart(2,"0")}</td><td>${date(c.next_due)}</td><td>${c.attempted?date(c.attempted):"—"}</td><td>${c.updated?date(c.updated):"—"}</td></tr>`));
 }
 async function adminPage() {
  if(page==='admin-whitelist') {
@@ -640,15 +655,15 @@ async function adminPage() {
  if(!me.admin)return "";
  const refresh='<button data-action="update-view">↻ Refresh status</button>';
  if(page==="admin-users") {
-  const users=await api("/admin/users");
-  return intro("Users","Most recently online first · expand a pilot to view character connection health.",refresh)+`<section class="panel admin-compact users-directory"><div class="users-heading"><strong>${users.length} users</strong><small>Last online uses site activity; login time is used until activity is recorded.</small></div>${users.map(u=>`<details class="admin-user"><summary><span class="users-pilot"><img src="https://images.evetech.net/characters/${Number(u.main_id)}/portrait?size=64" alt="" loading="lazy"><strong>${esc(u.name)}</strong></span><span class="users-count">${u.characters.length} characters</span><span class="users-online">${u.last_seen&&Date.now()-u.last_seen<300000?'<span class="users-recent">Recently active</span>':'<small>Last online</small>'}<span>${u.last_online?date(u.last_online):'Not recorded yet'}</span></span>${Number(u.main_id)!==Number(me.main_id)?`<button data-inspect-user="${u.id}">Inspect</button>`:'<span></span>'}</summary>${adminCharacterRows(u.characters)}</details>`).join("")}</section>`;
+  const [users,affiliations]=await Promise.all([api("/admin/users"),api("/admin/affiliations")]);
+  return intro("Users","Most recently active first · expand a pilot for linked characters.")+`<section class="panel admin-compact users-directory"><div class="users-heading"><strong>${users.length} Users</strong><div class="actions">${refresh}<details class="users-help"><summary>Activity Info</summary><small>Last Online uses site activity, with login time as a fallback. Active means seen within five minutes.</small></details></div></div><div class="users-column-head" aria-hidden="true"><span>Pilot</span><span>Corporation</span><span>Chars</span><span>Last Online</span><span></span></div>${users.map(u=>`<details class="admin-user"><summary><span class="users-pilot"><img src="https://images.evetech.net/characters/${Number(u.main_id)}/portrait?size=64" alt="" loading="lazy"><strong>${esc(u.name)}</strong></span><span class="users-corporation">${esc(affiliations[u.main_id]?.corporation_name||"Unavailable")}</span><span class="users-count" aria-label="${u.characters.length} linked characters">${u.characters.length}</span><span class="users-online" title="${u.last_online?date(u.last_online):'Not Recorded'}">${u.last_seen&&Date.now()-u.last_seen<300000?'<span class="users-recent">● Active</span>':u.last_online?date(u.last_online):'Not Recorded'}</span>${Number(u.main_id)!==Number(me.main_id)?`<button data-inspect-user="${u.id}">Inspect</button>`:'<span></span>'}</summary><div class="user-character-table">${adminCharacterRows(u.characters,affiliations)}</div></details>`).join("")}</section>`;
  }
  if(page==="admin-esi") {
   const data=await api("/admin/esi");
   return intro("ESI Status","Hourly syncs in six UTC buckets. Manual refresh stays available; characters sync one at a time.",refresh)+`<div class="bucket-grid">${data.buckets.map(m=>{const list=data.characters.filter(c=>c.minute===m);return `<section class="panel"><h2>:${String(m).padStart(2,"0")}</h2><strong>${list.length} characters</strong><small>${list.filter(c=>c.job).length} queued / running</small></section>`}).join("")}</div><section class="panel admin-compact">${adminCharacterRows(data.characters)}</section>`;
  }
  const corps=await api("/admin/corporations");
- return intro("Corp ESI","Connect your Sacred Templars CEO or Director for Corporation Management.",'<a class="button primary" href="/auth/login?corporation=1">+ Connect corporation</a>')+`<section class="panel admin-compact"><p>Read-only access to structures, corporation assets and POS fuel. Membership and CEO/Director status are rechecked before access, with a short ESI verification cache.</p>${corps.length?table(["Corporation","Character","Role","Last verified"],corps.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.character_name)}</td><td>${esc(c.role)}</td><td>${date(c.verified)}</td></tr>`)):empty("No corporation connected")}</section>`;
+ return intro("Corp ESI","Corporation access is checked automatically when characters connect or reconnect.",'<a class="button primary" href="/auth/login?link=1">Reconnect Character</a>')+`<section class="panel admin-compact"><p>Read-only access to structures, corporation assets and POS fuel. Membership and CEO/Director status are rechecked before access, with a short ESI verification cache.</p>${corps.length?table(["Corporation","Character","Role","Last verified"],corps.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.character_name)}</td><td>${esc(c.role)}</td><td>${date(c.verified)}</td></tr>`)):empty("No corporation connected")}</section>`;
 }
 function openDialog(html) {
   dialog.classList.remove("fitting-dialog");
@@ -740,7 +755,9 @@ root.addEventListener("click", async (e) => {
     } else if (b.dataset.action === "corp-sync") {
       b.disabled=true;await api("/corporation/sync",{});toast("Corporation refresh queued. EVE cache times are respected.");await render();
     } else if (b.dataset.action === "add-character") {
-      openDialog(`<h2>Add character</h2><form id="add-character-form" action="/auth/login" method="get"><input type="hidden" name="link" value="1"><label>Add as<select name="group" id="add-character-group"><option value="main">Main</option><option value="alt">Alt</option></select></label><label id="add-character-parent" hidden>Connected to<select name="parent" disabled>${chars.filter(c=>c.parent_id===c.id).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><p class="muted">Choose the character on EVE’s login screen. An already-linked character keeps its current group.</p><button class="primary">Continue to EVE login</button></form><hr><a href="/auth/login?corporation=1">Connect Sacred Templars CEO / Director access</a>`);
+      openDialog(`<h2>Add character</h2><form id="add-character-form" action="/auth/login" method="get"><input type="hidden" name="link" value="1"><label>Add as<select name="group" id="add-character-group"><option value="main">Main</option><option value="alt">Alt</option></select></label><label id="add-character-parent" hidden>Connected to<select name="parent" disabled>${chars.filter(c=>c.parent_id===c.id).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><p class="muted">Choose the character on EVE’s login screen. An already-linked character keeps its current group.</p><button class="primary">Continue to EVE login</button></form>`);
+    } else if (b.dataset.makeMain) {
+      await api('/characters/'+b.dataset.makeMain+'/group',{parent_id:Number(b.dataset.makeMain)});await render();
     } else if (b.dataset.inspectUser) {
       e.preventDefault();await api('/inspect',{user_id:Number(b.dataset.inspectUser)});location.hash='overview';location.reload();
     } else if (b.dataset.action==='exit-inspect') {
@@ -767,6 +784,7 @@ root.addEventListener("click", async (e) => {
     } else if (b.dataset.nav) {
       if(page==='characters'&&Object.hasOwn(pageAlts,b.dataset.nav)&&chars.find(c=>c.id===Number(selected))?.parent_id!==Number(selected))pageAlts[b.dataset.nav]=true;
       page = b.dataset.nav;
+      history.replaceState(null,"","#"+page);
       assetOffset = 0;
       await render();
     } else if (b.dataset.syncChar) {
@@ -1097,6 +1115,7 @@ root.addEventListener("submit",e=>{if(e.target.closest(".inline-fitting"))docume
 
 try {
   me = await api("/me");
+  const requested=location.hash.slice(1);if(knownPages.includes(requested))page=requested;
   await render();
   // Poll for completion without replacing any visible page content or moving focus.
   setInterval(async()=>{

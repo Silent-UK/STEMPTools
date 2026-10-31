@@ -101,3 +101,67 @@ References: [ESI API specification](https://esi.evetech.net/meta/openapi.json), 
 Mining sits before Industry with a character picker, Show alts, a daily volume/quantity chart, period and material/system filters, and a paginated ledger. Enable `esi-industry.read_character_mining.v1` in the EVE application, then reconnect each pilot. Normal login, reconnect and Mining access all request this scope. ESI exposes 30 days; Tools retains imported rows as daily cumulative quantities keyed by date/system/type, replacing repeat observations rather than adding them. History is private to the owning account and removed when the character is unlinked. Full pagination must succeed before a snapshot is published; failures preserve the previous ledger. Quantities use ESI and volumes use SDE unit volume; missing volume is marked unknown. Ledger data is delayed, synced hourly, and is not a lifetime total.
 
 Mining opens with combined stats for every linked main and alt, irrespective of other pages’ alt filters. Pilot tiles switch to individual ledgers; All characters restores the combined view. Combined rows retain pilot attribution, and missing or failed snapshots are identified.
+
+
+## v0.21.0 — character settings and management
+
+- Sidebar: My Characters, Management (Groups and Settings), Inspect Only (only during owner inspection), and Corporation Management. Menu labels use title case. Overview includes Make Main for incorrectly grouped alts; this changes the character group, not the account's login identity.
+- Ratting totals positive personal bounty_prizes and ess_escrow_transfer wallet entries. UTC Day, Monday-start Week, current Month, rolling 30/60/90 days and retained All Time are supported. Loot, LP, mission rewards and corporation taxes are excluded. History remains bounded by what ESI supplied and Tools retained; unlinking removes that pilot's history.
+- Per-account sliding switches hide Ratting, Mining, Industry, Mercenary Dens and Planetary Industry. The worker checks settings before each feature. Wallet history, skills, assets and clones remain shared dependencies. PI shared with another account continues syncing even if its owner's PI page is hidden. Re-enabling resumes the next scheduled or manual sync without deleting saved data.
+- Admin Groups supports symbol/emoji icons, names, descriptions, auto accept, approval and restricted membership, editing/deletion and application decisions/revocation. Restricted requirements use one pilot's ship assets and active skill levels, all within 24 hours and without sync errors. Titan and dreadnought presets and specific ship/skill name search are available. Restricted access is re-evaluated on every page request. Grants allow selected corporation GET pages only; corporation sync and credentials remain director-only.
+- Admin Links manages HTTP(S) external links; they appear in Corporation Management for users with corporation page access. Links cannot contain credentials or executable URL schemes.
+- Corporation Overview combines public ESI details, cached Dotlan member stats, zKillboard recorded combat totals and the latest ten Eve Who join/leave events. Each source can fail independently, retaining previous data and marking unavailable/stale results. Source pages are linked. Third-party coverage and availability vary.
+- Memberlist uses corporation membership and tracking, marks site signup based on linked character IDs, and shows last reported login/logoff, ship and location (not live telemetry). Admin Users shows public corporation affiliation for mains and expanded alts.
+- Inspect Mail and Contacts are read-only, require the existing session-bound owner inspection and target-owned character, and check the selected pilot's scopes. Mail bodies are rendered as escaped plain text. Contacts paginate and mail supports older-message browsing. No mail/contact snapshots or background collection are added.
+
+Enable these additional scopes on the EVE developer application **before deploying**, then reconnect the affected pilots/director:
+
+```
+# Personal — Mail and Contacts in Inspect Only
+esi-mail.read_mail.v1
+esi-characters.read_contacts.v1
+# Corporation — Memberlist
+esi-corporations.read_corporation_membership.v1
+esi-corporations.track_members.v1
+```
+
+Existing authorizations keep their current permissions until reconnecting. Missing scopes produce an explicit unavailable/reconnect message. Database tables are created automatically. No production deployment is performed by this change.
+
+Sources: [ESI API Explorer](https://developers.eveonline.com/api-explorer), [Eve Who public API](https://github.com/zKillboard/evewho#api), [zKillboard API](https://zkillboard.com/api/docs/), [Dotlan](https://evemaps.dotlan.net/corp/Sacred_Templars).
+
+
+## v0.22.0 — pilots, corporation assets/finances and personal market
+
+- Corporation Management adds **Pilots**, **Corp Assets** and **Wallet**, each with a separate group page grant. A grant to one page does not authorize any other page or corporation sync. Current CEO/director credentials are checked before reading collected corporation data.
+- Pilots combines member tracking (join date, last login, last reported ship/location), title assignments and direct roles. Search and filters cover titles, assigned versus grantable roles, hangar divisions and wallet divisions. Show Roles and Show Hangar & Wallet Access reveal compact details. Title roles retain HQ/base/other location scopes; grantable roles never imply personal access. CEO/director division access is expanded. Financial read roles are labelled separately from Account Take. Structure ACLs and container locks cannot be inferred from these assignments. Missing titles/division names are marked explicitly.
+- Corp Assets fetches every inventory page before publishing, preserves ship/container parent context, supports item/custom-name and location searches, and pages by location. It uses known corporation structure names and public station names; unknown locations retain their IDs. Named ship/container lookups are optional. Complete previous inventory survives failed refreshes.
+- Corporation Wallet imports all seven balances, paginated journals and transaction cursors before publishing a complete snapshot. History is retained and deduplicated per division, and division names are resolved when permitted. Journal and market trades are separate to avoid double counting. Any partial refresh retains the previous complete snapshot and shows an error. New corporation datasets refresh on page access when their one-hour cache expires; no live telemetry is implied.
+- Personal **Market**, before Mining, combines linked pilots' buy/sell orders and offers pilot, side, text and status filters. Include Completed / Closed Orders reveals retained historical orders. Zero remaining volume is labelled Fulfilled; cancelled/expired orders with remaining quantity stay distinct. Disappearing active orders are not assumed fulfilled. Personal Market data is account-owned. The Settings switch hides Market and pauses its dedicated hourly sync; public pricing and Wallet continue as separate dependencies.
+- Fittings → **Import In-Game Fittings** lists a selected linked pilot's saved EVE fittings. Import validates the ship/items, converts to EFT and creates a private Tools fitting. Repeating an import returns the existing copy; deleting that copy permits importing again. This is a copy, not a live link or an upload to EVE. Original descriptions remain recorded with the import source. Unknown/unsupported items fail before saving. Inspection remains read-only.
+
+Additional EVE application scopes for this release (enable before deployment, then reconnect personal pilots and Corp ESI as applicable):
+
+```
+# Personal
+esi-markets.read_character_orders.v1
+esi-fittings.read_fittings.v1
+# Corporation
+esi-corporations.read_titles.v1
+esi-corporations.read_divisions.v1
+esi-wallet.read_corporation_wallets.v1
+```
+
+Corporation roles use the existing `esi-corporations.read_corporation_membership.v1`; corporation inventory uses the existing `esi-assets.read_corporation_assets.v1`. No EVE write permissions are requested. Database additions are automatic. `scripts/preview.mjs` contains isolated fictional samples for browser checks; these never enter production.
+
+
+## v0.22.1 — unified account connection and compact Users
+
+Normal sign-in, Add Character, reconnect and Mining access now request the union of personal and corporation scopes. The Add Character dialog no longer offers a separate CEO/Director connection. A successful normal character connection automatically verifies corporation membership and CEO/Director status and registers eligible Sacred Templars pilots for Corporation Management. Ordinary members and pilots outside STEMP can still link normally; extra scopes alone do not grant corporation access. Temporary corporation verification failure does not fail personal login.
+
+Automatically registered corporation credentials contain an encrypted reference to the account-owned linked character. Corporation requests use that character's existing token provider and refresh lock, avoiding duplicate refresh-token rotation. Losing eligibility on reconnect removes only that pilot's corporation grant; connecting an ordinary alt preserves another linked director's grant. Unlinking the source removes its corporation authorization immediately. Existing legacy separate authorizations remain compatible, and the old URL remains available for pending/older flows, but no current UI links to it.
+
+Users now uses compact aligned columns for Pilot, Corporation, character count and Last Online, with 22px portraits and tighter rows. Expanded character health keeps schedule/error details collapsed. Narrow layouts wrap corporation/activity into a second compact line.
+
+Existing pilots must reconnect once to authorize the combined scope set. No extra scopes beyond v0.22.0 are introduced; all existing personal and corporation scopes must be enabled on the EVE application.
+
+The sidebar is compacted further in v0.22.1: smaller rows/icons and branding, collapsible Admin, and a native single-open-section accordion across My Characters, Management, Inspect Only, Corporation Management and Admin. Navigation opens the section containing the current page. Shorter desktop windows use an additional compact spacing rule; overflow remains available when needed.
