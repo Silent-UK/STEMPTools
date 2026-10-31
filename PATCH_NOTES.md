@@ -1,3 +1,9 @@
+# STEMP Tools v0.25.0
+
+- Links are visible to every signed-in account without corporation roles or page grants. Admin access is still required to manage them.
+- The Links section remembers its expanded/collapsed state after navigation and reloads.
+- Settings now includes Side Panel Font Size, from 10px to 20px, saved per account.
+
 # STEMP Tools v0.24.3
 
 - **Sidebar:** external links now have their own collapsible Links section directly below My Characters. The section remembers its open state and appears when links are available.

@@ -1624,3 +1624,18 @@ test("admin rebalance minimizes moves, preserves jobs and is idempotent",async()
   assert.deepEqual(db.prepare('SELECT * FROM character_buckets ORDER BY character_id').all(),schedule);
  });
 });
+
+
+test('all members can see links and sidebar font size is validated and account-private',async()=>{
+ await fixture(async({db,user,request})=>{
+  const a=user(101,'Member A'),b=user(102,'Member B');
+  db.prepare('INSERT INTO external_links(name,description,url) VALUES(?,?,?)').run('Public Link','For all members','https://example.com/');
+  assert.equal((await(await request('/api/links',{session:a.session})).json()).length,1);
+  const me=await(await request('/api/me',{session:a.session})).json();assert.equal(me.corporation,false);assert.equal(me.links.length,1);
+  assert.equal((await request('/api/admin/links',{session:a.session})).status,403);
+  for(const value of [9,21,12.5,'16',null])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{sidebar_font_size:value}})).status,400);
+  assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{sidebar_font_size:16}})).status,200);
+  assert.equal((await(await request('/api/me',{session:a.session})).json()).preferences.sidebar_font_size,16);
+  assert.equal((await(await request('/api/me',{session:b.session})).json()).preferences.sidebar_font_size,undefined);
+ });
+});

@@ -138,7 +138,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.24.3" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.25.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -350,7 +350,7 @@ export function createApp(config) {
   });
   fittingImportRoutes(app,{db,eve,cat});
   managementRoutes(app,{db,eve,corp,cat,config,whitelist});
-  app.get("/api/me", async (req,res)=>{const director=await corp.access(req.session.user_id),pages=grants(db,req.session.user_id);res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:director||pages.length>0,corporate_pages:director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:director||pages.length?db.prepare("SELECT * FROM external_links ORDER BY name").all():[]});});
+  app.get("/api/me", async (req,res)=>{const director=await corp.access(req.session.user_id),pages=grants(db,req.session.user_id);res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:director||pages.length>0,corporate_pages:director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
   app.use("/api/corporation",async(req,res,next)=>{
     const director=await corp.access(req.session.user_id),route=req.path.split('/')[1],required=({overview:'corp-overview',members:'corp-members',pilots:'corp-pilots',assets:'corp-assets',wallet:'corp-wallet',industry:'corp-industry',structures:'corp-structures',harvest:'corp-moons',surveys:'corp-surveys'})[route];
     if(!director&&(!['GET','HEAD'].includes(req.method)||!required||!grants(db,req.session.user_id).includes(required)))return res.status(403).json({error:"You do not have permission to view this corporation page."});
