@@ -1,3 +1,7 @@
+# STEMP Tools v0.24.2
+
+- **Admin Links:** fix Save Link reloading the page without saving because the hidden ID field shadowed the form ID. Successful saves now show confirmation and refresh the corporation sidebar links.
+
 # STEMP Tools v0.24.1
 
 - **Wallet history:** deduplicate repeated transactions within ESI responses instead of failing the entire history sync. Invalid entries and pagination loops remain rejected; saved history is retained.

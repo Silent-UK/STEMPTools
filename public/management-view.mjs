@@ -92,12 +92,14 @@ export function managementUI({api,esc,intro,table,num,date,empty,context,refresh
   }catch(error){toast(error.message);}
  });
  document.addEventListener('submit',async e=>{
-  if(!['access-group-form','external-link-form'].includes(e.target.id))return;e.preventDefault();
+  const formId=e.target.getAttribute('id');
+  if(!['access-group-form','external-link-form'].includes(formId))return;e.preventDefault();
   const f=new FormData(e.target),body=Object.fromEntries(f);
-  if(e.target.id==='access-group-form'){
+  if(formId==='access-group-form'){
    body.id=editing;body.pages=f.getAll('pages');body.rules=[...e.target.querySelectorAll('.rule-row')].map(row=>({kind:row.querySelector('[data-rule-kind]').value.startsWith('group:')?'ship-group':row.querySelector('[data-rule-kind]').value,id:row.querySelector('[data-rule-kind]').value==='role'?row.querySelector('[data-rule-id]').value:Number(row.querySelector('[data-rule-id]').value),name:row.querySelector('[data-rule-search]').value,level:Number(row.querySelector('[data-rule-level]').value)}));
   }
-  try{await api(e.target.id==='access-group-form'?'/admin/groups':'/admin/links',body);editing=null;await refresh(true);}catch(error){toast(error.message);}
+  const button=e.target.querySelector('button.primary');button.disabled=true;
+  try{await api(formId==='access-group-form'?'/admin/groups':'/admin/links',body);editing=null;await refresh(true);toast(formId==='external-link-form'?'Link saved.':'Group saved.');}catch(error){toast(error.message);}finally{button.disabled=false;}
  });
  return {render};
 }
