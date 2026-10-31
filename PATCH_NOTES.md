@@ -1,3 +1,7 @@
+# STEMP Tools v0.24.1
+
+- **Wallet history:** deduplicate repeated transactions within ESI responses instead of failing the entire history sync. Invalid entries and pagination loops remain rejected; saved history is retained.
+
 # STEMP Tools v0.24.0
 
 - **Wallet history:** tolerate overlapping journal pages by deduplicating entry IDs. Sync errors now distinguish ESI HTTP failures, timeouts, cooldowns and wallet validation failures while retaining saved data.

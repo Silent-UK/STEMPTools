@@ -38,3 +38,24 @@ test('sync diagnostics explain wallet and ESI failures without exposing arbitrar
  assert.match(syncFailureMessage({name:'TimeoutError'}),/timed out/);
  assert.equal(syncFailureMessage(Error('secret token')), 'Refresh failed; previous data retained. Next sync will retry.');
 });
+
+
+test('wallet accepts duplicate transactions within an ESI page and retains unique trades once',async()=>{
+ const calls=[];
+ const eve={request:async path=>{
+  calls.push(path);
+  if(path.includes('journal'))return {pages:1,data:[{id:1,date:trade.date,amount:20}]};
+  if(path.includes('from_id=4'))return {data:[{...trade,transaction_id:4}]};
+  if(path.includes('transactions'))return {data:[trade,trade,{...trade,transaction_id:4}]};
+  return {data:[]};
+ }};
+ const previous={transactions:[{...trade,transaction_id:3}],journal:[],names:{}};
+ const result=await collectWalletHistory(c,eve,cat,previous);
+ assert.deepEqual(result.transactions.map(r=>r.transaction_id),[5,4,3]);assert.equal(result.journal.length,1);
+ assert.equal(calls.filter(p=>p.includes('transactions')).length,2);
+});
+
+test('duplicate wallet IDs do not bypass malformed data validation',async()=>{
+ const eve={request:async path=>path.includes('journal')?{pages:1,data:[]}:{data:[trade,{...trade,quantity:-1}]}};
+ await assert.rejects(collectWalletHistory(c,eve,cat),/Invalid wallet transaction/);
+});
