@@ -1650,3 +1650,55 @@ test('appearance themes persist per account and reject unknown theme values',asy
   assert.equal((await(await request('/api/me',{session:b.session})).json()).preferences.theme,undefined);
  });
 });
+
+
+test('owner-confirmed account wipe removes private records and preserves other accounts',async()=>{
+ await fixture(async({db,user,request})=>{
+  const owner=user(100,'Owner'),target=user(200,'Delete Me'),other=user(300,'Keep Me');
+  db.prepare("UPDATE users SET admin=1 WHERE id=?").run(other.uid);
+  db.prepare("INSERT INTO characters SELECT 201,user_id,'Alt',owner_hash,tokens,scopes,expires,reconnect FROM characters WHERE id=200").run();
+  db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(200,'wallet-history','{}',1,2);db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(300,'skills','{}',1,2);
+  db.prepare("INSERT INTO jobs(character_id) VALUES(200)").run();db.prepare("INSERT INTO sync_errors VALUES(200,'wallet-history','error')").run();
+  db.prepare("INSERT INTO esi_cache VALUES(200,'/wallet','{}',0)").run();db.prepare("INSERT INTO corp_http_cache VALUES(200,'/private','{}',0)").run();
+  db.prepare("INSERT INTO documents VALUES('target-fit',?,'fitting','Fit','body',1,0),('target-plan',?,'plan','Plan','body',0,0),('other-plan',?,'plan','Keep','body',0,0)").run(target.uid,target.uid,other.uid);
+  db.prepare("INSERT INTO fitting_plans VALUES(?,'target-fit','target-plan')").run(target.uid);db.prepare("INSERT INTO fitting_plans VALUES(?,'target-fit','other-plan')").run(other.uid);
+  db.prepare("INSERT INTO document_tags VALUES('target-fit','Private Tag')").run();
+  db.prepare('INSERT INTO user_logins VALUES(?,1)').run(target.uid);db.prepare('INSERT INTO user_activity VALUES(?,1)').run(target.uid);
+  db.prepare("INSERT INTO page_preferences VALUES(?,'{}')").run(target.uid);db.prepare("INSERT INTO pi_settings VALUES(?,'{}')").run(target.uid);
+  db.prepare('INSERT INTO pi_shares VALUES(?,?,200)').run(target.uid,other.uid);
+  db.prepare("INSERT INTO access_groups VALUES(1,'Group','G','','approval','[]','[]')").run();db.prepare("INSERT INTO group_members VALUES(1,?,'approved')").run(target.uid);
+  db.prepare("INSERT INTO fitting_imports VALUES(?,200,1,'target-fit','Saved')").run(target.uid);
+  db.prepare("INSERT INTO oauth VALUES('delete-flow','browser',?,NULL,'verifier',9999999999999)").run(target.uid);db.prepare("INSERT INTO oauth_mining VALUES('delete-flow',200)").run();
+  db.prepare('INSERT INTO inspections VALUES(?,?)').run(hash(other.session),target.uid);db.prepare('INSERT INTO inspections VALUES(?,?)').run(hash(target.session),other.uid);
+  db.prepare("INSERT INTO corp_authorizations VALUES(?,200,'Delete Me','owner-200',668298004,'encrypted','[]',0,'Director',0)").run(target.uid);
+  db.prepare("INSERT INTO corporation_connections VALUES(668298004,'Corp',200,'Delete Me','owner-200','encrypted',0,'Director')").run();
+  db.prepare("INSERT INTO public_cache VALUES('/tools/corp-data/pilots','{}',0),('/shared-public','{}',0)").run();
+  db.exec('CREATE TABLE invites(hash TEXT PRIMARY KEY,created_by INTEGER,expires INTEGER,used_by INTEGER)');
+  db.prepare("INSERT INTO invites VALUES('made',?,0,NULL),('used',?,0,?),('keep',?,0,NULL)").run(target.uid,owner.uid,target.uid,other.uid);
+  const del=(session,id,main)=>request('/api/admin/users/'+id,{session,method:'DELETE',body:main===undefined?{}:{confirm_main_id:main}});
+  assert.equal((await del(other.session,target.uid,200)).status,403);
+  assert.equal((await del(owner.session,owner.uid,100)).status,400);
+  assert.equal((await del(owner.session,target.uid)).status,400);assert.equal((await del(owner.session,target.uid,201)).status,400);
+  const result=await del(owner.session,target.uid,200);assert.equal(result.status,200);assert.deepEqual(await result.json(),{deleted:true,characters:2});
+  for(const table of ['jobs','sync_errors','esi_cache','corp_http_cache','fitting_plans','document_tags','user_logins','page_preferences','pi_settings','pi_shares','group_members','fitting_imports','oauth','oauth_mining','inspections','corp_authorizations','corporation_connections'])assert.equal(db.prepare('SELECT count(*) n FROM '+table).get().n,0,table);
+  assert.equal(db.prepare('SELECT count(*) n FROM users').get().n,2);assert.equal(db.prepare('SELECT count(*) n FROM characters').get().n,2);
+  assert.equal(db.prepare('SELECT count(*) n FROM snapshots').get().n,1);assert.equal(db.prepare('SELECT count(*) n FROM documents').get().n,1);assert.ok(db.prepare("SELECT 1 FROM documents WHERE id='other-plan'").get());
+  assert.equal(db.prepare('SELECT count(*) n FROM sessions').get().n,2);assert.equal(db.prepare('SELECT count(*) n FROM user_activity WHERE user_id=?').get(target.uid).n,0);
+  assert.ok(db.prepare("SELECT 1 FROM public_cache WHERE path='/shared-public'").get());assert.equal(db.prepare("SELECT 1 FROM public_cache WHERE path='/tools/corp-data/pilots'").get(),undefined);
+  assert.equal(db.prepare('SELECT count(*) n FROM invites').get().n,1);assert.ok(db.prepare("SELECT 1 FROM invites WHERE hash='keep'").get());
+  assert.equal((await request('/api/me',{session:target.session})).status,401);assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(),[]);
+ });
+});
+
+
+test('an in-flight sync cannot restore a deleted account snapshot or sync error',async()=>{
+ await fixture(async({db,user,request})=>{
+  const owner=user(100,'Owner'),target=user(200,'Delete While Syncing');
+  let release,entered;const gate=new Promise(r=>release=r),started=new Promise(r=>entered=r);
+  const sync=syncService(db,{get:async path=>{if(path.endsWith('/skills')){entered();await gate;return {skills:[]};}return path.endsWith('/skillqueue')?[]:{};}},fakeCat);
+  sync.queue(target.uid,200,true);const running=sync.tick();await started;
+  try{assert.equal((await request('/api/admin/users/'+target.uid,{session:owner.session,method:'DELETE',body:{confirm_main_id:200}})).status,200);}finally{release();}
+  await running;
+  for(const table of ['characters','snapshots','sync_errors','jobs','esi_cache'])assert.equal(db.prepare('SELECT count(*) n FROM '+table+(table==='characters'?' WHERE id=200':" WHERE character_id=200")).get().n,0,table);
+ });
+});

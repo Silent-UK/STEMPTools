@@ -1,3 +1,4 @@
+import {wipeAccount} from './lib/accounts.mjs';
 import {isSiteAdmin} from './lib/admin.mjs';
 import {fittingImportRoutes} from './lib/fitting-import-routes.mjs';
 import {managementRoutes} from './lib/management-routes.mjs';
@@ -138,7 +139,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.26.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.27.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -872,6 +873,16 @@ export function createApp(config) {
     db.prepare('UPDATE users SET admin=? WHERE id=?').run(Number(req.body.admin),id);
     if(!req.body.admin)db.prepare('DELETE FROM inspections WHERE session_id IN (SELECT id FROM sessions WHERE user_id=?)').run(id);
     res.json({ok:true,admin:req.body.admin});
+  });
+  app.delete('/api/admin/users/:id',(req,res)=>{
+    if(req.session.main_id!==config.owner)return res.sendStatus(403);
+    const id=Number(req.params.id);
+    if(!Number.isSafeInteger(id)||id<1)return res.sendStatus(400);
+    const target=db.prepare('SELECT main_id FROM users WHERE id=?').get(id);
+    if(!target)return res.sendStatus(404);
+    if(target.main_id===config.owner||id===req.session.user_id)return res.status(400).json({error:'The site owner account cannot be deleted.'});
+    if(req.body.confirm_main_id!==target.main_id)return res.status(400).json({error:'Confirm the exact account before deleting it.'});
+    res.json(wipeAccount(db,id));
   });
   app.get("/api/admin/esi",(req,res)=>res.json({characters:adminCharacters(),buckets:[0,10,20,30,40,50]}));
   app.get("/api/admin/corporations",(req,res)=>res.json(db.prepare("SELECT corporation_id,name,character_id,character_name,verified,role FROM corporation_connections ORDER BY name").all()));

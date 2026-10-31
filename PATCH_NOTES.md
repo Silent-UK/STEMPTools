@@ -1,3 +1,8 @@
+# STEMP Tools v0.27.0
+
+- **Admin Users:** owner-only red bin icon permanently deletes an account after a named confirmation. Removes linked pilots, private snapshots/caches, tokens, jobs, sessions, documents, preferences, sharing and memberships. The site owner is protected.
+- Account deletion does not delete shared corporation records or other users’ documents. It is not a login ban: an eligible pilot can register again with a fresh account.
+
 # STEMP Tools v0.26.0
 
 - **Settings:** Theme and Side Panel Font Size now use the same compact row layout as page switches.
