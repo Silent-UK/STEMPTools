@@ -1,3 +1,7 @@
+# STEMP Tools v0.24.3
+
+- **Sidebar:** external links now have their own collapsible Links section directly below My Characters. The section remembers its open state and appears when links are available.
+
 # STEMP Tools v0.24.2
 
 - **Admin Links:** fix Save Link reloading the page without saving because the hidden ID field shadowed the form ID. Successful saves now show confirmation and refresh the corporation sidebar links.
