@@ -60,3 +60,18 @@ test('pilot roster combines tracking, titles and direct roles without treating g
  const service=corpDataService({db,id:668298004,cat:{},eve:{publicGet:async()=>({ceo_id:99})},request,access:async()=>true,members:async()=>({updated:1,rows:[{id:10,name:'Pilot',signed_up:true}]})});
  const d=await service.pilots();assert.equal(d.rows[0].joined,'2020-01-01');assert.equal(d.rows[0].last_login,'2026-10-31');assert.equal(d.rows[0].titles[0].name,'Industry');assert(d.rows[0].rights.access.some(a=>a.name==='Production'));assert(!d.rows[0].rights.access.some(a=>a.kind==='wallet'&&a.division===7));
 }));
+
+
+test('corp asset pictures resolve third-party citadels and backfill cached station metadata',()=>corpFixture(async db=>{
+ const citadel=1000000000123,calls=[];
+ const old={rows:[{item_id:1,type_id:1,root_location_id:citadel,location_id:citadel,location:'Location '+citadel,name:'Rifter',quantity:1},{item_id:2,type_id:1,root_location_id:60003760,location_id:60003760,location:'Jita',name:'Rifter',quantity:1}],updated:123,error:null};
+ db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/assets',JSON.stringify(old),Date.now()+3600000);
+ const service=corpDataService({db,id:668298004,cat:{},access:async()=>true,snapshot:()=>({structures:[]}),pages:async()=>{throw Error('Do not refresh assets');},request:async path=>{calls.push(path);return {data:{name:'Allied Fortizar',type_id:35833}};},eve:{publicGet:async path=>{calls.push(path);return {name:'Jita IV - Moon 4',type_id:52678};}}});
+ const result=await service.assets();
+ assert.equal(result.updated,123);
+ assert.equal(result.locations.find(l=>l.id===citadel).type_id,35833);
+ assert.equal(result.locations.find(l=>l.id===citadel).name,'Allied Fortizar');
+ assert.equal(result.locations.find(l=>l.id===60003760).type_id,52678);
+ assert.deepEqual(calls,['/universe/structures/'+citadel,'/universe/stations/60003760']);
+ await service.assets();assert.equal(calls.length,2);
+}));

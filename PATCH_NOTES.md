@@ -1,3 +1,7 @@
+# STEMP Tools v0.23.2
+
+- **Corp Assets:** resolve station and third-party citadel types for location pictures, including older cached asset results. Inaccessible locations remain unnamed rather than showing an incorrect structure.
+
 # STEMP Tools v0.23.1
 
 - **ESI Status:** admin Rebalance button evenly distributes characters across the six hourly buckets with as few moves as possible. Existing queued/running jobs continue; moved characters use the next future UTC slot.
