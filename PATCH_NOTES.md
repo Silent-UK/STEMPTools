@@ -1,3 +1,7 @@
+# STEMP Tools v0.28.1
+
+- **Corp Assets:** Keep each owned citadel, engineering complex, refinery, Metenox and POS tower in its own location group, with contents and fittings beneath it. Loose in-space assets remain under their solar system.
+
 # STEMP Tools v0.28.0
 
 - **Notifications:** Red warning button and panel across all themes.

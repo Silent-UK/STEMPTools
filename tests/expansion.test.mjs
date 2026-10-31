@@ -65,7 +65,7 @@ test('pilot roster combines tracking, titles and direct roles without treating g
 test('corp asset pictures resolve third-party citadels and backfill cached station metadata',()=>corpFixture(async db=>{
  const citadel=1000000000123,calls=[];
  const old={rows:[{item_id:1,type_id:1,root_location_id:citadel,location_id:citadel,location:'Location '+citadel,name:'Rifter',quantity:1},{item_id:2,type_id:1,root_location_id:60003760,location_id:60003760,location:'Jita',name:'Rifter',quantity:1}],updated:123,error:null};
- db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/assets',JSON.stringify(old),Date.now()+3600000);
+ db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/assets-v2',JSON.stringify(old),Date.now()+3600000);
  const service=corpDataService({db,id:668298004,cat:{},access:async()=>true,snapshot:()=>({structures:[]}),pages:async()=>{throw Error('Do not refresh assets');},request:async path=>{calls.push(path);return {data:{name:'Allied Fortizar',type_id:35833}};},eve:{publicGet:async path=>{calls.push(path);return {name:'Jita IV - Moon 4',type_id:52678};}}});
  const result=await service.assets();
  assert.equal(result.updated,123);
@@ -79,7 +79,7 @@ test('corp asset pictures resolve third-party citadels and backfill cached stati
 
 test('empty offices sort last and filtered-out contents do not turn a stocked office empty',()=>corpFixture(async db=>{
  const rows=[{item_id:1,type_id:27,root_location_id:10,location_id:10,location:'AAA Empty Station',name:'Office',quantity:1},{item_id:2,type_id:27,root_location_id:20,location_id:20,location:'ZZZ Stocked Station',name:'Office',quantity:1},{item_id:3,type_id:587,root_location_id:20,location_id:2,location:'ZZZ Stocked Station',name:'Rifter',quantity:1}];
- db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/assets',JSON.stringify({rows,locationTypes:{10:1,20:1},updated:1}),Date.now()+3600000);
+ db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/assets-v2',JSON.stringify({rows,locationTypes:{10:1,20:1},updated:1}),Date.now()+3600000);
  const service=corpDataService({db,id:668298004,cat:{},access:async()=>true,snapshot:()=>({structures:[]})});
  const result=await service.assets();assert.deepEqual(result.locations.map(l=>l.id),[20,10]);assert.equal(result.locations[1].empty_office,true);assert.equal(result.total,2);
  const filtered=await service.assets({q:'Office'});assert.equal(filtered.locations.find(l=>l.id===20).empty_office,false);assert.equal(filtered.locations.find(l=>l.id===10).empty_office,true);
