@@ -46,3 +46,10 @@ test('alts suppress empty-training alerts while retaining actionable industry no
  const alerts=personalAlerts([pilot],{},now);assert.deepEqual(alerts.map(alert=>alert.kind),['industry-ready']);
  assert(personalAlerts([{...pilot,parent_id:2}],{},now).some(alert=>alert.kind==='empty-training'));
 });
+
+import {blueprintLocations} from '../public/blueprint-model.mjs';
+test('blueprints group by physical location, sort originals before copies and filter independently',()=>{
+ const rows=[{item_id:1,name:'Alpha',quantity:-2,location_id:100,root_location_id:600,location:'Station B'},{item_id:2,name:'Zulu',quantity:-1,location_id:101,root_location_id:600,location:'Station B'},{item_id:3,name:'Other',quantity:-1,location_id:601,location:'Station A'}];
+ const groups=blueprintLocations(rows);assert.deepEqual(groups.map(group=>group.name),['Station A','Station B']);assert.deepEqual(groups[1].rows.map(row=>row.item_id),[2,1]);assert.equal(groups[1].originals,1);assert.equal(groups[1].copies,1);
+ assert.equal(blueprintLocations(rows,{bpo:false}).flatMap(group=>group.rows).length,1);assert.equal(blueprintLocations(rows,{bpc:false}).flatMap(group=>group.rows).length,2);assert.deepEqual(blueprintLocations(rows,{bpo:false,bpc:false}),[]);assert.equal(blueprintLocations(rows,{q:'alpha'})[0].rows[0].item_id,1);
+});

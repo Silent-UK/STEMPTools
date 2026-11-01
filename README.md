@@ -195,3 +195,7 @@ Manufacturing material planners are available under personal and corporation Ind
 The existing notification menu includes finished industry jobs, recent expired market orders and completed PI extractor programmes, respecting disabled pages and ignoring stale/failed snapshots. Empty-training warnings require a saved subscription date with positively remaining game time; expired and unknown dates do not generate these alerts. Subscription dates remain manually recorded because ESI has no account subscription endpoint.
 
 Additional scopes before eventual deployment: esi-contracts.read_corporation_contracts.v1, esi-markets.read_corporation_orders.v1, esi-corporations.read_blueprints.v1, esi-fittings.write_fittings.v1, esi-characters.read_standings.v1, esi-corporations.read_standings.v1 and esi-characters.read_fatigue.v1. Both EVE developer applications have been enabled; pilots/directors will still need to reconnect after deployment.
+
+### v0.31.2 corporation display preferences
+
+Settings offers ten corporation page visibility switches, limited to the pages the account can access. These account preferences hide sidebar entries only: corporation syncs and permission grants are unaffected. Corporation navigation places Corp Assets after Contracts, followed by Standings. Corporation Blueprints defaults to expandable physical-location groups, with independent BPO/BPC switches and originals sorted before copies.

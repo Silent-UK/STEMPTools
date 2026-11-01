@@ -1753,3 +1753,16 @@ test('saving EVE fittings enforces pilot ownership, scope and the actual POST pa
  db.prepare('UPDATE characters SET scopes=? WHERE id=7302').run('["esi-fittings.write_fittings.v1"]');
  const sent=await request('/api/fitting-workbench/eve',{session:owner.session,method:'POST',body:{pilot:7302,fit}});assert.equal(sent.status,200);assert.equal((await sent.json()).fitting_id,123);
 }, {type:id=>id===587?{id,name:'Rifter',category_id:6,attributes:{}}:id===2048?{id,name:'Damage Control II',category_id:7,attributes:{}}:null,named:()=>null,close(){},search:()=>[]}, {eve:{request:async(path,pilot,method,body)=>{assert.equal(path,'/characters/7302/fittings');assert.equal(pilot.id,7302);assert.equal(method,'POST');assert.equal(body.items[0].flag,'LoSlot0');return {data:{fitting_id:123}};}}}));
+
+test('corporation display preferences are private, permission-aware and leave sync and grants unchanged',()=>fixture(async({db,user,request})=>{
+ const owner=user(7401,'Page owner'),other=user(7402,'Other');
+ const before=await(await request('/api/settings',{session:owner.session})).json();assert.deepEqual(before.corporate_pages,{});
+ db.prepare('INSERT INTO access_groups(name,icon,description,mode,rules,pages) VALUES(?,?,?,?,?,?)').run('Wallet viewers','W','','auto','[]','["corp-wallet","corp-assets"]');const group=db.prepare('SELECT id FROM access_groups WHERE name=?').get('Wallet viewers').id;
+ db.prepare('INSERT INTO group_members VALUES(?,?,?)').run(group,owner.uid,'approved');
+ const available=await(await request('/api/settings',{session:owner.session})).json();assert.deepEqual(Object.keys(available.corporate_pages),['corp-wallet','corp-assets']);
+ const save=await request('/api/settings',{session:owner.session,method:'POST',body:{'corp-wallet':false,'corp-assets':false}});assert.equal(save.status,200);
+ const me=await(await request('/api/me',{session:owner.session})).json();assert(me.corporate_pages.includes('corp-wallet'));assert.equal(me.preferences['corp-wallet'],false);
+ const settings=await(await request('/api/settings',{session:other.session})).json();assert.equal(settings.preferences['corp-wallet'],undefined);assert.deepEqual(settings.corporate_pages,{});
+ const {syncEnabled}=await import('../lib/management.mjs');for(const kind of ['skills','wallet','wallet-history','industry','assets','standings'])assert.equal(syncEnabled(db,owner.uid,kind),true);
+ assert.equal((await request('/api/settings',{session:owner.session,method:'POST',body:{'corp-wallet':'off'}})).status,400);
+}));
