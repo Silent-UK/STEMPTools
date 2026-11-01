@@ -2,7 +2,7 @@ import {THEMES} from './themes.mjs';
 import {rattingDisplayRows,memberGroups,plainEveText} from './detail-models.mjs';
 export function managementUI({setTheme,api,esc,intro,table,num,date,empty,context,refresh,toast}){
  let rattingAlts=false,memberSort='last_active',memberGrouped=false,conditionChoices={roles:[],titles:[]};
- let period='month',inspectPilot=null,contactPage=1,mailBefore=null,mailId=null,editing=null,groups=[],links=[];
+ let period='30',inspectPilot=null,contactPage=1,mailBefore=null,mailId=null,editing=null,groups=[],links=[];
  const face=(id,name)=>`<span class="pilot-face"><img class="pilot-avatar" src="https://images.evetech.net/characters/${Number(id)}/portrait?size=64" alt="" loading="lazy"><strong>${esc(name)}</strong></span>`;
  const mailFrom=(row,names={})=>esc(names[row.from]||(row.from?'Character '+row.from:'Unknown sender'));
  const mailTo=(row,names={})=>(row.recipients||[]).map(r=>esc(names[r.recipient_type==='mailing_list'?'mailing_list:'+r.recipient_id:r.recipient_id]||({mailing_list:'Mailing List',corporation:'Corporation',alliance:'Alliance',character:'Character'}[r.recipient_type]||'Recipient')+' '+r.recipient_id)).join(', ')||'Unavailable';

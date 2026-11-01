@@ -12,3 +12,11 @@ test('contracts deduplicate pilots, filter and escape contract titles',()=>{
  const row={contract_id:1,type:'courier',status:'outstanding',title:'<Test>',observed:1};
  const pilots=['A','B'].map(name=>({name,data:{contracts:[row]}}));assert.equal(contractRows(pilots).length,1);assert.equal(contractRows(pilots)[0].pilots.length,2);assert.equal(contractRows(pilots,{status:'finished'}).length,0);assert(contractsView(pilots).includes('&lt;Test&gt;'));
 });
+
+
+test('outstanding contracts lead the list before pagination, newest first within status',()=>{
+ const rows=[{contract_id:1,status:'finished',date_issued:'2026-11-01'},{contract_id:2,status:'outstanding',date_issued:'2026-10-01'},{contract_id:3,status:'outstanding',date_issued:'2026-10-20'}];
+ const pilots=[{name:'Pilot',data:{contracts:rows}}];
+ assert.deepEqual(contractRows(pilots).map(r=>r.contract_id),[3,2,1]);
+ assert.deepEqual(contractRows(pilots,{status:'finished'}).map(r=>r.contract_id),[1]);
+});
