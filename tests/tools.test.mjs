@@ -1488,11 +1488,11 @@ test('authorized inspection reads mail bodies and contact pages without leaking 
  const admin=user(100,'Admin'),target=user(1201,'Target');
  db.prepare('UPDATE characters SET scopes=? WHERE id=1201').run(JSON.stringify(['esi-mail.read_mail.v1','esi-characters.read_contacts.v1']));
  await request('/api/inspect',{session:admin.session,method:'POST',body:{user_id:target.uid}});
- const mail=await request('/api/inspect/mail?character=1201',{session:admin.session});assert.equal(mail.status,200);assert.equal((await mail.json()).rows[0].subject,'Test');
- const body=await request('/api/inspect/mail?character=1201&mail=12',{session:admin.session});assert.equal(body.status,200);assert.equal((await body.json()).body,'<b>Read only</b>');
+ const mail=await request('/api/inspect/mail?character=1201',{session:admin.session});assert.equal(mail.status,200);const listing=await mail.json();assert.equal(listing.rows[0].subject,'Test');assert.equal(listing.names[99],'Contact');assert.equal(listing.names['mailing_list:42'],'Test mailing list');
+ const body=await request('/api/inspect/mail?character=1201&mail=12',{session:admin.session});assert.equal(body.status,200);const detail=await body.json();assert.equal(detail.body,'<b>Read only</b>');assert.equal(detail.names[99],'Contact');assert.equal(detail.names['mailing_list:42'],'Test mailing list');assert.equal(detail.from,99);assert.equal(detail.recipients[0].recipient_id,42);
  const contacts=await request('/api/inspect/contacts?character=1201&page=2',{session:admin.session});assert.equal(contacts.status,200);assert.equal((await contacts.json()).rows[0].contact_id,99);
  assert.equal((await request('/api/inspect/mail?character=1201',{session:target.session})).status,403);
-},fakeCat,{eve:{get:async()=>({subject:'Test',body:'<b>Read only</b>'}),request:async path=>path==='/universe/names'?{data:[{id:99,name:'Contact'}]}:path.includes('contacts')?{data:[{contact_id:99,standing:5}],pages:2}:{data:[{mail_id:12,from:99,subject:'Test',recipients:[]}],pages:1}}}));
+},fakeCat,{eve:{get:async path=>path.endsWith('/lists/')?[{mailing_list_id:42,name:'Test mailing list'}]:({subject:'Test',body:'<b>Read only</b>',from:99,recipients:[{recipient_id:42,recipient_type:'mailing_list'}]}),request:async(path,c,method,ids)=>path==='/universe/names'?(assert.deepEqual(ids,[99]),{data:[{id:99,name:'Contact'}]}):path.includes('contacts')?{data:[{contact_id:99,standing:5}],pages:2}:{data:[{mail_id:12,from:99,subject:'Test',recipients:[{recipient_id:42,recipient_type:'mailing_list'}]}],pages:1}}}));
 
 
 test('saved fitting imports are owned, private, idempotent and recover after deleting the copy',()=>{

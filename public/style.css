@@ -1306,3 +1306,5 @@ input.slide-toggle{min-width:34px;max-width:34px}#feature-filter label:has(input
 .standing-type-group{margin:8px 0;font-size:12px}.standing-type-group h2{font-size:13px;margin:0 0 5px}.standing-type-group h2 small{margin-left:6px}.standing-type-group td{padding:4px 6px}
 
 .notification-menu .notification-entry{display:flex;align-items:stretch}.notification-menu .notification-entry>button[data-nav]{flex:1;min-width:0}.notification-menu .notification-entry>.notification-clear{width:27px;min-width:27px;flex:none;text-align:center;justify-content:center;padding:3px;font-size:18px}.notification-menu .notification-actions{display:flex;justify-content:flex-end;padding:4px}.notification-menu .notification-actions button{font-size:11px;padding:3px 7px;min-height:24px}
+
+.mail-addresses{font-size:12px;margin:6px 0 10px;overflow-wrap:anywhere}.mail-addresses>div{padding:2px 0}.mail-recipients{max-width:340px;overflow-wrap:anywhere}
