@@ -40,3 +40,9 @@ test('corporation market paginates open orders using distinct page URLs',async()
  const result=await collectMarket(character,{request:async path=>{calls.push(path);if(path.includes('/history'))return {data:[],pages:1};const id=path.endsWith('page=2')?2:1;return {pages:2,data:[{order_id:id,type_id:34,location_id:60003760,price:1,volume_remain:2,volume_total:2}]};},publicGet:async()=>({name:'Station'})},cat,null,{corporation:true});
  assert.equal(result.active.length,2);assert(calls.includes('/corporations/99/orders?page=2'));
 });
+
+test('alts suppress empty-training alerts while retaining actionable industry notifications',()=>{
+ const now=Date.parse('2026-11-01T12:00:00Z'),pilot={id:2,parent_id:1,name:'Alt',subscription_end:'2026-12-01',snapshots:{skills:{updated:now,data:{queue:[]}},industry:{updated:now,data:{jobs:[{status:'ready'}]}}}};
+ const alerts=personalAlerts([pilot],{},now);assert.deepEqual(alerts.map(alert=>alert.kind),['industry-ready']);
+ assert(personalAlerts([{...pilot,parent_id:2}],{},now).some(alert=>alert.kind==='empty-training'));
+});
