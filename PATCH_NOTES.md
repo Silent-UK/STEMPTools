@@ -1,3 +1,7 @@
+# STEMP Tools v0.30.1
+
+- **Fitting Workbench:** Ammo opens a weapon-specific browser using the fitting engine’s charge compatibility rules. Search remains restricted to compatible ammunition, and the filter stays active after loading a charge until cancelled or another weapon is chosen.
+
 # STEMP Tools v0.30.0
 
 - **Fitting Workbench:** Replace limited base/core-skill estimates with VYRAJ's licensed Dogma fitting engine. Ship/role bonuses, active pilot skills and implants, module effects, fitting reductions, stacking and overheated bonuses now apply.

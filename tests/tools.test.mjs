@@ -1725,3 +1725,15 @@ test('fitting workbench saves private copies, protects ownership and rejects oth
  assert.equal(db.prepare('SELECT shared FROM documents WHERE id=?').get(id).shared,1);
  assert.equal((await request('/api/documents/'+id,{session:a.session,method:'DELETE',body:{}})).status,200);assert.equal(db.prepare('SELECT 1 FROM fitting_workspaces WHERE document_id=?').get(id),undefined);
 }, {...fakeCat,type:id=>({id,name:'Test Hull',category_id:6,attributes:{}}),named:()=>1}));
+
+
+test('fitting ammo browser filters by weapon and size before limiting search results',()=>fixture(async({user,request})=>{
+ const a=user(7201,'Ammo Pilot');
+ const get=async suffix=>await request('/api/fitting-workbench/items?category=charges&'+suffix,{session:a.session});
+ const missiles=await(await get('module=19739')).json();assert.ok(missiles.some(t=>t.id===202));assert.ok(missiles.every(t=>t.category===8&&/Cruise/.test(t.name)));
+ assert.deepEqual(await(await get('module=19739&q=Antimatter')).json(),[]);
+ const medium=await(await get('module=3130&q=Antimatter')).json();assert.ok(medium.some(t=>t.id===230));assert.ok(!medium.some(t=>t.id===222));
+ assert.equal((await get('module=-1')).status,400);
+ assert.equal((await request('/api/fitting-workbench/items?category=ships&module=19739',{session:a.session})).status,400);
+ assert.equal((await request('/api/fitting-workbench/items?category=charges&module=19739')).status,401);
+}));
