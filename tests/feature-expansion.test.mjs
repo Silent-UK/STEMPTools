@@ -53,3 +53,9 @@ test('blueprints group by physical location, sort originals before copies and fi
  const groups=blueprintLocations(rows);assert.deepEqual(groups.map(group=>group.name),['Station A','Station B']);assert.deepEqual(groups[1].rows.map(row=>row.item_id),[2,1]);assert.equal(groups[1].originals,1);assert.equal(groups[1].copies,1);
  assert.equal(blueprintLocations(rows,{bpo:false}).flatMap(group=>group.rows).length,1);assert.equal(blueprintLocations(rows,{bpc:false}).flatMap(group=>group.rows).length,2);assert.deepEqual(blueprintLocations(rows,{bpo:false,bpc:false}),[]);assert.equal(blueprintLocations(rows,{q:'alpha'})[0].rows[0].item_id,1);
 });
+
+import {standingGroups} from '../public/standing-model.mjs';
+test('standings group types in faction, corporation and agent order without merging pilots',()=>{
+ const rows=[{from_id:1,name:'Agent Z',from_type:'agent',standing:1},{from_id:2,name:'Navy',from_type:'npc_corp',pilot:'Zulu',standing:3},{from_id:3,name:'State',from_type:'faction',standing:-2},{from_id:2,name:'Navy',from_type:'npc_corp',pilot:'Alpha',standing:4}];
+ const groups=standingGroups(rows);assert.deepEqual(groups.map(group=>group.name),['Factions','NPC Corporations','Agents']);assert.deepEqual(groups[1].rows.map(row=>row.pilot),['Alpha','Zulu']);assert.equal(groups.flatMap(group=>group.rows).length,4);assert.deepEqual(standingGroups([]),[]);
+});

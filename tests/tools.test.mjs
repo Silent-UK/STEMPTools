@@ -1766,3 +1766,19 @@ test('corporation display preferences are private, permission-aware and leave sy
  const {syncEnabled}=await import('../lib/management.mjs');for(const kind of ['skills','wallet','wallet-history','industry','assets','standings'])assert.equal(syncEnabled(db,owner.uid,kind),true);
  assert.equal((await request('/api/settings',{session:owner.session,method:'POST',body:{'corp-wallet':'off'}})).status,400);
 }));
+
+
+test('notification dismissals persist across syncs and remain account owned',()=>fixture(async({db,user,request})=>{
+ const a=user(9901,'Clear owner'),b=user(9902,'Other owner');
+ const data=JSON.stringify([{id:1,evolution:{anarchy:{level:'Level2',amount:40}},operations:[]}]);
+ for(const id of [9901,9902])db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,'dens',data,Date.now(),Date.now()+3600000);
+ const list=async session=>(await(await request('/api/notifications',{session})).json());
+ const alerts=await list(a.session),other=await list(b.session);
+ assert.equal(alerts.length,1);
+ const clear=keys=>request('/api/notifications/dismiss',{session:a.session,method:'POST',body:{keys}});
+ assert.equal((await clear(['invalid'])).status,400);
+ assert.deepEqual((await(await clear([other[0].id])).json()).dismissed,[]);
+ assert.equal((await clear([alerts[0].id])).status,200);
+ db.prepare("UPDATE snapshots SET updated=? WHERE character_id=9901").run(Date.now()+1000);
+ assert.deepEqual(await list(a.session),[]);assert.equal((await list(b.session)).length,1);
+}));

@@ -31,7 +31,7 @@ export function denAlerts(pilots,now=Date.now()){
   const base={character_id:pilot.id,pilot:pilot.name,den_id:den.id,location:den.planet?.name||'Mercenary Den',updated:pilot.updated,stale:!pilot.updated||now-pilot.updated>7200000||Boolean(pilot.error)};
   const level=denLevel(den.evolution?.anarchy?.level),amount=den.evolution?.anarchy?.amount;
   if(level!==null&&(level>=2||(level===1&&Number.isFinite(amount)&&amount>=35)))alerts.push({...base,kind:'anarchy',severity:level>=2?'danger':'warning',message:level>=2?`Anarchy is level ${level} and affects workforce.`:'Anarchy is close to level 2 (35 / 40 or above).'});
-  if(!den.operations_error)for(const operation of activeOperations(den,now))if(Date.parse(operation.expires)-now<=43200000)alerts.push({...base,kind:'operation',severity:'warning',expires:operation.expires,message:'An active operation expires within 12 hours.'});
+  if(!den.operations_error)for(const operation of activeOperations(den,now))if(Date.parse(operation.expires)-now<=43200000)alerts.push({...base,kind:'operation',operation_id:operation.id,event_key:String(operation.id)+':'+operation.expires,severity:'warning',expires:operation.expires,message:'An active operation expires within 12 hours.'});
  }
  return alerts;
 }
