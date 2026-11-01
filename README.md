@@ -185,3 +185,13 @@ Owner-only Make Admin / Remove Admin controls are on Admin Users. Admin flags ar
 ## Fitting engine and licence
 
 This application integrates the VYRAJ fitting engine under AGPL-3.0-only. See LICENSE, vendor/vyraj/NOTICE.md and FITTING_WORKSPACE_REVIEW.md. The fitting workspace provides attribution and a corresponding-source download to all signed-in users. `npm test` regenerates the source archive before validation; rebuild it after final source/documentation changes before release.
+
+## v0.31.0: corporation tools and personal improvements
+
+Includes the LP Wallet toggle. New corporation pages: Contracts, Market, Blueprints and Standings; these use the existing group page permissions. Personal Standings can be hidden in Settings, which also pauses its sync. Jump fatigue appears above Linked Characters. Save to EVE creates a new saved fitting for an owned pilot, carrying loaded charges in cargo and excluding implants and module activation/heat state. EVE names are limited to 50 characters.
+
+Manufacturing material planners are available under personal and corporation Industry. Requirements use CCP SDE recipes, blueprint ME, per-job rounding and manually entered facility/rig material reductions. Blueprint-copy run limits are checked. Available stock is from saved inventory; stock is not reserved. Job fees, invention and reaction planning are excluded. Wallet category breakdowns operate on the selected journal or market ledger without combining the two.
+
+The existing notification menu includes finished industry jobs, recent expired market orders and completed PI extractor programmes, respecting disabled pages and ignoring stale/failed snapshots. Empty-training warnings require a saved subscription date with positively remaining game time; expired and unknown dates do not generate these alerts. Subscription dates remain manually recorded because ESI has no account subscription endpoint.
+
+Additional scopes before eventual deployment: esi-contracts.read_corporation_contracts.v1, esi-markets.read_corporation_orders.v1, esi-corporations.read_blueprints.v1, esi-fittings.write_fittings.v1, esi-characters.read_standings.v1, esi-corporations.read_standings.v1 and esi-characters.read_fatigue.v1. Both EVE developer applications have been enabled; pilots/directors will still need to reconnect after deployment.

@@ -1,3 +1,4 @@
+import {materialRoutes} from './lib/material-routes.mjs';
 import {fittingWorkbenchRoutes} from './lib/fitting-workbench-routes.mjs';
 import {wipeAccount} from './lib/accounts.mjs';
 import {isSiteAdmin} from './lib/admin.mjs';
@@ -140,7 +141,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.30.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.31.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -353,15 +354,20 @@ export function createApp(config) {
   fittingImportRoutes(app,{db,eve,cat});
   fittingWorkbenchRoutes(app,{db,eve,cat,simulate:config.fittingSimulator});
   managementRoutes(app,{db,eve,corp,cat,config,whitelist});
+  materialRoutes(app,{db,cat,corp,grants});
   app.get("/api/me", async (req,res)=>{const director=await corp.access(req.session.user_id),pages=grants(db,req.session.user_id);res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:director||pages.length>0,corporate_pages:director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
   app.use("/api/corporation",async(req,res,next)=>{
-    const director=await corp.access(req.session.user_id),route=req.path.split('/')[1],required=({overview:'corp-overview',members:'corp-members',pilots:'corp-pilots',assets:'corp-assets',wallet:'corp-wallet',industry:'corp-industry',structures:'corp-structures',harvest:'corp-moons',surveys:'corp-surveys'})[route];
+    const director=await corp.access(req.session.user_id),route=req.path.split('/')[1],required=({overview:'corp-overview',members:'corp-members',pilots:'corp-pilots',assets:'corp-assets',wallet:'corp-wallet',standings:'corp-standings',contracts:'corp-contracts',market:'corp-market',blueprints:'corp-blueprints',materials:'corp-industry',industry:'corp-industry',structures:'corp-structures',harvest:'corp-moons',surveys:'corp-surveys'})[route];
     if(!director&&(!['GET','HEAD'].includes(req.method)||!required||!grants(db,req.session.user_id).includes(required)))return res.status(403).json({error:"You do not have permission to view this corporation page."});
     next();
   });
   app.get('/api/corporation/overview',async(req,res)=>res.json(await corp.overview()));
   app.get('/api/corporation/pilots',async(req,res)=>res.json(await corp.pilots()));
   app.get('/api/corporation/assets',async(req,res)=>res.json(await corp.assets(req.query)));
+  app.get('/api/corporation/contracts',async(req,res)=>res.json(await corp.contracts()));
+  app.get('/api/corporation/market',async(req,res)=>res.json(await corp.market()));
+  app.get('/api/corporation/blueprints',async(req,res)=>res.json(await corp.blueprints()));
+  app.get('/api/corporation/standings',async(req,res)=>res.json(await corp.standings()));
   app.get('/api/corporation/wallet',async(req,res)=>res.json(await corp.wallets()));
   app.get('/api/corporation/members',async(req,res)=>res.json(await corp.members()));
   app.get("/api/corporation/surveys/browser",async(req,res)=>res.json(await corp.surveys(req.query)));
@@ -564,7 +570,7 @@ export function createApp(config) {
     } catch {res.json({price:null,source:"EVE market average"});}
   });
   app.get("/api/operations/:kind", (req, res) => {
-    if (!["pi", "dens", "industry", "clones", "mining", "wallet-history", "contracts", "market"].includes(req.params.kind))
+    if (!["pi", "dens", "industry", "clones", "mining", "wallet-history", "contracts", "market", "loyalty", "standings", "fatigue"].includes(req.params.kind))
       return res.sendStatus(404);
     const chars = db
       .prepare(

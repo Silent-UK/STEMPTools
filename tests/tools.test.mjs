@@ -1737,3 +1737,19 @@ test('fitting ammo browser filters by weapon and size before limiting search res
  assert.equal((await request('/api/fitting-workbench/items?category=ships&module=19739',{session:a.session})).status,400);
  assert.equal((await request('/api/fitting-workbench/items?category=charges&module=19739')).status,401);
 }));
+
+
+test('new corporation pages and material planning reject ungranted accounts',()=>fixture(async({user,request})=>{
+ const account=user(7301,'No grants');for(const route of ['contracts','market','blueprints','standings'])assert.equal((await request('/api/corporation/'+route,{session:account.session})).status,403);
+ assert.equal((await request('/api/material-planner/corporation',{session:account.session})).status,403);
+ const own=await request('/api/material-planner/personal',{session:account.session});assert.equal(own.status,200);assert.deepEqual((await own.json()).blueprints,[]);
+ const settings=await request('/api/settings',{session:account.session,method:'POST',body:{standings:false}});assert.equal(settings.status,200);assert.equal((await settings.json()).standings,false);
+}));
+test('saving EVE fittings enforces pilot ownership, scope and the actual POST payload',()=>fixture(async({db,user,request})=>{
+ const owner=user(7302,'Fit owner'),other=user(7303,'Other');
+ const fit={ship_id:587,name:'Export test',items:[{id:2048,section:'Low slots',quantity:1}]};
+ assert.equal((await request('/api/fitting-workbench/eve',{session:owner.session,method:'POST',body:{pilot:7303,fit}})).status,404);
+ assert.equal((await request('/api/fitting-workbench/eve',{session:owner.session,method:'POST',body:{pilot:7302,fit}})).status,403);
+ db.prepare('UPDATE characters SET scopes=? WHERE id=7302').run('["esi-fittings.write_fittings.v1"]');
+ const sent=await request('/api/fitting-workbench/eve',{session:owner.session,method:'POST',body:{pilot:7302,fit}});assert.equal(sent.status,200);assert.equal((await sent.json()).fitting_id,123);
+}, {type:id=>id===587?{id,name:'Rifter',category_id:6,attributes:{}}:id===2048?{id,name:'Damage Control II',category_id:7,attributes:{}}:null,named:()=>null,close(){},search:()=>[]}, {eve:{request:async(path,pilot,method,body)=>{assert.equal(path,'/characters/7302/fittings');assert.equal(pilot.id,7302);assert.equal(method,'POST');assert.equal(body.items[0].flag,'LoSlot0');return {data:{fitting_id:123}};}}}));

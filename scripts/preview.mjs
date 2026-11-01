@@ -170,6 +170,21 @@ db.prepare("INSERT INTO sync_errors VALUES(1000014,'skills','Sample refresh issu
 db.prepare('UPDATE characters SET reconnect=1 WHERE id=1000014').run();
 db.prepare('UPDATE characters SET scopes=? WHERE id=1000003').run(JSON.stringify(SCOPES.filter(s=>s!=='esi-characters.read_titles.v1')));
 for(const [id,amount] of [[1000001,1000000],[1000002,2000000],[1000003,3000000]])db.prepare('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,'wallet-history',JSON.stringify({journal:[{id,date:new Date().toISOString(),ref_type:'bounty_prizes',amount}],transactions:[],names:{},started_at:Date.now()}),Date.now(),Date.now()+3600000);
+// Fictional examples for the held corporation, LP, standings and materials features.
+const blueprint={item_id:900001,type_id:691,name:cat.type(691).name,quantity:-2,runs:100,material_efficiency:10,time_efficiency:20,location_id:60003760};
+for(const character of [1000001,1000002,1000003]){
+ const snap=(kind,data)=>db.prepare('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?,?,NULL)').run(character,kind,JSON.stringify(data),now,now+3600000);
+ snap('standings',{rows:[{from_id:1000035,name:'Caldari Navy',from_type:'npc_corp',standing:7.2},{from_id:500004,name:'Gallente Federation',from_type:'faction',standing:-1.5}]});
+ snap('fatigue',{jump_fatigue_expire_date:new Date(now+3600000).toISOString(),last_jump_date:new Date(now-3600000).toISOString(),last_update_date:new Date(now-1000).toISOString()});
+ snap('loyalty',{balances:[{corporation_id:1000035,corporation:'Caldari Navy',loyalty_points:120000}]});
+ const row=db.prepare("SELECT data FROM snapshots WHERE character_id=? AND kind='industry'").get(character),industry=row?JSON.parse(row.data):{jobs:[]};industry.blueprints=[{...blueprint,item_id:900001+character}];snap('industry',industry);
+ snap('assets',{items:[{item_id:character+9000000,type_id:38,quantity:1000,location_id:60003760}],locations:{60003760:'Example Station'}});
+}
+const seedCorp=(key,data)=>db.prepare('INSERT OR REPLACE INTO public_cache VALUES(?,?,?)').run('/tools/corp-data/'+key,JSON.stringify({...data,updated:now,error:null}),now+3600000);
+seedCorp('blueprints',{rows:[blueprint]});
+seedCorp('standings',{rows:[{from_id:1000035,name:'Caldari Navy',from_type:'npc_corp',standing:4.8},{from_id:500004,name:'Gallente Federation',from_type:'faction',standing:-2}]});
+seedCorp('contracts',{contracts:[{contract_id:1,title:'Doctrine ship delivery',type:'courier',status:'outstanding',issuer_id:1000001,assignee_id:1000002,reward:10000000,collateral:100000000,date_issued:new Date(now-86400000).toISOString(),date_expired:new Date(now+3*86400000).toISOString(),start_location_id:60003760,end_location_id:60003760,observed:now}],names:{1000001:'Example Main',1000002:'Example Industrial'},locations:{60003760:'Example Station'}});
+seedCorp('market',{active:[{order_id:1,type_id:34,name:'Tritanium',is_buy_order:true,volume_remain:500000,volume_total:1000000,price:4.5,location_id:60003760,issued:new Date(now-86400000).toISOString(),status:'active'}],history:[{order_id:2,type_id:587,name:'Rifter',is_buy_order:false,volume_remain:0,volume_total:10,price:500000,location_id:60003760,issued:new Date(now-7*86400000).toISOString(),status:'fulfilled',state:'expired'}],locations:{60003760:'Example Station'}});
 const { app } = createApp({
  corpNetwork:async url=>{const p=new URL(url).pathname;return new Response(JSON.stringify(p.endsWith('/members')?[1000001,1000002,1000003,1000011,1000014,1000099]:p.endsWith('/membertracking')?[1000001,1000002,1000003,1000011,1000014,1000099].map((id,i)=>({character_id:id,logon_date:new Date(Date.now()-i*3600000).toISOString(),location_id:124,ship_type_id:587})):[]),{headers:{'content-type':'application/json','cache-control':'max-age=3600'}});},
  membershipLookup:async()=>({corporation_id:668298004}),
