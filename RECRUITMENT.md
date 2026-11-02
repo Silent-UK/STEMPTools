@@ -13,11 +13,11 @@ Available from v0.32.0. Configure recruitment references in Admin > Recruitment 
 
 The WC blacklist is fetched directly from the same Google spreadsheet used by WCFAT; no WCFAT connection or credentials are required. Each installation keeps its own local copy. Names are read from A/F/G/H, reasons from D, with the header skipped. Successful imports are atomic; failed imports retain the previous copy. The scheduler checks hourly and imports when the previous successful import is at least seven days old, with hourly retry after a failure. Use Sync Blacklist Now and Update View to check progress.
 
-Configure friendly and hostile pilot/corporation/alliance IDs for WinterCo checks. Hostile references take priority. Names are resolved through ESI. Unknown affiliations remain unknown. Without friendly references, unmatched recipients are not assumed neutral. Refresh a Pilot Check after changing references.
+The ten supplied WinterCo alliances are seeded as editable friendly defaults (FRT-alt excluded). Existing nonempty friendly alliance lists are preserved; an empty list is seeded once, excluding any explicitly hostile IDs. Subsequent administrator changes, including clearing the list, persist. Configure friendly and hostile pilot/corporation/alliance IDs for WinterCo checks. Hostile references take priority. Names are resolved through ESI. Unknown affiliations remain unknown. Without friendly references, unmatched recipients are not assumed neutral. Refresh a Pilot Check after changing references.
 
 ## Inspect Only > Pilot Check
 
-Select a connected pilot. Collection runs in the background and keeps its last saved result. Skills, wallet and contracts use saved character snapshots; mail headers and contact standings are fetched using that pilot's scopes. Missing scopes, stale snapshots and sync errors are shown separately from findings.
+All Characters is selected by default and collects results for every linked main and alt, grouped by pilot. Select an individual pilot to narrow the review. Collection runs in the background and keeps its last saved result. Skills, wallet and contracts use saved character snapshots; mail headers and contact standings are fetched using that pilot's scopes. Missing scopes, stale snapshots and sync errors are shown separately from findings.
 
 - Blacklist comparisons include all linked pilots, by resolved ID or complete normalised name.
 - Ship qualification checks active skill levels and recursive SDE prerequisites for Interdictors, Heavy Interdictors, Covert Ops and Prospect.
@@ -30,6 +30,6 @@ Select a connected pilot. Collection runs in the background and keeps its last s
 
 A separate resumable queue collects public zKillboard records month by month for the current calendar year, adding previous December when rolling 30-day statistics need it. ESI supplies full killmails when only an ID/hash reference is available. Incomplete collection does not replace the last completed result.
 
-The page shows year/30-day/7-day kill and loss totals, ships used and lost, operating systems, and victim corporation/alliance targets. Kills mean participation, not necessarily final blows. Public/unreported coverage limitations are displayed. Existing results refresh after six hours or when an authorised inspector requests refresh. Publication requires a complete crawl; page-limit and upstream failures retain saved totals and show an error.
+The page defaults to All Characters, with deduplicated account kill/loss totals and individual pilot breakdowns. Selecting one pilot narrows the view. The page shows year/30-day/7-day kill and loss totals, ships used and lost, operating systems, and victim corporation/alliance targets. Kills mean participation, not necessarily final blows. Public/unreported coverage limitations are displayed. Existing results refresh after six hours or when an authorised inspector requests refresh. Publication requires a complete crawl; page-limit and upstream failures retain saved totals and show an error.
 
 The application creates the new SQLite tables on startup. Keep the existing application data/encryption-key backup procedure. No separate systemd worker or new npm dependency is needed.

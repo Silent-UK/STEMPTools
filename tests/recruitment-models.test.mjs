@@ -74,3 +74,15 @@ test('combat worker resumes pages and ESI references, publishing only a complete
  const result=service.view({id:100});assert.equal(result.job,null);assert.equal(detailCalls,1);assert.equal(result.data.windows.year.kills,2);assert.equal(db.prepare('SELECT count(*) n FROM recruitment_combat_stage').get().n,0);
  const bad=pilotCombatService(db,eve,cat,{network:async()=>new Response('down',{status:503})});bad.view({id:100},true);await bad.tick();const retained=bad.view({id:100});assert.equal(retained.data.windows.year.kills,2);assert.equal(retained.job.status,'retrying');
 }));
+
+test('account combat deduplicates shared kills and retains linked pilot losses',()=>{
+ const now=Date.UTC(2026,10,2),kill={killmail_id:800,killmail_time:new Date(now-86400000).toISOString(),solar_system_id:42,victim:{character_id:999,ship_type_id:1},attackers:[{character_id:100,ship_type_id:2},{character_id:200,ship_type_id:3}]};
+ const loss={...kill,killmail_id:801,victim:{character_id:200,ship_type_id:3},attackers:[{character_id:999,ship_type_id:1}]};
+ const data=combatSummary([100,200],[kill,kill,loss],{},null,now);
+ assert.deepEqual(data.windows.days30,{kills:1,losses:1});assert.equal(data.records,2);assert.equal(data.ships.find(s=>s.id===2).kills,1);assert.equal(data.ships.find(s=>s.id===3).losses,1);
+});
+
+test('WinterCo defaults seed ten alliances once and preserve later customisation',()=>store(db=>{
+ const value=recruitmentConfig(db);assert.equal(value.friendly.alliance.length,10);assert.ok(value.friendly.alliance.includes(1042504553));assert.ok(value.friendly.alliance.includes(99003581));
+ value.friendly.alliance=[];db.prepare('UPDATE recruitment_config SET data=? WHERE id=1').run(JSON.stringify(value));recruitmentStore(db);assert.deepEqual(recruitmentConfig(db).friendly.alliance,[]);
+}));

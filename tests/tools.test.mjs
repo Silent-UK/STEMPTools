@@ -1852,6 +1852,7 @@ test('Recruitment group grants inspect only applicants and all inspection remain
  assert.equal((await request('/api/inspect',{session:staff.session,method:'POST',body:{user_id:applicant.uid}})).status,200);
  const me=await (await request('/api/me',{session:staff.session})).json();assert.equal(me.inspect.name,'Applicant');assert.equal(me.admin,false);
  assert.equal((await request('/api/inspect/pilot-check?character=300',{session:staff.session})).status,200);
+ for(const kind of ['pilot-check','pilot-combat']){const result=await request('/api/inspect/'+kind+'?character=all',{session:staff.session});assert.equal(result.status,200);const data=await result.json();assert.deepEqual(data.pilots.map(p=>p.id),[300]);assert.ok(!data.pilots.some(p=>p.id===400));}
  assert.equal((await request('/api/inspect/pilot-check?character=400',{session:staff.session})).status,404);
  assert.equal((await request('/api/characters/300/sync',{session:staff.session,method:'POST',body:{}})).status,403);
  for(const path of ['/api/corporation/wallet','/api/material-planner/corporation','/api/documents','/api/pi/shared'])assert.equal((await request(path,{session:staff.session})).status,403,path);
