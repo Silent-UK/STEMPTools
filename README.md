@@ -199,3 +199,7 @@ Additional scopes before eventual deployment: esi-contracts.read_corporation_con
 ### v0.31.2 corporation display preferences
 
 Settings offers ten corporation page visibility switches, limited to the pages the account can access. These account preferences hide sidebar entries only: corporation syncs and permission grants are unaffected. Corporation navigation places Corp Assets after Contracts, followed by Standings. Corporation Blueprints defaults to expandable physical-location groups, with independent BPO/BPC switches and originals sorted before copies.
+
+## Recruitment review (pending local release)
+
+See [RECRUITMENT.md](RECRUITMENT.md) for applicant signup, reviewer permissions, independent weekly WC blacklist imports, alignment references, and Pilot Check / Pilot Combat coverage.

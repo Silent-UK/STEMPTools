@@ -20,7 +20,7 @@ test('restricted groups require ship and active skill on one pilot, fresh comple
  snapshot(101,'assets',{items:[{group_id:30,quantity:1}]});db.prepare("INSERT INTO sync_errors VALUES(101,'assets','Failed')").run();assert.equal(eligible(db,1,rules,now),false);
 }));
 test('page preferences pause only dedicated jobs and preserve shared PI and wallet dependencies',()=>store(db=>{
- db.prepare('INSERT INTO page_preferences VALUES(1,?)').run(JSON.stringify({pi:false,dens:false,mining:false,industry:false,ratting:false}));
+ db.prepare('INSERT INTO page_preferences VALUES(1,?)').run(JSON.stringify({pi:false,dens:false,mining:false,industry:false,blueprints:false,ratting:false}));
  for(const kind of ['pi','dens','mining','industry'])assert.equal(syncEnabled(db,1,kind),false);
  for(const kind of ['wallet','wallet-history','skills','assets','clones'])assert.equal(syncEnabled(db,1,kind),true);
  db.prepare("INSERT INTO users VALUES(2,201,'Recipient',0)").run();db.prepare('INSERT INTO pi_shares VALUES(1,2,101)').run();assert.equal(syncEnabled(db,1,'pi'),true);

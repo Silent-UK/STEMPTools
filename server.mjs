@@ -1,3 +1,6 @@
+import {recruitmentService,recruitmentRoutes} from './lib/recruitment.mjs';
+import {recruitAccount,restrictedRecruitPath,recruitInspectPath} from './lib/recruitment-store.mjs';
+import {whitelistRoutes} from './lib/whitelist-routes.mjs';
 import {materialRoutes} from './lib/material-routes.mjs';
 import {fittingWorkbenchRoutes} from './lib/fitting-workbench-routes.mjs';
 import {wipeAccount} from './lib/accounts.mjs';
@@ -51,7 +54,8 @@ export function createApp(config) {
     sync = syncService(db, eve, cat),
     corp = corporationService(db,box,config,cat,eve);
   managementStore(db);
-  const whitelist=whitelistService(db,config.membershipLookup || (async id=>(await eve.request("/characters/"+id)).data));
+  const recruitment=recruitmentService(db,eve,cat,config);
+  const whitelist=whitelistService(db,config.membershipLookup || (async id=>(await eve.request("/characters/"+id)).data),id=>eve.publicGet("/corporations/"+id));
   const ownerUser=db.prepare("SELECT id FROM users WHERE main_id=?").get(config.owner);
   const legacy=db.prepare("SELECT * FROM corporation_connections WHERE corporation_id=?").get(STEMP_ID);
   if(ownerUser&&legacy)db.prepare("INSERT OR IGNORE INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(ownerUser.id,legacy.character_id,legacy.character_name,legacy.owner_hash,STEMP_ID,legacy.tokens,JSON.stringify(["esi-characters.read_corporation_roles.v1"]),0,legacy.role,0);
@@ -108,12 +112,13 @@ export function createApp(config) {
   });
   app.post('/api/inspect', (req,res)=>{
     if(!req.session)return res.sendStatus(401);
-    if(!isSiteAdmin(req.session,config.owner))return res.sendStatus(403);
+    if(!recruitment.canReview(req.session))return res.sendStatus(403);
     try{assertOrigin(req,config.base);}catch{return res.sendStatus(403);}
     if(!req.is('application/json'))return res.sendStatus(415);
     if(req.body.exit===true){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return res.json({ok:true});}
     const target=db.prepare('SELECT id,main_id FROM users WHERE id=?').get(Number(req.body.user_id)||0);
     if(!target)return res.sendStatus(404);
+    if(!recruitment.canInspect(req.session,target.id))return res.sendStatus(403);
     if(target.main_id===config.owner)return res.status(400).json({error:'Already viewing your own account'});
     db.prepare('INSERT INTO inspections VALUES(?,?) ON CONFLICT(session_id) DO UPDATE SET target_id=excluded.target_id').run(req.session.id,target.id);
     res.json({ok:true});
@@ -125,6 +130,7 @@ export function createApp(config) {
       if(path.startsWith('/api/'))db.prepare('INSERT INTO user_activity VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_seen=excluded.last_seen WHERE user_activity.last_seen<excluded.last_seen-60000').run(req.session.user_id,Date.now());
       next();}
     catch(e) {
+      if(e.status===403&&recruitAccount(db,req.session.user_id)){req.recruit=true;if(restrictedRecruitPath(path))return next();return res.status(403).json({error:'Recruit accounts can connect and sync their own pilots; member pages require normal membership access.'});}
       if(e.status===403){db.prepare('DELETE FROM sessions WHERE user_id=?').run(req.session.user_id);res.clearCookie('tools_session',cookieOptions);}
       if(path.startsWith('/api/'))return res.status(e.status).json({error:e.message});
       res.status(e.status).type('text').send(e.message);
@@ -134,10 +140,12 @@ export function createApp(config) {
     if(!req.session)return next();
     const target=db.prepare('SELECT u.* FROM inspections i JOIN users u ON u.id=i.target_id WHERE i.session_id=?').get(req.session.id);
     if(!target)return next();
-    if(!isSiteAdmin(req.session,config.owner)){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return next();}
+    if(!recruitment.canInspect(req.session,target.id)){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return next();}
     if(req.path.toLowerCase().startsWith('/auth'))return res.status(403).send('Exit Inspect before connecting characters.');
     if(req.path.toLowerCase().startsWith('/api')&&!['GET','HEAD'].includes(req.method))return res.status(403).json({error:'Inspect is read-only. Exit Inspect to make changes.'});
-    req.inspect={name:target.name,main_id:target.main_id};
+    const recruitmentOnly=!isSiteAdmin(req.session,config.owner);
+    if(recruitmentOnly&&req.path.toLowerCase().startsWith('/api')&&!recruitInspectPath(req.path.toLowerCase()))return res.status(403).json({error:'Recruitment inspection is limited to applicant-owned character data.'});
+    req.inspect={name:target.name,main_id:target.main_id,recruitment_only:recruitmentOnly};
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
@@ -150,6 +158,8 @@ export function createApp(config) {
     const miningCharacter=mining?ownedCharacter(db,req.session.user_id,req.query.character):null;
     if(corporation && !req.session)return res.sendStatus(401);
     const linking = corporation || mining || req.query.link === "1";
+    const recruit=req.query.recruit==='1';
+    if(recruit&&(linking||req.query.consent!=='1'))return res.status(400).send('Read and accept the recruitment inspection notice before signing up.');
     if (linking && !req.session)
       return res
         .status(401)
@@ -173,7 +183,7 @@ export function createApp(config) {
       hash(state),
       hash(browser),
       linking ? req.session.user_id : null,
-      null,
+      recruit?'recruit':null,
       verifier,
       Date.now() + 600000,
     );
@@ -235,7 +245,7 @@ export function createApp(config) {
       if(req.session.main_id===config.owner)db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(corpInfo.id,corpInfo.name,id.id,id.name,id.owner,box.seal(token),Date.now(),corpInfo.role);
       return res.redirect("/#corp-structures");
     }
-    if(!flow.user_id)await whitelist.check(id.id,true);
+    if(!flow.user_id){try{await whitelist.check(id.id,true);}catch(e){const applicant=db.prepare("SELECT a.status FROM recruitment_applications a JOIN users u ON u.id=a.user_id WHERE u.main_id=? AND a.status NOT IN ('rejected','withdrawn')").get(id.id);if(e.status!==403||!(flow.invite==='recruit'||applicant))throw e;}}
     let automaticCorp=null,automaticDenied=false;
     if(id.scopes.includes('esi-characters.read_corporation_roles.v1')){
       try{
@@ -301,6 +311,7 @@ export function createApp(config) {
         }
         db.prepare("INSERT INTO character_groups VALUES(?,?)").run(id.id,parent);
       }
+      if(flow.invite==='recruit')db.prepare("INSERT OR IGNORE INTO recruitment_applications(user_id,created,consented) VALUES(?,?,?)").run(uid,Date.now(),Date.now());
       return uid;
     });
     if(automaticCorp){
@@ -333,7 +344,7 @@ export function createApp(config) {
       maxAge: 7 * 86400000,
     });
     if(!flow.user_id)db.prepare("INSERT INTO user_logins VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_login=excluded.last_login").run(user,Date.now());
-    res.redirect(miningFlow?"/#mining":"/");
+    res.redirect(miningFlow?"/#mining":flow.invite==='recruit'?"/Recruit":"/");
   });
   app.use("/api", (req, res, next) => {
     if (!req.session)
@@ -353,12 +364,13 @@ export function createApp(config) {
   });
   fittingImportRoutes(app,{db,eve,cat});
   fittingWorkbenchRoutes(app,{db,eve,cat,simulate:config.fittingSimulator});
+  recruitmentRoutes(app,{db,recruitment,config});
   managementRoutes(app,{db,eve,corp,cat,config,whitelist});
-  materialRoutes(app,{db,cat,corp,grants});
-  app.get("/api/me", async (req,res)=>{const director=await corp.access(req.session.user_id),pages=grants(db,req.session.user_id);res.json({name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:director||pages.length>0,corporate_pages:director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
+  materialRoutes(app,{db,cat,corp,grants,admin:req=>isSiteAdmin(req.session,config.owner)});
+  app.get("/api/me", async (req,res)=>{const director=req.inspect?.recruitment_only?false:await corp.access(req.session.user_id),pages=req.inspect?.recruitment_only?[]:grants(db,req.session.user_id).filter(p=>Object.hasOwn(CORPORATE_PAGES,p));res.json({recruit:Boolean(req.recruit),recruiter:!req.inspect&&recruitment.canReview(req.session),name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:isSiteAdmin(req.session,config.owner)||director||pages.length>0,corporate_pages:isSiteAdmin(req.session,config.owner)||director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:req.recruit?[]:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
   app.use("/api/corporation",async(req,res,next)=>{
     const director=await corp.access(req.session.user_id),route=req.path.split('/')[1],required=({overview:'corp-overview',members:'corp-members',pilots:'corp-pilots',assets:'corp-assets',wallet:'corp-wallet',standings:'corp-standings',contracts:'corp-contracts',market:'corp-market',blueprints:'corp-blueprints',materials:'corp-industry',industry:'corp-industry',structures:'corp-structures',harvest:'corp-moons',surveys:'corp-surveys'})[route];
-    if(!director&&(!['GET','HEAD'].includes(req.method)||!required||!grants(db,req.session.user_id).includes(required)))return res.status(403).json({error:"You do not have permission to view this corporation page."});
+    if(!director&&(!['GET','HEAD'].includes(req.method)||!required||(!isSiteAdmin(req.session,config.owner)&&!grants(db,req.session.user_id).includes(required))))return res.status(403).json({error:"You do not have permission to view this corporation page."});
     next();
   });
   app.get('/api/corporation/overview',async(req,res)=>res.json(await corp.overview()));
@@ -879,6 +891,7 @@ export function createApp(config) {
     const target=db.prepare('SELECT main_id FROM users WHERE id=?').get(id);
     if(!target)return res.sendStatus(404);
     if(target.main_id===config.owner)return res.status(400).json({error:'The site owner always keeps admin access.'});
+    if(req.body.admin&&req.body.confirm_main_id!==target.main_id)return res.status(400).json({error:'Confirm the exact pilot before granting admin access.'});
     db.prepare('UPDATE users SET admin=? WHERE id=?').run(Number(req.body.admin),id);
     if(!req.body.admin)db.prepare('DELETE FROM inspections WHERE session_id IN (SELECT id FROM sessions WHERE user_id=?)').run(id);
     res.json({ok:true,admin:req.body.admin});
@@ -895,22 +908,8 @@ export function createApp(config) {
   });
   app.get("/api/admin/esi",(req,res)=>res.json({characters:adminCharacters(),buckets:[0,10,20,30,40,50]}));
   app.get("/api/admin/corporations",(req,res)=>res.json(db.prepare("SELECT corporation_id,name,character_id,character_name,verified,role FROM corporation_connections ORDER BY name").all()));
-  app.get('/api/admin/whitelist',(req,res)=>res.json(db.prepare('SELECT * FROM login_whitelist ORDER BY name').all()));
-  app.post('/api/admin/whitelist',async(req,res)=>{
-    const id=Number(req.body.corporation_id);
-    if(!Number.isSafeInteger(id)||id<=0)return res.status(400).json({error:'Enter a valid corporation ID'});
-    let data;
-    try {data=await eve.publicGet('/corporations/'+id);}catch{return res.status(400).json({error:'Corporation could not be verified with ESI. Check the ID and try again.'});}
-    if(typeof data?.name!=='string'||!data.name.trim())return res.status(400).json({error:'ESI did not return a corporation name'});
-    db.prepare('INSERT INTO login_whitelist VALUES(?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name').run(id,data.name);
-    res.json({ok:true});
-  });
-  app.delete('/api/admin/whitelist/:id',async(req,res)=>{
-    const id=Number(req.params.id);
-    if(id===await whitelist.corporation(req.session.main_id,true))return res.status(400).json({error:'Your own corporation must stay whitelisted so you can manage access.'});
-    db.prepare('DELETE FROM login_whitelist WHERE corporation_id=?').run(id);
-    res.json({ok:true});
-  });
+  whitelistRoutes(app,{db,eve,whitelist});
+  app.get('/Recruit',(_req,res)=>res.sendFile(fileURLToPath(new URL('./public/index.html',import.meta.url))));
   app.use(
     express.static(
       new URL("./public", import.meta.url).pathname.replace(
@@ -941,7 +940,7 @@ export function createApp(config) {
         : message,
     });
   });
-  return { app, db, cat, sync, corp };
+  return { app, db, cat, sync, corp, recruitment };
 }
 if (
   process.argv[1] &&
@@ -956,10 +955,13 @@ if (
     owner: Number(process.env.OWNER_CHARACTER_ID || 122543287),
     contact: process.env.ESI_CONTACT || "tools.areyouaspy.co.uk",
   };
-  const { app, sync, corp } = createApp(config);
+  const { app, sync, corp, recruitment } = createApp(config);
   app.listen(Number(process.env.PORT || 3014), "127.0.0.1", () =>
     console.log("Tools listening on " + (process.env.PORT || 3014)),
   );
+  recruitment.schedule();
+  setInterval(()=>recruitment.schedule(),3600000).unref();
+  setInterval(()=>recruitment.tick().catch(()=>console.error("Recruitment sync failed")),3000).unref();
   sync.schedule();
   corp.schedule();
   setInterval(()=>corp.schedule(),60000).unref();

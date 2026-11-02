@@ -1,0 +1,15 @@
+export const CORPORATE_PAGE_DESCRIPTIONS={
+ 'corp-overview':'Corporation summary, member activity and killboard statistics.',
+ 'corp-members':'Member roster, last activity, ships, locations and site registration.',
+ 'corp-pilots':'Pilot titles, corporation roles, hangar access and wallet access.',
+ 'corp-wallet':'Corporation wallet balances, divisions, journal and transactions.',
+ 'corp-contracts':'Corporation contracts, their status and contents.',
+ 'corp-assets':'Corporation assets grouped by location, with search and region filters.',
+ 'corp-standings':'Corporation standings towards factions, corporations and agents.',
+ 'corp-market':'Corporation buy and sell orders, including completed order history.',
+ 'corp-industry':'Corporation industry jobs and manufacturing material planning.',
+ 'corp-blueprints':'Corporation originals and copies grouped by location, with ME, TE and runs.',
+ 'corp-structures':'Corporation structures, fuel status and operational information.',
+ 'corp-moons':'Moon extraction schedules, harvesting history and estimated values.',
+ 'corp-surveys':'Moon survey compositions, ore tiers and moon labels.',
+};

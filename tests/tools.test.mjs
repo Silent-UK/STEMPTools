@@ -1040,12 +1040,13 @@ test('Jita valuation reads every page, excludes other stations and never caches 
 test("only owner manages admin grants, delegated access updates immediately and inspection stays read-only",async()=>{
  await fixture(async({db,user,request})=>{
   const owner=user(100,"Owner"),other=user(200,"Other"),third=user(300,"Third");
-  const grant=(actor,id,admin)=>request('/api/admin/users/'+id+'/admin',{session:actor.session,body:{admin},method:'POST'});
+  const grant=(actor,id,admin)=>request('/api/admin/users/'+id+'/admin',{session:actor.session,body:{admin,confirm_main_id:db.prepare('SELECT main_id FROM users WHERE id=?').get(id)?.main_id},method:'POST'});
   assert.equal((await grant(other,other.uid,true)).status,403);
   assert.equal((await request('/api/admin/users',{session:other.session})).status,403);
   assert.equal((await grant(owner,other.uid,'yes')).status,400);
   assert.equal((await grant(owner,9999,true)).status,404);
   assert.equal((await grant(owner,owner.uid,false)).status,400);
+  assert.equal((await request('/api/admin/users/'+other.uid+'/admin',{session:owner.session,method:'POST',body:{admin:true}})).status,400);
   assert.equal((await grant(owner,other.uid,true)).status,200);
   assert.equal((await (await request('/api/me',{session:other.session})).json()).admin,true);
   for(const path of ['users','esi','corporations','whitelist','groups','links'])assert.equal((await request('/api/admin/'+path,{session:other.session})).status,200);
@@ -1118,11 +1119,13 @@ test("corporation validation rejects ordinary members and accepts only CEO or Di
 function connectCorpFixture(db,user,id=100,corp=668298004) {
  db.prepare("INSERT INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(user,id,"Director","owner-a",corp,cryptoBox(key).seal({access_token:"corp-secret",refresh_token:"refresh"}),JSON.stringify(["esi-characters.read_corporation_roles.v1","esi-corporations.read_structures.v1","esi-assets.read_corporation_assets.v1","esi-corporations.read_starbases.v1"]),Date.now()+3600000,"Director",Date.now());
 }
-test("corporation endpoints deny admins without STEMP roles and allow verified non-admin directors",async()=>{
+test("corporation endpoints allow admin viewing and verified non-admin directors",async()=>{
  let role="Director",corpId=668298004;
  await fixture(async({db,user,request,corp})=>{
   const owner=user(100,"Owner"),director=user(200,"Director"),outsider=user(300,"Member");
-  assert.equal((await request("/api/corporation/structures",{session:owner.session})).status,403);
+  assert.equal((await request("/api/corporation/structures",{session:owner.session})).status,200);
+  const me=await (await request("/api/me",{session:owner.session})).json();assert.equal(me.corporation,true);assert.equal(me.director,false);
+  assert.equal((await request("/api/corporation/sync",{session:owner.session,method:"POST",body:{}})).status,403);
   connectCorpFixture(db,director.uid,200);
   assert.equal((await request("/api/corporation/structures",{session:director.session})).status,200);
   assert.equal((await request("/api/admin/users",{session:director.session})).status,403);
@@ -1240,7 +1243,8 @@ test('moon extraction display distinguishes empty, unavailable, ready and expire
 test('moon surveys are private and can be filtered and paged',async()=>{
  await fixture(async({request,user,db})=>{
   const u=user(100,'Owner');
-  assert.equal((await request('/api/corporation/surveys',{session:u.session})).status,403);
+  assert.equal((await request('/api/corporation/surveys',{session:u.session})).status,200);
+  const outsider=user(300,'Member');assert.equal((await request('/api/corporation/surveys',{session:outsider.session})).status,403);
   connectCorpFixture(db,u.uid);
   const data=await (await request('/api/corporation/surveys?region=Vale%20of%20the%20Silent&q=LS9B-9',{session:u.session})).json();
   assert.ok(data.rows.length);assert.ok(data.rows.every(r=>r.region==='Vale of the Silent'&&r.system==='LS9B-9'));
@@ -1267,7 +1271,7 @@ test('corporation industry paginates atomically, retains failures and requires c
  let fail=false,empty=false;
  const job={job_id:1,installer_id:100,facility_id:60003760,location_id:60003760,activity_id:1,blueprint_type_id:1,product_type_id:1,runs:5,status:'active',end_date:'2027-01-01T00:00:00Z'};
  await fixture(async({db,user,request,corp})=>{
-  const u=user(100,'Director');assert.equal((await request('/api/corporation/industry',{session:u.session})).status,403);
+  const u=user(100,'Director');assert.equal((await request('/api/corporation/industry',{session:u.session})).status,200);
   connectCorpFixture(db,u.uid);const {CORP_SCOPES}=await import('../lib/corp.mjs');db.prepare('UPDATE corp_authorizations SET scopes=?').run(JSON.stringify(CORP_SCOPES));
   const sync=async()=>{db.prepare('UPDATE corp_jobs SET attempted=0').run();corp.queue();await corp.tick();return corp.industrySnapshot();};
   let result=await sync();assert.equal(result.rows.length,2);assert.equal(result.rows[0].installer,'Test name');assert.equal(result.error,null);
@@ -1445,7 +1449,7 @@ test('settings, group approval and corporate grants enforce account, admin and e
  assert.equal((await post('/api/settings',a.session,{pi:false})).status,200);
  assert.equal((await(await request('/api/settings',{session:b.session})).json()).preferences.pi,undefined);
  assert.equal((await post('/api/settings',a.session,{wallet:false})).status,400);
- const group={name:'Moon Manager',icon:'M',description:'Manage moons',mode:'approval',rules:[],pages:['corp-moons']};
+ const group={name:'Moon Manager',icon:'☾',description:'Manage moons',mode:'approval',rules:[],pages:['corp-moons']};
  assert.equal((await post('/api/admin/groups',a.session,group)).status,403);
  assert.equal((await post('/api/admin/groups',admin.session,group)).status,200);
  const id=db.prepare('SELECT id FROM access_groups').get().id;
@@ -1476,10 +1480,10 @@ test('mail and contacts require active inspection, owned pilot, scope and read-o
 
 test('disabled feature syncs stop their ESI calls and resume when enabled',()=>fixture(async({db,user})=>{
  const a=user(1101,'Settings Pilot'),calls=[];
- db.prepare('INSERT INTO page_preferences VALUES(?,?)').run(a.uid,JSON.stringify({pi:false,dens:false,industry:false,mining:false}));
+ db.prepare('INSERT INTO page_preferences VALUES(?,?)').run(a.uid,JSON.stringify({pi:false,dens:false,industry:false,blueprints:false,mining:false}));
  const sync=syncService(db,{get:async path=>{calls.push(path);if(path.endsWith('/planets'))return [];throw Error('Unrelated unavailable');},request:async path=>{calls.push(path);throw Error('Unrelated unavailable');},publicGet:async()=>[]},fakeCat);
  sync.queue(a.uid,1101,true);await sync.tick();assert.equal(calls.some(p=>p.includes('/planets')||p.includes('mercenary')||p.includes('/industry/jobs')||p.includes('/mining')),false);
- db.prepare('UPDATE page_preferences SET data=? WHERE user_id=?').run(JSON.stringify({pi:true,dens:false,industry:false,mining:false}),a.uid);
+ db.prepare('UPDATE page_preferences SET data=? WHERE user_id=?').run(JSON.stringify({pi:true,dens:false,industry:false,blueprints:false,mining:false}),a.uid);
  sync.queue(a.uid,1101,true);await sync.tick();assert(calls.some(p=>p.endsWith('/planets')));
  assert.equal(db.prepare("SELECT 1 FROM snapshots WHERE character_id=1101 AND kind='pi'").get()[1],1);
 }));
@@ -1782,3 +1786,109 @@ test('notification dismissals persist across syncs and remain account owned',()=
  db.prepare("UPDATE snapshots SET updated=? WHERE character_id=9901").run(Date.now()+1000);
  assert.deepEqual(await list(a.session),[]);assert.equal((await list(b.session)).length,1);
 }));
+
+
+test('verified corporation roles survive transient ESI failures without granting unverified users',async()=>{
+ let failure=null;
+ await fixture(async({db,user,corp})=>{
+  const director=user(200,'Director');connectCorpFixture(db,director.uid,200);
+  const original=db.prepare('SELECT role,verified FROM corp_authorizations WHERE user_id=?').get(director.uid);
+  for(const error of [Object.assign(Error('Downtime'),{status:502}),new TypeError('fetch failed'),Object.assign(Error('Rate limited'),{status:503,transient:true})]){
+   failure=error;assert.equal(await corp.access(director.uid,true),true);
+   assert.deepEqual(db.prepare('SELECT role,verified FROM corp_authorizations WHERE user_id=?').get(director.uid),original);
+  }
+  failure=Object.assign(Error('Invalid token'),{status:401});assert.equal(await corp.access(director.uid,true),false);
+  failure=null;assert.equal(await corp.access(director.uid,true),true);
+  failure=Object.assign(Error('Confirmed ordinary member'),{status:403,corporationRoleDenied:true});assert.equal(await corp.access(director.uid,true),false);
+  assert.equal(db.prepare('SELECT role FROM corp_authorizations WHERE user_id=?').get(director.uid).role,'Revoked');
+  failure=Object.assign(Error('Downtime'),{status:502});assert.equal(await corp.access(director.uid,true),false);
+  const outsider=user(300,'Member');assert.equal(await corp.access(outsider.uid,true),false);
+ },fakeCat,{verifyCorporation:async()=>{if(failure)throw failure;return {id:668298004,role:'Director'};}});
+});
+
+
+test('admin whitelist accepts verified pilots and alliances alongside existing corporations',async()=>{
+ await fixture(async({db,user,request})=>{
+  const owner=user(100,'Owner');
+  for(const kind of ['pilot','alliance']){
+   assert.equal((await request('/api/admin/whitelist',{session:owner.session,method:'POST',body:{kind,entity_id:900}})).status,200);
+  }
+  const entries=await (await request('/api/admin/whitelist',{session:owner.session})).json();
+  assert.ok(entries.some(row=>row.kind==='corporation'));
+  assert.ok(entries.some(row=>row.kind==='pilot'&&row.entity_id===900));
+  assert.ok(entries.some(row=>row.kind==='alliance'&&row.entity_id===900));
+  assert.equal((await request('/api/admin/whitelist/pilot/900',{session:owner.session,method:'DELETE',body:{}})).status,200);
+  assert.equal(db.prepare("SELECT count(*) n FROM login_whitelist_entities WHERE kind='pilot'").get().n,0);
+  assert.equal(db.prepare("SELECT count(*) n FROM login_whitelist_entities WHERE kind='alliance'").get().n,1);
+  assert.equal((await request('/api/admin/whitelist',{session:owner.session,method:'POST',body:{kind:'invalid',entity_id:123}})).status,400);
+ },fakeCat,{eve:{publicGet:async()=>({name:'Verified entry',alliance_id:900})}});
+});
+
+
+test('recruit signup requires consent, preserves normal membership rules and restricts applicant access',async()=>{
+ await fixture(async({request,db,identity})=>{
+  assert.equal((await request('/Recruit')).status,200);
+  assert.equal((await request('/auth/login?recruit=1')).status,400);
+  const begin=await request('/auth/login?recruit=1&consent=1'),url=new URL(begin.headers.get('location')),cookie=begin.headers.get('set-cookie').split(';')[0];
+  identity({id:900,name:'Applicant',owner:'recruit-owner',scopes:[],expires:Date.now()+3600000});
+  const callback=await request('/auth/callback?code=test&state='+url.searchParams.get('state'),{cookie});assert.equal(callback.status,302);assert.equal(callback.headers.get('location'),'/Recruit');
+  const sessionCookie=callback.headers.get('set-cookie').split(/,(?= tools_session=)/).find(x=>x.includes('tools_session='));
+  const token=/tools_session=([^;]+)/.exec(sessionCookie||callback.headers.get('set-cookie'))[1];
+  const me=await (await request('/api/me',{session:token})).json();assert.equal(me.recruit,true);assert.equal(me.admin,false);assert.equal(me.corporation,false);
+  assert.equal((await request('/api/characters',{session:token})).status,200);
+  for(const path of ['/api/admin/users','/api/corporation/wallet','/api/groups','/api/recruitment'])assert.equal((await request(path,{session:token})).status,403,path);
+  assert.equal(db.prepare('SELECT count(*) n FROM recruitment_applications').get().n,1);
+ },fakeCat,{membershipLookup:async()=>({corporation_id:999})});
+});
+test('Recruitment group grants inspect only applicants and all inspection remains read-only',()=>fixture(async({db,user,request})=>{
+ const staff=user(200,'Recruiter'),applicant=user(300,'Applicant'),member=user(400,'Member');
+ db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(?,?,?)').run(applicant.uid,Date.now(),Date.now());
+ assert.equal((await request('/api/recruitment',{session:staff.session})).status,403);
+ const group=Number(db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages) VALUES('Recruiters','◇','','auto','[]','[\"recruitment\"]')").run().lastInsertRowid);
+ db.prepare("INSERT INTO group_members VALUES(?,?,'approved')").run(group,staff.uid);
+ assert.equal((await request('/api/recruitment',{session:staff.session})).status,200);
+ assert.equal((await request('/api/inspect',{session:staff.session,method:'POST',body:{user_id:member.uid}})).status,403);
+ assert.equal((await request('/api/inspect',{session:staff.session,method:'POST',body:{user_id:applicant.uid},origin:'https://evil.test'})).status,403);
+ assert.equal((await request('/api/inspect',{session:staff.session,method:'POST',body:{user_id:applicant.uid}})).status,200);
+ const me=await (await request('/api/me',{session:staff.session})).json();assert.equal(me.inspect.name,'Applicant');assert.equal(me.admin,false);
+ assert.equal((await request('/api/inspect/pilot-check?character=300',{session:staff.session})).status,200);
+ assert.equal((await request('/api/inspect/pilot-check?character=400',{session:staff.session})).status,404);
+ assert.equal((await request('/api/characters/300/sync',{session:staff.session,method:'POST',body:{}})).status,403);
+ for(const path of ['/api/corporation/wallet','/api/material-planner/corporation','/api/documents','/api/pi/shared'])assert.equal((await request(path,{session:staff.session})).status,403,path);
+ assert.equal((await request('/api/inspect',{session:staff.session,method:'POST',body:{exit:true}})).status,200);
+ db.prepare('DELETE FROM group_members WHERE group_id=?').run(group);
+ assert.equal((await request('/api/inspect',{session:staff.session,method:'POST',body:{user_id:applicant.uid}})).status,403);
+}));
+
+
+test('admins can grant the distinct Recruitment management permission through group configuration',()=>fixture(async({user,request})=>{
+ const owner=user(100,'Owner');
+ const response=await request('/api/admin/groups',{session:owner.session,method:'POST',body:{name:'Recruiters',icon:'◇',description:'Review recruits',mode:'approval',rules:[],pages:['recruitment']}});assert.equal(response.status,200);
+ const groups=await (await request('/api/admin/groups',{session:owner.session})).json();assert.equal(groups.management_pages.recruitment,'Recruitment');assert.ok(groups.groups.some(g=>g.name==='Recruiters'&&g.pages.includes('recruitment')));
+}));
+
+ test('recruit mains and alts carry over to normal membership on the same account',async()=>{
+ let corporation=999;
+ await fixture(async({request,db,identity})=>{
+  async function login(id,path,session){
+   identity({id,name:'Pilot '+id,owner:'owner-'+id,scopes:[],expires:Date.now()+3600000});
+   const begin=await request(path,{session}),state=new URL(begin.headers.get('location')).searchParams.get('state');
+   const cookie=begin.headers.get('set-cookie').split(';')[0]+(session?'; tools_session='+session:'');
+   const response=await request('/auth/callback?code=test&state='+state,{cookie});
+   assert.equal(response.status,302);
+   return /tools_session=([^;]+)/.exec(response.headers.get('set-cookie')||'')?.[1]||session;
+  }
+  let token=await login(900,'/auth/login?recruit=1&consent=1');
+  const initial=await (await request('/api/me',{session:token})).json();assert.equal(initial.recruit,true);
+  token=await login(901,'/auth/login?link=1&group=main',token);
+  token=await login(902,'/auth/login?link=1&group=alt&parent=901',token);
+  const before=db.prepare('SELECT id,user_id FROM characters ORDER BY id').all();assert.equal(before.length,3);assert.equal(new Set(before.map(c=>c.user_id)).size,1);
+  assert.equal(db.prepare('SELECT parent_id FROM character_groups WHERE character_id=902').get().parent_id,901);
+  corporation=668298004;
+  token=await login(900,'/auth/login');
+  const member=await (await request('/api/me',{session:token})).json();assert.equal(member.recruit,false);assert.equal(member.main_id,900);assert.equal(member.admin,false);
+  assert.deepEqual(db.prepare('SELECT id,user_id FROM characters ORDER BY id').all(),before);
+  assert.equal(db.prepare('SELECT parent_id FROM character_groups WHERE character_id=902').get().parent_id,901);
+  assert.equal((await request('/api/groups',{session:token})).status,200);
+ },fakeCat,{membershipLookup:async()=>({corporation_id:corporation})});
+});

@@ -1310,3 +1310,29 @@ input.slide-toggle{min-width:34px;max-width:34px}#feature-filter label:has(input
 .mail-addresses{font-size:12px;margin:6px 0 10px;overflow-wrap:anywhere}.mail-addresses>div{padding:2px 0}.mail-recipients{max-width:340px;overflow-wrap:anywhere}
 
 .notification-menu .notification-actions{position:sticky;top:0;z-index:1;align-items:center;justify-content:space-between;gap:12px;padding:6px 8px;background:#35131b;border-bottom:1px solid #8b3b49}.notification-menu .notification-actions button{width:auto;min-width:72px;border:1px solid #f16b79;border-radius:4px;text-align:center;background:#811f2d;font-weight:600}.contracts-table .contract-outstanding>td{background:color-mix(in srgb,var(--theme-active) 60%,transparent)}.contracts-table .contract-outstanding>td:first-child{border-left:3px solid var(--accent,#86c9ff)}
+
+.account-controls .eve-clock{font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted);}
+
+.group-icon-options{display:grid;grid-template-columns:repeat(auto-fit,32px);gap:5px}
+.group-icon-options label{position:relative;margin:0;cursor:pointer}
+.group-icon-options input{position:absolute;opacity:0;width:1px;height:1px}
+.group-icon-options span{display:grid;place-items:center;width:32px;height:30px;font-size:18px;border:1px solid var(--line);border-radius:5px;background:transparent}
+.group-icon-options input:checked+span{border-color:var(--purple);background:color-mix(in srgb,var(--purple) 18%,transparent)}
+.group-icon-options input:focus-visible+span{outline:2px solid var(--purple);outline-offset:2px}
+
+.management-form.group-editor{max-width:none;grid-template-columns:minmax(0,1fr) minmax(280px,1fr);align-items:start;gap:12px}
+.group-editor-details{display:grid;gap:8px;min-width:0}
+.group-editor>.actions{grid-column:1/-1}
+.group-editor-permissions{min-width:0;margin:0}
+.management-form .group-permission{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+.group-permission:last-child{border-bottom:0}
+.group-permission input{flex:0 0 auto;margin-top:3px}
+.group-permission strong,.group-permission small{display:block;font-size:11px;line-height:1.4}
+.group-permission small{color:var(--muted);font-weight:400}
+@media(max-width:850px){.management-form.group-editor{grid-template-columns:minmax(0,1fr)}}
+
+.blueprint-pilot{width:24px;height:24px}.blueprint-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;border:1px solid var(--line)}.blueprint-badge.original{color:var(--purple)}.blueprint-badge.copy{color:var(--green)}
+
+.recruit-review-grid,.alignment-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.recruit-review-grid .panel{min-width:0}.recruit-danger{color:#ff9696;background:#7d20202b}.recruit-consent{display:flex;align-items:flex-start;gap:8px;font-size:12px}.recruit-consent input{width:auto;flex-shrink:0}.recruit-review-grid h2{font-size:13px}@media(max-width:850px){.recruit-review-grid,.alignment-settings{grid-template-columns:minmax(0,1fr)}}
+
+.recruit-landing{max-width:620px;gap:12px;padding:20px;font-size:12px}.recruit-landing h1{font-size:28px}.recruit-landing form{display:grid;gap:12px}.recruit-landing .recruit-consent{text-align:left}.recruit-landing p{margin:0}
