@@ -1128,7 +1128,7 @@ aside{gap:14px} nav button{padding:7px 12px;margin:1px 0;font-size:12px}.navlabe
 @media(max-width:480px){.fitting-plan-controls label{flex-wrap:wrap}}
 
 .brand .brand-version{font-size:10px;letter-spacing:.04em;font-weight:400;margin-top:2px}
-.account{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:end;gap:8px}
+.account{display:grid;grid-template-columns:minmax(0,1fr) max-content;align-items:center;gap:8px}
 .account-person{gap:8px;min-width:0;min-height:32px}
 .account-person .portrait{width:32px;height:32px;flex:0 0 32px}
 .account-person strong{margin:0;font-size:12px;overflow-wrap:anywhere}
@@ -1311,7 +1311,7 @@ input.slide-toggle{min-width:34px;max-width:34px}#feature-filter label:has(input
 
 .notification-menu .notification-actions{position:sticky;top:0;z-index:1;align-items:center;justify-content:space-between;gap:12px;padding:6px 8px;background:#35131b;border-bottom:1px solid #8b3b49}.notification-menu .notification-actions button{width:auto;min-width:72px;border:1px solid #f16b79;border-radius:4px;text-align:center;background:#811f2d;font-weight:600}.contracts-table .contract-outstanding>td{background:color-mix(in srgb,var(--theme-active) 60%,transparent)}.contracts-table .contract-outstanding>td:first-child{border-left:3px solid var(--accent,#86c9ff)}
 
-.account-controls .eve-clock{font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted);}
+.account-controls .eve-clock{display:block;max-width:100%;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted);}
 
 .group-icon-options{display:grid;grid-template-columns:repeat(auto-fit,32px);gap:5px}
 .group-icon-options label{position:relative;margin:0;cursor:pointer}
