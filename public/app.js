@@ -16,7 +16,7 @@ import {loyaltyView} from './loyalty-view.mjs';
 import {featureUI,materialPlanner,fatigueView} from './feature-view.mjs';
 import {comparisonTable} from './skill-compare.mjs';
 import {miningView,miningSummary,combinedMining} from './mining-view.mjs';
-import {corpIndustryView,jobTime} from "./corp-industry-view.mjs";
+import {corpIndustryView,jobTime,industryJobIcon} from "./corp-industry-view.mjs";
 import {moonBrowserView} from "./moon-browser-view.mjs";
 import {moonExtractions,fractureCountdown} from "./moon-extractions.mjs";
 import {characterTraining,characterCharts} from "./character-summary.mjs";
@@ -621,7 +621,7 @@ async function industry() {
                           )
                           .map(
                             (j) =>
-                              `<tr><td><span class="icon-label">${eveIcon(j.product_type_id || j.blueprint_type_id)}${esc(j.name)}</span></td><td>${esc(activities[j.activity_id] || "Activity " + j.activity_id)}</td><td>${num(j.runs)}</td><td>${esc(j.status === "active" && Date.parse(j.end_date) <= Date.now() ? "Ready (estimated)" : j.status)}</td><td>${date(j.end_date)}<small>${j.status === "active" ? eta(j.end_date) : ""}</small></td><td>${esc(j.location)}</td></tr>`,
+                              `<tr><td><span class="icon-label">${industryJobIcon(j)}${esc(j.name)}</span></td><td>${esc(activities[j.activity_id] || "Activity " + j.activity_id)}</td><td>${num(j.runs)}</td><td>${esc(j.status === "active" && Date.parse(j.end_date) <= Date.now() ? "Ready (estimated)" : j.status)}</td><td>${date(j.end_date)}<small>${j.status === "active" ? eta(j.end_date) : ""}</small></td><td>${esc(j.location)}</td></tr>`,
                           ),
                       )
                     : "<small>No current jobs</small>"
