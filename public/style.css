@@ -1407,3 +1407,12 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .character-picker.asset-pilot-picker{grid-template-columns:repeat(auto-fit,minmax(min(205px,100%),1fr));gap:7px}
 .character-picker.mining-picker .training-card,.character-picker.asset-pilot-picker .training-card{padding:7px;gap:7px}
 .character-picker.mining-picker .portrait,.character-picker.asset-pilot-picker .portrait{width:30px;height:30px;flex:0 0 30px}
+
+/* Dens alternate by pilot, not by individual den/operation rows. */
+#content .dens-page .character-group{--den-surface:var(--theme-panel)}
+#content .dens-page .character-group:nth-child(even){--den-surface:color-mix(in srgb,var(--theme-panel) 94%,white 6%)}
+#content .dens-page .character-group>.panel,
+#content .dens-page .character-group .alt-members>.panel,
+#content .dens-page .character-group tbody>tr:nth-child(n){background-color:var(--den-surface)}
+#content .dens-page .character-group .alt-members>.panel:nth-child(odd){--den-surface:color-mix(in srgb,var(--theme-panel) 94%,white 6%)}
+#content .dens-page .character-group .alt-members>.panel:nth-child(even){--den-surface:var(--theme-panel)}
