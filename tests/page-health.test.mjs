@@ -59,3 +59,9 @@ test('selected character dashboard returns owned summaries without raw private a
  const response=await request('/characters/200/dashboard',{actor:200});assert.equal(response.status,200);const body=await response.json();assert.deepEqual(body.activity.assets,{stacks:1,locations:1});assert.ok(!JSON.stringify(body).includes('private-asset-marker'));assert.equal(body.location,null);
  assert.equal((await request('/characters/100/dashboard',{actor:200})).status,404);
 }));
+
+test('dashboard resolves a roles-only alliance ID using the cached public alliance name',()=>fixture(async({db,request})=>{
+ db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(200,'roles',JSON.stringify({corporation_id:77,corporation_name:'Example Corp',alliance_id:99003581}),Date.now(),Date.now()+10000);
+ db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/alliances/99003581',JSON.stringify({name:'Fraternity.'}),Date.now()+10000);
+ const result=await (await request('/characters/200/dashboard',{actor:200})).json();assert.equal(result.identity.alliance,'Fraternity.');assert.equal(result.identity.alliance_id,99003581);
+}));

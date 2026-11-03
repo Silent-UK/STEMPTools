@@ -794,6 +794,8 @@ root.addEventListener("click", async (e) => {
       selected=Number(b.dataset.myPilot);myPilotFocus={id:selected,page:b.dataset.myTarget};
       if(Object.hasOwn(pageAlts,b.dataset.myTarget))pageAlts[b.dataset.myTarget]=true;
       if(b.dataset.myTarget==='industry')industryPilot=selected;
+      if(b.dataset.myTarget==='contracts'){contractsPilot=String(selected);contractsOffset=0;contractsFilters={type:'',status:'outstanding',q:''};}
+      if(b.dataset.myTarget==='mining'){miningPilot=selected;miningOffset=0;miningFilters={days:'30',metric:'volume',q:''};}
       if(b.dataset.myTarget==='assets'){assetFilters={q:'',character:String(selected),location:''};assetSearchAll=false;assetOffset=0;}
       if(b.dataset.myTarget==='market')expansion.focusPilot(selected);
       if(b.dataset.myTarget==='blueprints')features.focusPilot(selected,'blueprints');
@@ -1247,7 +1249,7 @@ async function myCharacters(){
  myCharacterSnapshot={id,data:skill?.data};myCharacterView.selected=id;myCharacterView.alts=pageAlts.characters;saveMyCharacterView();
  return intro('My Characters','Training, skills and activity for your selected pilot.')+`<div class="my-character-picker">${characterTiles(visible,p=>p.parent_id===p.id?'Main character':'Alt')}${altFilter()}</div>`+myCharacterDetail({c,chars,skill,dashboard,view:myCharacterView,failures:requests.flatMap((r,i)=>r.status==='rejected'?[(i?'Activity and clone details':'Training data')+' could not load.']:[])},{esc,num,date,cloneTimer,implantList,fatigueView});
 }
-setInterval(()=>{const target=document.querySelector('#my-character-training');if(page==='characters'&&target&&myCharacterSnapshot?.id===Number(selected)){target.innerHTML=characterTraining(myCharacterSnapshot.data,Date.now(),myCharacterView.sections.includes('queue'));const duration=document.querySelector('[data-my-queue-duration]');if(duration&&myCharacterSnapshot.data)duration.textContent=queuedDuration(myCharacterSnapshot.data.queue);applyVisualStyles();}},10000);
+setInterval(()=>{const target=document.querySelector('#my-character-training');if(page==='characters'&&target&&myCharacterSnapshot?.id===Number(selected)){target.innerHTML=characterTraining(myCharacterSnapshot.data,Date.now(),myCharacterView.sections.includes('queue'));const duration=document.querySelector('[data-my-queue-duration]');if(duration&&myCharacterSnapshot.data)duration.textContent=queuedDuration(myCharacterSnapshot.data.queue);const currentLabel=document.querySelector('[data-my-current-training]');if(currentLabel){const current=splitQueue(myCharacterSnapshot?.data?.queue||[]).current;currentLabel.textContent=current?current.name+' · '+current.finished_level:myCharacterSnapshot?.data?'No active training':'Unavailable';}applyVisualStyles();}},10000);
 root.addEventListener('change',event=>{if(event.target.id!=='my-chart-mode')return;myCharacterView.chart=event.target.value==='percent'?'percent':'sp';saveMyCharacterView();document.querySelector('#my-character-charts').innerHTML=characterCharts(myCharacterSnapshot?.data,myCharacterView.chart);applyVisualStyles();});
 document.addEventListener('toggle',event=>{if(!event.target.isConnected||page!=='characters'||!event.target.matches?.('[data-my-section]'))return;const key=event.target.dataset.mySection;myCharacterView.sections=myCharacterView.sections.filter(s=>s!==key);if(event.target.open)myCharacterView.sections.push(key);saveMyCharacterView();},true);
 

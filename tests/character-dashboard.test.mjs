@@ -29,3 +29,8 @@ test('training preview and remembered preferences retain usable defaults',()=>{
  assert.deepEqual(myCharacterPreferences(null),{selected:null,alts:false,chart:'sp',sections:[]});
  assert.deepEqual(myCharacterPreferences({selected:5,chart:'percent',sections:['clones','evil']}),{selected:5,alts:false,chart:'percent',sections:['clones']});
 });
+
+test('additional activity cards use outstanding contracts and the current thirty calendar days',()=>{
+ const result=dashboardActivity({contracts:{data:{contracts:[{status:'outstanding'},{status:'finished'}]}},mining:{data:{rows:[{date:'2026-11-03',quantity:10},{date:'2026-10-05',quantity:20},{date:'2026-10-04',quantity:100}]}},clones:{data:{clones:[{}],ready_at:new Date(now-1).toISOString()}}},1,now);
+ assert.deepEqual(result.contracts,{outstanding:1});assert.deepEqual(result.mining,{quantity:30,records:2});assert.deepEqual(result.clones,{count:1,ready:true});
+});
