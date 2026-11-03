@@ -1385,8 +1385,8 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .overview-alt-rows>.overview-character-row:nth-child(even){background-color:rgba(255,255,255,.035);background-color:color-mix(in srgb,var(--theme-panel) 94%,white 6%)}
 
 /* Overview stripes follow visible rows continuously across main/alt groups. */
-.overview-character-list .overview-character-row[data-overview-shade="0"]{background-color:transparent}
-.overview-character-list .overview-character-row[data-overview-shade="1"]{background-color:rgba(255,255,255,.035);background-color:color-mix(in srgb,var(--theme-panel) 94%,white 6%)}
+.overview-character-list .overview-character-row[data-overview-shade="0"]{background-color:transparent;background-image:none}
+.overview-character-list .overview-character-row[data-overview-shade="1"]{background-color:transparent;background-image:linear-gradient(rgba(255,255,255,.065),rgba(255,255,255,.065))}
 
 .overview-character-identity .pilot strong{color:var(--purple)}
 
