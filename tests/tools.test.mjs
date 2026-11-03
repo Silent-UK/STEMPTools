@@ -1639,6 +1639,13 @@ test('all members can see links and sidebar font size is validated and account-p
   assert.equal((await(await request('/api/links',{session:a.session})).json()).length,1);
   const me=await(await request('/api/me',{session:a.session})).json();assert.equal(me.corporation,false);assert.equal(me.links.length,1);
   assert.equal((await request('/api/admin/links',{session:a.session})).status,403);
+  for(const value of ['tiny',null,18])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{font_size:value}})).status,400);
+  for(const value of ['normal','small','large','extra-large'])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{font_size:value}})).status,200);
+  assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{'admin-links':false}})).status,200);
+  const savedSettings=await(await request('/api/me',{session:a.session})).json();
+  assert.equal(savedSettings.preferences.font_size,'extra-large');
+  assert.equal(savedSettings.preferences['admin-links'],false);
+  assert.equal((await(await request('/api/me',{session:b.session})).json()).preferences.font_size,undefined);
   for(const value of [9,21,12.5,'16',null])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{sidebar_font_size:value}})).status,400);
   assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{sidebar_font_size:16}})).status,200);
   assert.equal((await(await request('/api/me',{session:a.session})).json()).preferences.sidebar_font_size,16);
