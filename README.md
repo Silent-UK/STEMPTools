@@ -205,3 +205,5 @@ Settings offers ten corporation page visibility switches, limited to the pages t
 See [RECRUITMENT.md](RECRUITMENT.md) for applicant signup, reviewer permissions, independent weekly WC blacklist imports, alignment references, and Pilot Check / Pilot Combat coverage.
 
 Discord integration and link aliases: see [setup and role behaviour](DISCORD.md).
+
+Custom Pages: see [editing, formatting and access settings](PAGES.md).

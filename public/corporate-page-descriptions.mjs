@@ -5,6 +5,7 @@ export const CORPORATE_PAGE_DESCRIPTIONS={
  'corp-wallet':'Corporation wallet balances, divisions, journal and transactions.',
  'corp-contracts':'Corporation contracts, their status and contents.',
  'corp-assets':'Corporation assets grouped by location, with search and region filters.',
+ 'corp-search-pilots':'Search saved personal assets across registered mains and alts by custom name, item type and location. Other admins are protected.',
  'corp-standings':'Corporation standings towards factions, corporations and agents.',
  'corp-market':'Corporation buy and sell orders, including completed order history.',
  'corp-industry':'Corporation industry jobs and manufacturing material planning.',

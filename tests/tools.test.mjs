@@ -1933,3 +1933,52 @@ test('Users whitelist cleanup is owner-only, freshly verified and never treats E
  assert.equal((await remove(admin)).status,403);denied=false;assert.equal((await remove(owner)).status,400);assert.ok(db.prepare('SELECT id FROM users WHERE id=?').get(target.uid));denied=true;assert.equal((await remove(owner)).status,200);assert.equal(db.prepare('SELECT id FROM users WHERE id=?').get(target.uid),undefined);
  },fakeCat,{membershipLookup:async id=>({corporation_id:id===200&&denied?999:668298004})});
 });
+
+test('custom pages enforce draft and Group visibility on both navigation and direct API access',()=>fixture(async({db,user,request})=>{
+ const admin=user(100,'Admin'),member=user(200,'Member'),outsider=user(300,'Outsider');
+ const group=Number(db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages) VALUES('Readers','◇','','approval','[]','[]')").run().lastInsertRowid);
+ db.prepare("INSERT INTO group_members VALUES(?,?,'pending')").run(group,member.uid);
+ const draft={name:'FAQ',body:'## Welcome\n**Hello** [Link](https://example.com)',section:'pages',after:'end',position:10,published:false,visibility:'groups',groups:[group]};
+ const save=body=>request('/api/admin/pages',{session:admin.session,method:'POST',body});
+ assert.equal((await request('/api/admin/pages',{session:member.session})).status,403);assert.equal((await request('/api/admin/pages',{session:member.session,method:'POST',body:draft})).status,403);
+ let response=await save(draft);assert.equal(response.status,200);const id=(await response.json()).id;
+ assert.equal((await request('/api/pages/'+id,{session:member.session})).status,404);assert.equal((await request('/api/pages/'+id,{session:admin.session})).status,200);
+ await save({...draft,id,published:true});assert.equal((await request('/api/pages/'+id,{session:member.session})).status,404);
+ db.prepare("UPDATE group_members SET status='approved' WHERE group_id=? AND user_id=?").run(group,member.uid);
+ const page=await request('/api/pages/'+id,{session:member.session});assert.equal(page.status,200);assert.match((await page.json()).html,/<h2>Welcome<\/h2>/);
+ let me=await(await request('/api/me',{session:member.session})).json();assert.ok(me.pages.some(p=>p.id===id));assert.ok(!('body' in me.pages[0]));
+ assert.equal((await request('/api/pages/'+id,{session:outsider.session})).status,404);me=await(await request('/api/me',{session:outsider.session})).json();assert.equal(me.pages.length,0);
+ db.prepare('DELETE FROM access_groups WHERE id=?').run(group);assert.equal((await request('/api/pages/'+id,{session:member.session})).status,404);
+ assert.equal((await save({...draft,id,published:true,groups:[],visibility:'all',body:'<script>alert(1)</script>'})).status,200);const everyone=await(await request('/api/pages/'+id,{session:outsider.session})).json();assert.doesNotMatch(everyone.html,/<script>/);assert.match(everyone.html,/&lt;script&gt;/);
+ assert.equal((await request('/api/pages/'+id)).status,401);
+ assert.equal((await request('/api/admin/pages/'+id,{session:admin.session,method:'DELETE',body:{}})).status,200);assert.equal((await request('/api/pages/'+id,{session:member.session})).status,404);
+}));
+test('custom page placement and content limits validate and inspection cannot edit or read global pages',()=>fixture(async({db,user,request})=>{
+ const admin=user(100,'Admin'),target=user(200,'Target'),body={name:'FAQ',body:'Text',section:'personal',after:'wallet',position:10,published:true,visibility:'all',groups:[]};
+ const save=body=>request('/api/admin/pages',{session:admin.session,method:'POST',body});
+ for(const b of [{...body,section:'admin'},{...body,after:'admin-users'},{...body,visibility:'groups'},{...body,body:'x'.repeat(12001)}])assert.equal((await save(b)).status,400);
+ const id=(await(await save(body)).json()).id;await request('/api/inspect',{session:admin.session,method:'POST',body:{user_id:target.uid}});
+ assert.equal((await request('/api/pages/'+id,{session:admin.session})).status,403);assert.equal((await save({...body,id})).status,403);
+}));
+
+test('recruits can read all-signed-in pages but cannot inherit restricted Group pages',()=>fixture(async({db,user,request})=>{
+ const admin=user(100,'Admin'),recruit=user(200,'Recruit');db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(?,?,?)').run(recruit.uid,1,1);
+ const group=Number(db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages) VALUES('Old Group','◇','','auto','[]','[]')").run().lastInsertRowid);db.prepare("INSERT INTO group_members VALUES(?,?,'approved')").run(group,recruit.uid);
+ const base={name:'FAQ',body:'Recruitment help',section:'pages',after:'end',position:1,published:true,visibility:'all',groups:[]},save=body=>request('/api/admin/pages',{session:admin.session,method:'POST',body});
+ const all=(await(await save(base)).json()).id,restricted=(await(await save({...base,name:'Private',visibility:'groups',groups:[group]})).json()).id;
+ const me=await(await request('/api/me',{session:recruit.session})).json();assert.equal(me.recruit,true);assert.deepEqual(me.pages.map(p=>p.id),[all]);assert.equal((await request('/api/pages/'+all,{session:recruit.session})).status,200);assert.equal((await request('/api/pages/'+restricted,{session:recruit.session})).status,404);
+ },fakeCat,{membershipLookup:async id=>({corporation_id:id===200?999:668298004})}));
+
+test('Search Pilots finds custom ship names, nested module locations and enforces its own permission',()=>fixture(async({db,user,request})=>{
+ const owner=user(100,'Owner'),pilot=user(200,'Pilot'),viewer=user(300,'Viewer'),protectedAdmin=user(400,'Protected Admin');db.prepare('UPDATE users SET admin=1 WHERE id=?').run(protectedAdmin.uid);
+ const save=(id,items)=>db.prepare("INSERT INTO snapshots VALUES(?,'assets',?,?,?,NULL)").run(id,JSON.stringify({items,locations:{6001:'Jita Station'},names_status:'complete',names_checked:Date.now()}),Date.now(),Date.now()+10000);
+ const ship={item_id:9001,type_id:1,custom_name:'AIR',is_singleton:true,quantity:1,root_location_id:6001,location_id:6001},module={item_id:9002,type_id:2,quantity:1,root_location_id:6001,location_id:9001};
+ save(200,[ship,module]);save(400,[{...ship,item_id:9004}]);save(100,[{...ship,item_id:9005}]);
+ let response=await request('/api/corporation/pilot-assets?type=Gnosis&name=AIR&exact=1',{session:owner.session});assert.equal(response.status,200);let data=await response.json();assert.equal(data.total,2);assert.deepEqual(data.rows.map(r=>r.character).sort(),['Owner','Pilot']);assert.equal(data.protected_pilots,1);assert.ok(data.rows.every(r=>r.type==='Gnosis'&&r.name==='AIR'));
+ assert.equal((await request('/api/corporation/pilot-assets?q=AIR',{session:viewer.session})).status,403);
+ const group=Number(db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages) VALUES('Searchers','◇','','auto','[]','[\"corp-search-pilots\"]')").run().lastInsertRowid);db.prepare("INSERT INTO group_members VALUES(?,?,'approved')").run(group,viewer.uid);
+ response=await request('/api/corporation/pilot-assets?category=modules&location=AIR',{session:viewer.session});assert.equal(response.status,200);data=await response.json();assert.equal(data.total,1);assert.equal(data.rows[0].character,'Pilot');assert.equal(data.rows[0].container,'AIR');assert.equal(data.rows[0].location,'Jita Station');assert.equal(data.rows[0].type,'Damage Control II');
+ assert.equal((await request('/api/corporation/assets',{session:viewer.session})).status,403);
+ db.prepare('DELETE FROM group_members WHERE group_id=?').run(group);assert.equal((await request('/api/corporation/pilot-assets?q=AIR',{session:viewer.session})).status,403);
+ await request('/api/inspect',{session:owner.session,method:'POST',body:{user_id:pilot.uid}});assert.equal((await request('/api/corporation/pilot-assets?q=AIR',{session:owner.session})).status,403);
+},{...fakeCat,type:id=>({id,name:id===1?'Gnosis':'Damage Control II',category_id:id===1?6:7})}));

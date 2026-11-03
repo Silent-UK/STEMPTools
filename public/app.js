@@ -1,3 +1,6 @@
+import {pilotAssetSearchUI} from './pilot-asset-search-view.mjs';
+import {sitePagesUI} from './site-pages-view.mjs';
+import {pageNavigation} from './site-pages-model.mjs';
 import {filterUsers,userRole} from './users-model.mjs';
 import {discordUI} from './discord-view.mjs';
 import {recruitmentUI} from './recruitment-view.mjs';
@@ -141,7 +144,7 @@ const management=managementUI({setTheme:saveTheme,api,esc,intro,table,num,date,e
 const features=featureUI({api,intro,context:()=>({me,chars}),refresh:()=>render(),toast});
 const fittingWorkbench=fittingWorkbenchUI({api,esc,intro,context:()=>({me,chars}),toast});
 const expansion=expansionUI({api,esc,intro,table,num,date,empty,context:()=>({me,chars}),toast,refresh:()=>render()});
-const corpNav=[['corp-overview','◈','Overview'],['corp-members','♙','Memberlist'],['corp-pilots','♙','Roles and Access'],['corp-wallet','◈','Wallet'],['corp-contracts','▧','Contracts'],['corp-assets','▦','Corp Assets'],['corp-standings','◇','Standings'],['corp-market','◈','Market'],['corp-industry','⚒','Industry'],['corp-blueprints','▤','Blueprints'],['corp-structures','▥','Structures'],['corp-moons','☾','Moon Mining'],['corp-surveys','☷','Moon Surveys']];
+const corpNav=[['corp-overview','◈','Overview'],['corp-members','♙','Memberlist'],['corp-pilots','♙','Roles and Access'],['corp-wallet','◈','Wallet'],['corp-contracts','▧','Contracts'],['corp-assets','▦','Corp Assets'],['corp-search-pilots','⌕','Search Pilots'],['corp-standings','◇','Standings'],['corp-market','◈','Market'],['corp-industry','⚒','Industry'],['corp-blueprints','▤','Blueprints'],['corp-structures','▥','Structures'],['corp-moons','☾','Moon Mining'],['corp-surveys','☷','Moon Surveys']];
 function navigationButton([id,icon,name]){return `<button data-nav="${id}" class="${page===id?'active':''}"><span>${icon}</span>${name}</button>`;}
 const nav = [
   ["overview", "◈", "Overview"],
@@ -163,9 +166,14 @@ const nav = [
   ["assets", "▦", "Asset Search"],
 ];
 const recruitment=recruitmentUI({api,esc,intro,table,num,date,context:()=>({me,chars}),refresh:render,toast});
-const knownPages=[...nav.map(n=>n[0]),...corpNav.map(n=>n[0]),"settings","groups","fitting-workbench","fitting-import","admin-groups","admin-links","inspect-mail","inspect-contacts","admin-users","admin-esi","admin-corp","admin-whitelist","recruitment","recruit-application","admin-recruitment","admin-discord","inspect-pilot-check","inspect-pilot-combat"];
-window.addEventListener("hashchange",()=>{const requested=location.hash.slice(1);if(me&&knownPages.includes(requested)){page=requested;render();}});
+const pilotAssetSearch=pilotAssetSearchUI({api,esc,intro,num,date,toast,refresh:render});
+const sitePages=sitePagesUI({api,esc,intro,date,toast,context:()=>({me,chars}),refresh:async reload=>{if(reload){me=await api('/me');renderedPage=null;}await render();}});
+const customNavigation=(section,base=[])=>pageNavigation(section,base,me.pages||[]).map(navigationButton).join('');
+const isKnownPage=id=>knownPages.includes(id)||(me?.pages||[]).some(p=>'page-'+p.id===id);
+const knownPages=[...nav.map(n=>n[0]),...corpNav.map(n=>n[0]),"settings","groups","fitting-workbench","fitting-import","admin-groups","admin-links","admin-pages","inspect-mail","inspect-contacts","admin-users","admin-esi","admin-corp","admin-whitelist","recruitment","recruit-application","admin-recruitment","admin-discord","inspect-pilot-check","inspect-pilot-combat"];
+window.addEventListener("hashchange",()=>{const requested=location.hash.slice(1);if(me&&isKnownPage(requested)){page=requested;render();}});
 function sidebarSection(){
+ const custom=(me?.pages||[]).find(p=>'page-'+p.id===page);if(custom)return custom.section;
  if(page.startsWith('admin-'))return 'admin';
  if(page.startsWith('corp-'))return 'corporation';
  if(page.startsWith('inspect-'))return 'inspect';
@@ -176,7 +184,7 @@ const sidebarStates=new Map();
 function sidebarPreferences(){
  const key=String(me.main_id);
  if(!sidebarStates.has(key)){
-  let saved={};try{const value=JSON.parse(localStorage.getItem('stemp-sidebar-'+key)||'{}');if(value&&typeof value==='object'&&!Array.isArray(value))saved=Object.fromEntries(Object.entries(value).filter(([id,open])=>['personal','links','management','inspect','corporation','admin'].includes(id)&&typeof open==='boolean'));}catch{}
+  let saved={};try{const value=JSON.parse(localStorage.getItem('stemp-sidebar-'+key)||'{}');if(value&&typeof value==='object'&&!Array.isArray(value))saved=Object.fromEntries(Object.entries(value).filter(([id,open])=>['personal','links','pages','management','inspect','corporation','admin'].includes(id)&&typeof open==='boolean'));}catch{}
   sidebarStates.set(key,saved);
  }
  return sidebarStates.get(key);
@@ -195,7 +203,7 @@ root.addEventListener('click',async event=>{const button=event.target.closest('[
 function refreshNotificationMenu(){const slot=document.querySelector('#notification-slot');if(!slot)return;const open=slot.querySelector('details')?.open;slot.innerHTML=notificationMenu();if(open&&slot.querySelector('details'))slot.querySelector('details').open=true;}
 function shell() {
   rememberSidebar();
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.33.1</small></div></div><div><details class="personal-nav sidebar-section" data-sidebar="personal" ${sidebarOpen('personal')?'open':''}><summary>My Characters</summary><nav>${nav.filter(([id])=>me.recruit?['overview','characters'].includes(id):me.preferences?.[id]!==false&&(!me.inspect?.recruitment_only||!['plans','fittings','pi'].includes(id))).map(navigationButton).join('')}</nav></details>${me.links?.length?`<details class="links-nav sidebar-section" data-sidebar="links" ${sidebarOpen('links')?'open':''}><summary>Links</summary><nav>${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.slug?'/'+l.slug:l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}<details class="management-nav sidebar-section" data-sidebar="management" ${sidebarOpen('management')?'open':''}><summary>Management</summary><nav>${[...(me.recruit||me.inspect?.recruitment_only?[]:[['groups','◇','Groups'],['settings','⚙','Settings']]),...(me.recruiter?[['recruitment','♙','Recruitment']]:[]),...(me.recruit?[['recruit-application','♙','Application']]:[])].map(navigationButton).join('')}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" data-sidebar="inspect" ${sidebarOpen('inspect')?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-pilot-check','✓','Pilot Check'],['inspect-pilot-combat','⚔','Pilot Combat'],['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${me.corporation?`<details class="corp-nav sidebar-section" data-sidebar="corporation" ${sidebarOpen('corporation')?'open':''}><summary>Corporation Management</summary><nav>${corpNav.filter(([id])=>me.corporate_pages?.includes(id)&&me.preferences?.[id]!==false).map(navigationButton).join('')}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" data-sidebar="admin" ${sidebarOpen('admin')?'open':''}><summary>Admin</summary><nav>${[["admin-users","♙","Users"],["admin-groups","◇","Groups"],["admin-links","↗","Links"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"],["admin-recruitment","✓","Recruitment Settings"],["admin-discord","◉","Discord"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><time class="eve-clock" data-eve-clock title="EVE Time · UTC">${eveClock()}</time></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<span id="notification-slot">${notificationMenu()}</span><button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.34.0</small></div></div><div><details class="personal-nav sidebar-section" data-sidebar="personal" ${sidebarOpen('personal')?'open':''}><summary>My Characters</summary><nav>${customNavigation('personal',nav.filter(([id])=>me.recruit?['overview','characters'].includes(id):me.preferences?.[id]!==false&&(!me.inspect?.recruitment_only||!['plans','fittings','pi'].includes(id))))}</nav></details>${me.links?.length?`<details class="links-nav sidebar-section" data-sidebar="links" ${sidebarOpen('links')?'open':''}><summary>Links</summary><nav>${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.slug?'/'+l.slug:l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}${(me.pages||[]).some(p=>p.section==='pages')?`<details class="pages-nav sidebar-section" data-sidebar="pages" ${sidebarOpen('pages')?'open':''}><summary>Pages</summary><nav>${customNavigation('pages')}</nav></details>`:''}<details class="management-nav sidebar-section" data-sidebar="management" ${sidebarOpen('management')?'open':''}><summary>Management</summary><nav>${customNavigation('management',[...(me.recruit||me.inspect?.recruitment_only?[]:[['groups','◇','Groups'],['settings','⚙','Settings']]),...(me.recruiter?[['recruitment','♙','Recruitment']]:[]),...(me.recruit?[['recruit-application','♙','Application']]:[])])}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" data-sidebar="inspect" ${sidebarOpen('inspect')?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-pilot-check','✓','Pilot Check'],['inspect-pilot-combat','⚔','Pilot Combat'],['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${(me.corporation||(me.pages||[]).some(p=>p.section==='corporation'))?`<details class="corp-nav sidebar-section" data-sidebar="corporation" ${sidebarOpen('corporation')?'open':''}><summary>Corporation Management</summary><nav>${customNavigation('corporation',corpNav.filter(([id])=>me.corporate_pages?.includes(id)&&me.preferences?.[id]!==false))}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" data-sidebar="admin" ${sidebarOpen('admin')?'open':''}><summary>Admin</summary><nav>${[["admin-users","♙","Users"],["admin-groups","◇","Groups"],["admin-links","↗","Links"],["admin-pages","▤","Pages"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"],["admin-recruitment","✓","Recruitment Settings"],["admin-discord","◉","Discord"]].map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><time class="eve-clock" data-eve-clock title="EVE Time · UTC">${eveClock()}</time></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<span id="notification-slot">${notificationMenu()}</span><button class="primary" data-action="add-character">+ Add character</button></div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
   const fontSize=Number(me.preferences?.sidebar_font_size)||12;root.querySelector('.shell>aside')?.style.setProperty('--sidebar-font-size',Math.max(10,Math.min(20,fontSize))+'px');
 }
 function intro(title, description, actions = "") {
@@ -212,7 +220,7 @@ const snapshotKey=rows=>JSON.stringify(rows.map(c=>[c.id,c.job,c.reconnect,c.sna
 async function render() {
   if(me.preferences?.theme)applyTheme(me.preferences.theme);
   if(me.preferences?.[page]===false)page="overview";
-  if(me.recruit&&!['overview','characters','recruit-application'].includes(page))page='overview';
+  if(me.recruit&&!['overview','characters','recruit-application'].includes(page)&&!(me.pages||[]).some(p=>'page-'+p.id===page))page='overview';
   const samePage=renderedPage===page, scrollY=window.scrollY;
   const run = ++renderId;
   if(!samePage) shell();
@@ -242,10 +250,12 @@ async function render() {
     if (page === "industry") html = await industry();
     if (page === "clones") html = await clonesPage();
     if(page.startsWith("admin-")&&!["admin-groups","admin-links"].includes(page))html=await adminPage();
-    if(page.startsWith("corp-")&&!["corp-overview","corp-members","corp-pilots","corp-assets","corp-wallet","corp-standings","corp-contracts","corp-market","corp-blueprints"].includes(page)){html=await corporationPage();if(page==="corp-structures")html=`<div class="structures-page">${html}</div>`;}
+    if(page.startsWith("corp-")&&!["corp-overview","corp-members","corp-pilots","corp-assets","corp-search-pilots","corp-wallet","corp-standings","corp-contracts","corp-market","corp-blueprints"].includes(page)){html=await corporationPage();if(page==="corp-structures")html=`<div class="structures-page">${html}</div>`;}
     const newFeature=await features.render(page);if(newFeature!==null)html=`<div class="management-page">${newFeature}</div>`;
     const expanded=await expansion.render(page);if(expanded!==null)html=`<div class="management-page">${expanded}</div>`;
     const recruitmentPage=await recruitment.render(page);if(recruitmentPage!==null)html=`<div class="management-page">${recruitmentPage}</div>`;
+    const pilotAssets=await pilotAssetSearch.render(page);if(pilotAssets!==null)html=`<div class="management-page">${pilotAssets}</div>`;
+    const customPage=await sitePages.render(page);if(customPage!==null)html=`<div class="management-page">${customPage}</div>`;
     const fittingEditor=await fittingWorkbench.render(page);if(fittingEditor!==null)html=fittingEditor;
     const extra=await management.render(page),discordExtra=await discord.render(page);if(extra!==null||discordExtra!==null)html=`<div class="management-page">${extra||''}${discordExtra||''}</div>`;
     if (run === renderId) {
@@ -1265,7 +1275,7 @@ root.addEventListener('change',async e=>{if(e.target.id==='contracts-pilot'){con
 try {
   me = await api("/me");
   if(me.recruit)page="overview";
-  const requested=location.hash.slice(1);if(knownPages.includes(requested))page=requested;
+  const requested=location.hash.slice(1);if(isKnownPage(requested))page=requested;
   await render();
   // Poll for completion without replacing any visible page content or moving focus.
   setInterval(async()=>{
