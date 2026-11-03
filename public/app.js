@@ -1,3 +1,5 @@
+import {skillsPreferences,filterTrainingPilots,skillFiltersActive,skillsCSV,skillsDate,queueState} from './skills-model.mjs';
+import {skillsPilotToolbar,skillsPilotCards,skillsTrainingPanel,skillsLevelCards,skillsTrainedToolbar,skillsTrainedResults} from './skills-view.mjs';
 import {myCharacterPreferences,myCharacterDetail} from './my-character-view.mjs';
 import {overviewPreferences,overviewRefresh,overviewIssues,overviewMatches,overviewTotals,overviewGroups,OVERVIEW_FILTERS,OVERVIEW_SORTS} from './overview-model.mjs';
 import {adminNav,FONT_SIZES} from './settings-options.mjs';
@@ -312,79 +314,52 @@ function overview() {
  const stat=(label,value,note='')=>`<div class="card"><div class="label">${label}</div><div class="stat">${value}</div>${note?`<small>${note}</small>`:''}</div>`;
  return `${!me.preferences?.overview_guide_dismissed?`<section class="notice overview-guide" aria-label="Getting started"><div class="panelhead"><strong>Getting started</strong><button data-action="dismiss-overview-guide" ${me.inspect?'disabled':''} aria-label="Dismiss getting started guide permanently" title="Hide this guide permanently">×</button></div><p><strong>Mains:</strong> use <strong>Add character</strong>, sign in with EVE, then choose <strong>Main</strong> in the character dropdown. <strong>Alts:</strong> add each character, then choose <strong>Alt of…</strong> and its main in that dropdown. <strong>Subscription:</strong> set the main’s expiry date in the Subscription column; linked alts inherit it. Dates are recorded manually and do not change your EVE subscription.</p></section>`:''}<div class="cards overview-totals overview-summary">${stat('Total Skillpoints',num(sp.value),sp.partial?'Partial · some characters await data':'All linked characters')}${stat('Total ISK',num(isk.value),isk.partial?'Partial · some wallets await data':'All linked characters')}${stat('Characters',chars.length,characterGroups(chars).length+' main groups')}${stat('Needs Attention',affected,issues.length+' checks flagged')}</div>${me.recruit?`<section class="notice"><strong>Recruit Overview</strong><p>Your characters and main/alt links carry over when corporation membership is confirmed.</p><button data-nav="recruit-application">View Application</button></section>`:''}<details class="panel compact overview-attention" ${issues.length?'open':''}><summary>Needs Attention · ${affected} character${affected===1?'':'s'}</summary>${issues.length?issues.map(i=>`<div class="overview-issue"><strong>${esc(i.pilot)}</strong><span>${esc(i.message)}</span><button data-overview-issue="${i.id}" data-issue-page="${i.page}">${i.kind==='skills'?'View queue':i.kind==='subscription'?'Set subscription':'View character'}</button></div>`).join(''):'<small>No connection, refresh, subscription or skill queue warnings in the available data.</small>'}</details>${chars.some(c=>overviewRefresh(c).temporary)?'<div class="notice">Some ESI refreshes are temporarily failing. Your saved information is still shown; access and roles are not changed by this warning.</div>':''}<section class="panel"><div class="panelhead"><h2>Your characters</h2><div class="actions overview-view-toggle" aria-label="Character display"><button data-overview-mode="combined" aria-pressed="${!overviewExpanded}">Combine alts</button><button data-overview-mode="expanded" aria-pressed="${overviewExpanded}">Expand</button></div></div><div class="overview-toolbar"><label>Search<input id="overview-search" type="search" maxlength="120" placeholder="Character name…" value="${esc(overviewPrefs.q)}"></label><label>Show<select id="overview-filter">${Object.entries(OVERVIEW_FILTERS).map(([id,label])=>`<option value="${id}" ${overviewPrefs.filter===id?'selected':''}>${label}</option>`).join('')}</select></label><label>Sort<select id="overview-sort">${Object.entries(OVERVIEW_SORTS).map(([id,label])=>`<option value="${id}" ${overviewPrefs.sort===id?'selected':''}>${label}</option>`).join('')}</select></label><label class="overview-total-toggle"><input id="overview-group-totals" type="checkbox" ${overviewPrefs.totals?'checked':''}> Group totals when collapsed</label><button data-action="overview-clear">Clear filters</button></div><div id="overview-list">${chars.length?overviewCharacters():empty('Add your first character')}</div><small>${working?working+' character refreshes queued · ':''}Background refreshes respect EVE cache times. Subscription expiry is manually recorded. View preferences are remembered on this browser.</small></section>`;
 }
-let trainingOverview=[], selectedTrainingKey="", showTrainingAlts=false, selectedSkillsSnapshot=null;
-function trainingKey(row) {const q=splitQueue(row?.queue||[]).current;return q ? `${q.queue_position}:${q.skill_id}:${q.finish_date}` : "none";}
-function trainingCards() {
- const visible=characterGroups(trainingOverview).flatMap(g=>[...(g.main?[g.main]:[]),...(showTrainingAlts?g.alts:[])]);
- return visible.map(c=>{const current=splitQueue(c.queue).current;return `<button class="training-card" data-select-char="${c.id}" aria-pressed="${Number(selected)===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.total_sp==null ? "Awaiting sync" : num(c.total_sp)+" SP"}</small><span class="training-skill">${current ? `${esc(current.name)} · ${current.finished_level}` : c.updated ? "No scheduled training" : "Queue unavailable"}</span><small data-current-training>${current ? eta(current.finish_date)+" remaining" : ""}</small><small data-queued-duration>${queuedDuration(c.queue)}</small></span></button>`;}).join('');
+let trainingOverview=[],selectedTrainingKey='',showTrainingAlts=false,selectedSkillsSnapshot=null,skillsView=skillsPreferences(),skillsScope='',skillsExplicitSelected=null;
+const skillsHelpers={esc,num,date:skillsDate,eta,table,eveIcon};
+function saveSkillsView(){skillsView.alts=showTrainingAlts;try{localStorage.setItem(skillsScope,JSON.stringify(skillsView));}catch{}}
+function loadSkillsView(){
+ const scope='tools-skills:'+me.main_id+':'+(me.inspect?.name||'self');
+ if(scope!==skillsScope){skillsScope=scope;try{skillsView=skillsPreferences(JSON.parse(localStorage.getItem(scope)||'{}'));}catch{skillsView=skillsPreferences();}showTrainingAlts=skillsView.alts;}
+ if(skillsExplicitSelected&&chars.some(c=>c.id===skillsExplicitSelected)){selected=skillsExplicitSelected;if(chars.find(c=>c.id===selected)?.parent_id!==selected)showTrainingAlts=true;skillsExplicitSelected=null;}
+ else if(renderedPage!=='skills'&&chars.some(c=>c.id===skillsView.selected))selected=skillsView.selected;
 }
+function trainingKey(row){const q=splitQueue(row?.queue||[]);return JSON.stringify([queueState(row||{}).kind,q.current?.skill_id,q.current?.finish_date,q.waiting.map(s=>[s.skill_id,s.finish_date])]);}
+function trainingCards(){skillsView.alts=showTrainingAlts;return skillsPilotCards(trainingOverview,chars,skillsView,selected,skillsHelpers);}
+function refreshTrainingCards(){const target=document.querySelector('#training-overview');if(target){target.innerHTML=trainingCards();const count=document.querySelector('#skills-pilot-count');if(count)count.textContent=filterTrainingPilots(trainingOverview,chars,skillsView).length+' of '+trainingOverview.length+' characters shown';const note=document.querySelector('#skills-selection-note');if(note)note.textContent=filterTrainingPilots(trainingOverview,chars,skillsView).some(c=>c.id===Number(selected))?'':'The selected character is outside the current tile filters.';applyVisualStyles();}}
+function trainingPanel(s){return skillsTrainingPanel(s,trainingOverview.find(c=>c.id===Number(selected)),skillsHelpers);}
+function refreshTrainedSkills(){const data=selectedSkillsSnapshot?.snapshot?.data;if(!data)return;const results=document.querySelector('#trained-results');if(results)results.innerHTML=skillsTrainedResults(data,skillsView,skillsHelpers);const cards=document.querySelector('#skills-levels');if(cards)cards.innerHTML=skillsLevelCards(data,skillsView,skillsHelpers);const select=document.querySelector('[data-skills-filter="level"]');if(select)select.value=skillsView.level;applyVisualStyles();}
 setInterval(()=>{
- if(page!=="skills" || !document.querySelector("#training-overview"))return;
- document.querySelectorAll(".training-card[data-select-char]").forEach(tile=>{
- const c=trainingOverview.find(c=>c.id===Number(tile.dataset.selectChar));
- if(!c)return;
- const current=splitQueue(c.queue).current;
- tile.querySelector(".training-skill").textContent=current?`${current.name} · ${current.finished_level}`:c.updated?"No scheduled training":"Queue unavailable";
- tile.querySelector("[data-current-training]").textContent=current?eta(current.finish_date)+" remaining":"";
- tile.querySelector("[data-queued-duration]").textContent=queuedDuration(c.queue);
- });
- document.querySelectorAll("[data-training-queued]").forEach(el=>el.textContent=queuedDuration(selectedSkillsSnapshot?.snapshot?.data?.queue));
- document.querySelectorAll("[data-training-until]").forEach(el=>el.textContent=eta(el.dataset.trainingUntil));
- const key=trainingKey(trainingOverview.find(c=>c.id===Number(selected)));
- if(key!==selectedTrainingKey && !dialog.open && !document.activeElement?.matches("input,select,textarea")){
- selectedTrainingKey=key;
- // Only replace the training panel at a queue boundary, leaving the page and open skills alone.
- const s=selectedSkillsSnapshot?.id===Number(selected)?selectedSkillsSnapshot.snapshot:null;
- if(s?.data){const template=document.createElement("template");template.innerHTML=trainingPanel(s);const old=document.querySelector(".training-detail");if(old){const y=window.scrollY,queueScroll=old.querySelector(".training-queue-scroll")?.scrollTop||0;old.replaceWith(template.content.firstElementChild);const queue=document.querySelector(".training-queue-scroll");if(queue)queue.scrollTop=queueScroll;window.scrollTo({top:y,behavior:"instant"});}}
-
+ if(page!=='skills'||!document.querySelector('#training-overview'))return;
+ if(!document.activeElement?.closest('#training-overview'))refreshTrainingCards();
+ const s=selectedSkillsSnapshot?.id===Number(selected)?selectedSkillsSnapshot.snapshot:null,old=document.querySelector('.training-detail'),key=trainingKey(trainingOverview.find(c=>c.id===Number(selected)));
+ document.querySelectorAll('[data-training-until]').forEach(el=>el.textContent=eta(el.dataset.trainingUntil));
+ document.querySelectorAll('[data-training-queued]').forEach(el=>el.textContent=queuedDuration(s?.data?.queue));
+ const state=queueState(trainingOverview.find(c=>c.id===Number(selected))||{}),bar=document.querySelector('.skills-current-progress');if(bar&&state.progress!==null){bar.setAttribute('aria-valuenow',String(Math.round(state.progress)));bar.querySelector('i').style.width=state.progress+'%';}
+ if(key!==selectedTrainingKey&&s?.data&&old&&!old.contains(document.activeElement)&&!dialog.open&&!document.activeElement?.matches('input,select,textarea')){
+  const y=window.scrollY,scroll=old.querySelector('.training-queue-scroll')?.scrollTop||0,template=document.createElement('template');template.innerHTML=trainingPanel(s);old.replaceWith(template.content.firstElementChild);const queue=document.querySelector('.training-queue-scroll');if(queue)queue.scrollTop=scroll;applyVisualStyles();window.scrollTo({top:y,behavior:'instant'});
  }
+ if(key!==selectedTrainingKey&&!old?.contains(document.activeElement)&&!dialog.open&&!document.activeElement?.matches('input,select,textarea')){selectedTrainingKey=key;refreshTrainedSkills();}
 },10000);
-function trainingPanel(s) {
- const data=s.data;const {current,waiting}=splitQueue(data.queue);
- return `<div class="training-detail"><section class="panel compact unallocated-sp"><strong>Unallocated SP: <span>${data.skills.unallocated_sp==null?"—":num(data.skills.unallocated_sp)}</span></strong></section><section class="panel compact current-training"><div class="panelhead"><h2>Currently training</h2><small>${num(data.skills.total_sp)} SP · Snapshot ${date(s.updated)}</small></div>${current ? `<div class="production"><strong>${esc(current.name)} · Level ${current.finished_level}</strong><span><span data-training-until="${esc(current.finish_date)}">${eta(current.finish_date)}</span> remaining · ${date(current.finish_date)}</span></div>` : "<small>No active training reported</small>"}<div class="panelhead"><h3>Training queue · ${waiting.length}</h3><small data-training-queued>${queuedDuration(data.queue)}</small></div>${
-      waiting.length
-        ? `<div class="training-queue-scroll" role="region" aria-label="Training queue" tabindex="0">` + table(
-            ["Skill", "Level", "Finishes", "Remaining"],
-            waiting.map(
-              (q) =>
-                `<tr><td><span class="icon-label">${eveIcon(q.skill_id)}${esc(q.name)}</span></td><td>${q.finished_level}</td><td>${date(q.finish_date)}</td><td>${q.finish_date ? `<span data-training-until="${esc(q.finish_date)}">${eta(q.finish_date)}</span>` : "Not scheduled"}</td></tr>`,
-            ),
-          ) + "</div>"
-        : "<small>No further skills queued</small>"
-    }</section></div>`;
+async function skills(){
+ loadSkillsView();const id=Number(selected)||null;
+ const [overview,s]=await Promise.all([api('/skills/overview'),selected?api('/characters/'+id+'/skills'):Promise.resolve({data:null})]);
+ if(page!=='skills'||(Number(selected)||null)!==id)return '';
+ trainingOverview=overview;selectedTrainingKey=trainingKey(overview.find(c=>c.id===id));selectedSkillsSnapshot={id,snapshot:s};skillsView.selected=id;saveSkillsView();
+ const c=chars.find(c=>c.id===id),data=s.data;
+ const heading=intro('Skills & Training Queues','Current skills and EVE’s reported training schedule.',`<div class="actions">${selected?`<button data-sync-char="${id}">↻ Sync character</button><button data-compare="${id}">Compare Skills</button><button data-nav="plans">Skill Plans</button>`:''}${data?'<button data-skills-export="skills">Export All Skills CSV</button><button data-skills-export="queue">Export Current Queue CSV</button>':''}</div>`)+skillsPilotToolbar(skillsView,skillsHelpers)+`<div id="training-overview" class="training-overview">${trainingCards()}</div><div class="training-visibility training-visibility-footer"><small id="skills-pilot-count">${filterTrainingPilots(trainingOverview,chars,skillsView).length} of ${trainingOverview.length} characters shown</small><button data-action="training-alts" aria-pressed="${showTrainingAlts}">${showTrainingAlts?'Hide alts':'Show alts'}</button></div><small id="skills-selection-note" role="status">${filterTrainingPilots(trainingOverview,chars,skillsView).some(p=>p.id===id)?'':'The selected character is outside the current tile filters.'}</small><small class="training-note">Training follows saved EVE dates between syncs. Queue status is unconfirmed when the snapshot is over two hours old or its latest refresh failed.</small>`;
+ if(!data)return heading+empty('Skills have not synced yet');
+ return heading+trainingPanel(s)+`<div id="skills-levels">${skillsLevelCards(data,skillsView,skillsHelpers)}</div><section class="panel compact skills-trained"><div class="panelhead"><h2>${esc(c?.name||'Selected character')} · Trained Skills</h2><small>Click a level card to filter; click again to clear.</small></div>${skillsTrainedToolbar(data,skillsView,skillsHelpers)}<div id="trained-results">${skillsTrainedResults(data,skillsView,skillsHelpers)}</div></section>`;
 }
-async function skills() {
-  trainingOverview = await api("/skills/overview");
-  selectedTrainingKey=trainingKey(trainingOverview.find(c=>c.id===Number(selected)));
-  const s = selected
-    ? await api("/characters/" + selected + "/skills")
-    : { data: null };
-  const data = s.data;
-  selectedSkillsSnapshot={id:Number(selected),snapshot:s};
-  const heading = intro(
-    "Skills & Training Queues",
-    "Current skills and EVE’s reported training schedule.",
-    `<div class="actions">${selected ? `<button data-sync-char="${selected}">↻ Sync character</button>` : ""}</div>`,
-  ) + `<div id="training-overview" class="training-overview">${trainingCards()}</div><div class="training-visibility training-visibility-footer"><button data-action="training-alts" aria-pressed="${showTrainingAlts}">${showTrainingAlts?"Hide alts":"Show alts"}</button></div><small class="training-note">Training follows the saved EVE schedule between syncs. SP totals are from the last snapshot.</small>`;
-  if (!data) return heading + empty("Skills have not synced yet");
-  return (
-    heading +
-    trainingPanel(s) + `<div class="skill-level-tiles">${Array.from({length:6},(_,level)=>`<div class="card"><small title="Injected skills at trained level ${level}, from the last sync">Skills at ${level}</small><strong>${data.skills.skills.filter(s=>s.trained_skill_level===level).length}</strong></div>`).join('')}</div><section class="panel compact"><div class="panelhead"><h2>Trained skills</h2><input id="skill-filter" placeholder="Filter skills…" aria-label="Filter skills"></div>${skillGroups(
-      data.skills.skills,
-    )
-      .map(
-        (g) =>
-          `<details class="skill-group"><summary><img class="skillbook" width="18" height="18" src="https://images.evetech.net/types/${Number(g.skills[0].skill_id)}/icon?size=32" alt="" loading="lazy">${esc(g.name)} <span class="muted">· ${g.skills.length} skills · ${num(g.skills.reduce((n, s) => n + s.skillpoints_in_skill, 0))} SP</span></summary>${table(
-            ["Skill", "Trained", "Active", "SP"],
-            g.skills.map(
-              (s) =>
-                `<tr data-skill="${esc(s.name.toLowerCase())}"><td><span class="icon-label">${eveIcon(s.skill_id)}${esc(s.name)}</span></td><td>${s.trained_skill_level}</td><td>${s.active_skill_level}</td><td>${num(s.skillpoints_in_skill)}</td></tr>`,
-            ),
-          )}</details>`,
-      )
-      .join("")}</section>`
-  );
-}
+root.addEventListener('input',event=>{if(page!=='skills')return;if(event.target.id==='skills-pilot-search'){skillsView.pilotQuery=event.target.value;saveSkillsView();refreshTrainingCards();}if(event.target.id==='skill-filter'){skillsView.q=event.target.value;saveSkillsView();refreshTrainedSkills();}});
+root.addEventListener('change',event=>{if(page!=='skills')return;const pilot=event.target.dataset.skillsPilot,filter=event.target.dataset.skillsFilter;if(pilot){skillsView[pilot]=event.target.value;saveSkillsView();refreshTrainingCards();}if(filter){skillsView[filter]=event.target.type==='checkbox'?event.target.checked:event.target.value;saveSkillsView();refreshTrainedSkills();}});
+document.addEventListener('toggle',event=>{const group=event.target;if(page!=='skills'||!group.isConnected||!group.matches?.('[data-skill-group]')||skillFiltersActive(skillsView))return;const name=group.dataset.skillGroup;skillsView.groups=skillsView.groups.filter(g=>g!==name);if(group.open)skillsView.groups.push(name);saveSkillsView();},true);
+root.addEventListener('click',event=>{
+ const button=event.target.closest('[data-skill-level],[data-skills-action],[data-skills-export]');if(!button||page!=='skills')return;
+ if(button.dataset.skillLevel!==undefined){skillsView.level=skillsView.level===button.dataset.skillLevel?'':button.dataset.skillLevel;saveSkillsView();refreshTrainedSkills();}
+ if(button.dataset.skillsAction==='clear-pilots'){skillsView.pilotQuery='';skillsView.status='all';skillsView.sort='manual';saveSkillsView();document.querySelector('#skills-pilot-search').value='';document.querySelector('[data-skills-pilot="status"]').value='all';document.querySelector('[data-skills-pilot="sort"]').value='manual';refreshTrainingCards();}
+ if(button.dataset.skillsAction==='clear-skills'){Object.assign(skillsView,{q:'',group:'',level:'',queued:false,below:false});saveSkillsView();const data=selectedSkillsSnapshot?.snapshot?.data;if(data){document.querySelector('.skills-trained .skills-toolbar').outerHTML=skillsTrainedToolbar(data,skillsView,skillsHelpers);refreshTrainedSkills();}}
+ if(button.dataset.skillsExport){const snapshot=selectedSkillsSnapshot?.snapshot;if(!snapshot?.data)return;const url=URL.createObjectURL(new Blob([skillsCSV(snapshot.data,button.dataset.skillsExport)],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='tools-'+Number(selected)+'-'+button.dataset.skillsExport+'.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+});
 const documentFilters={plan:'',fitting:''};
 function documentTags(){return ['Personal','Corp','Alliance',...[...new Set(docs.map(d=>d.tag||'Personal'))].filter(t=>!['Personal','Corp','Alliance'].includes(t)).sort((a,b)=>a.localeCompare(b))];}
 async function documents() {
@@ -791,7 +766,7 @@ root.addEventListener("click", async (e) => {
   try {
     if(b.dataset.action==='my-focus-clear'){myPilotFocus=null;await render();
     } else if(b.dataset.myTarget){
-      selected=Number(b.dataset.myPilot);myPilotFocus={id:selected,page:b.dataset.myTarget};
+      selected=Number(b.dataset.myPilot);if(b.dataset.myTarget==='skills')skillsExplicitSelected=selected;myPilotFocus={id:selected,page:b.dataset.myTarget};
       if(Object.hasOwn(pageAlts,b.dataset.myTarget))pageAlts[b.dataset.myTarget]=true;
       if(b.dataset.myTarget==='industry')industryPilot=selected;
       if(b.dataset.myTarget==='contracts'){contractsPilot=String(selected);contractsOffset=0;contractsFilters={type:'',status:'outstanding',q:''};}
@@ -806,7 +781,7 @@ root.addEventListener("click", async (e) => {
       overviewPrefs.q='';overviewPrefs.filter='all';saveOverviewView();document.querySelector('#overview-search').value='';document.querySelector('#overview-filter').value='all';updateOverviewList();
     } else if(b.dataset.overviewIssue){
       const id=Number(b.dataset.overviewIssue);
-      if(b.dataset.issuePage==='skills'){selected=id;page='skills';history.replaceState(null,'','#skills');await render();}
+      if(b.dataset.issuePage==='skills'){selected=id;skillsExplicitSelected=id;page='skills';history.replaceState(null,'','#skills');await render();}
       else {overviewPrefs.q='';overviewPrefs.filter='all';const c=chars.find(c=>c.id===id);overviewOpenGroups.add(c?.parent_id||id);saveOverviewView();document.querySelector('#content').innerHTML=overview();applyVisualStyles();const row=document.getElementById('overview-character-'+id);row?.scrollIntoView({block:'center'});row?.focus();}
     } else if (b.dataset.piFilter) {
       const key=b.dataset.piFilter;piStatusFilters.has(key)?piStatusFilters.delete(key):piStatusFilters.add(key);applyPIStatusFilters();
@@ -823,9 +798,8 @@ root.addEventListener("click", async (e) => {
     } else if(b.dataset.action==='update-view') {
       await render();
     } else if(b.dataset.action==='training-alts') {
-      showTrainingAlts=!showTrainingAlts;
-      b.textContent=showTrainingAlts?'Hide alts':'Show alts';b.setAttribute('aria-pressed',String(showTrainingAlts));
-      document.querySelector('#training-overview').innerHTML=trainingCards();
+      showTrainingAlts=!showTrainingAlts;saveSkillsView();
+      b.textContent=showTrainingAlts?'Hide alts':'Show alts';b.setAttribute('aria-pressed',String(showTrainingAlts));refreshTrainingCards();
     } else if(b.dataset.overviewMode) {
       overviewExpanded=b.dataset.overviewMode==='expanded';
       saveOverviewView();
@@ -878,7 +852,7 @@ This wipes their saved data, fittings, plans, settings, group memberships, ESI t
     } else if (b.dataset.industryAll||b.dataset.industryPilot) {
       industryPilot=b.dataset.industryAll?null:Number(b.dataset.industryPilot);selected=industryPilot||selected;await render();
     } else if (b.dataset.selectChar) {
-      selected=Number(b.dataset.selectChar);if(page==='characters'){myCharacterView.selected=selected;myCharacterView.alts=chars.find(c=>c.id===selected)?.parent_id!==selected||pageAlts.characters;saveMyCharacterView();}miningOffset=0;
+      selected=Number(b.dataset.selectChar);if(page==='skills'){skillsView.selected=selected;saveSkillsView();}if(page==='characters'){myCharacterView.selected=selected;myCharacterView.alts=chars.find(c=>c.id===selected)?.parent_id!==selected||pageAlts.characters;saveMyCharacterView();}miningOffset=0;
       if(page==='characters'&&chars.find(c=>c.id===selected)?.parent_id!==selected)pageAlts.characters=true;
       assetOffset=0;
       await render();
@@ -982,26 +956,7 @@ root.addEventListener("input", (e) => {
     const count=[...document.querySelectorAll("[data-blueprint]")].filter(row=>!row.hidden).length;
     document.querySelector("#blueprint-results").textContent=searching ? `${count} matching blueprint entries across your characters` : "";
   }
-  if (e.target.id === "skill-filter") {
-    const value = e.target.value.toLowerCase();
-    document
-      .querySelectorAll("[data-skill]")
-      .forEach((row) => (row.hidden = !row.dataset.skill.includes(value)));
-    document.querySelectorAll(".skill-group").forEach((group) => {
-      if (value && group.dataset.searching !== "1") {
-        group.dataset.wasOpen = String(group.open);
-        group.dataset.searching = "1";
-      }
-      group.hidden = ![...group.querySelectorAll("[data-skill]")].some(
-        (row) => !row.hidden,
-      );
-      if (value) group.open = !group.hidden;
-      else if (group.dataset.searching === "1") {
-        group.open = group.dataset.wasOpen === "true";
-        delete group.dataset.searching;
-      }
-    });
-  }
+
 });
 root.addEventListener("submit", async (e) => {
   if(e.target.id==='contracts-filter'){e.preventDefault();contractsFilters=Object.fromEntries(new FormData(e.target));contractsOffset=0;await render();return;}
