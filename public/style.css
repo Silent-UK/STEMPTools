@@ -1356,3 +1356,25 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
  background-color:rgba(255,255,255,.035);
  background-color:color-mix(in srgb,var(--theme-panel) 94%,white 6%);
 }
+
+/* Shared character/list layouts used by Clones, PI, Dens, Industry and assets. */
+#content .character-group:nth-child(even)>.panel,
+#content .alt-members>.panel:nth-child(even),
+#content>.panel:nth-of-type(even),
+#content .dens-page>.panel:nth-of-type(even),
+#content .planetgrid>.planet:nth-child(even),
+#content .clone-location-entry:nth-child(even),
+#content .asset-location:nth-of-type(even),
+#content .listrow:nth-child(even),
+#content .setting-row:nth-child(even),
+#content .admin-user:nth-child(even),
+#content .den-stats>article:nth-child(even){
+ background-color:rgba(255,255,255,.035);
+ background-color:color-mix(in srgb,var(--theme-panel) 94%,white 6%);
+}
+
+/* PI alternates by pilot; all planets within that pilot share one surface. */
+#content [data-pi-character]{--pi-surface:var(--theme-panel);background-color:var(--pi-surface)}
+#content [data-pi-character][data-pi-shade="1"]{--pi-surface:color-mix(in srgb,var(--theme-panel) 94%,white 6%)}
+#content [data-pi-character] .planetgrid>.planet,
+#content [data-pi-character] .production:nth-child(even){background-color:var(--pi-surface)}
