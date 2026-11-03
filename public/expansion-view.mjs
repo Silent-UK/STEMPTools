@@ -82,5 +82,5 @@ export function expansionUI({api,esc,intro,table,num,date,empty,context,refresh,
    for(const [key,set] of Object.entries({marketOffset:n=>marketOffset=n,pilotOffset:n=>pilotOffset=n,corpAssetOffset:n=>assetOffset=n,corpWalletOffset:n=>walletOffset=n}))if(b.dataset[key]!==undefined){set(Number(b.dataset[key]));await refresh();}
   }catch(e){b.disabled=false;toast(e.message);}
  });
- return {render};
+ return {render,focusPilot:id=>{market={pilot:String(id),side:'',history:false,state:'',q:''};marketOffset=0;}};
 }

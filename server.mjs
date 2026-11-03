@@ -1,3 +1,4 @@
+import {characterDashboard} from './lib/character-dashboard.mjs';
 import {personalAlerts} from './public/personal-alerts.mjs';
 import {pilotAssetSearch} from './lib/pilot-asset-search.mjs';
 import {sitePagesStore,sitePageRoutes,visibleSitePages} from './lib/site-pages.mjs';
@@ -521,6 +522,7 @@ export function createApp(config) {
     const rows=db.prepare("SELECT c.id,c.name,s.data,s.updated FROM characters c LEFT JOIN snapshots s ON s.character_id=c.id AND s.kind='skills' WHERE c.user_id=? ORDER BY (c.id=?) DESC,(SELECT position FROM character_order WHERE character_id=c.id),c.id").all(req.session.user_id,req.session.main_id);
     res.json(rows.map(c=>{const data=c.data?JSON.parse(c.data):null;return {id:c.id,name:c.name,updated:c.updated,total_sp:data?.skills.total_sp ?? null,queue:data?.queue.map(q=>({...q,name:cat.type(q.skill_id)?.name||String(q.skill_id)}))||[]};}));
   });
+  app.get('/api/characters/:id/dashboard',(req,res)=>{ownedCharacter(db,req.session.user_id,req.params.id);res.json(characterDashboard(db,Number(req.params.id)));});
   app.get("/api/characters/:id/skills", (req, res) => {
     const s = snapshot(req, "skills");
     if (s.data) {

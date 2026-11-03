@@ -77,5 +77,5 @@ export function featureUI({api,intro,context,refresh,toast}){
   if(button.hasAttribute('data-material-load')){button.disabled=true;try{await loadMaterialPlanner(button.closest('[data-material-body]'),button.dataset.materialLoad);}catch(error){button.disabled=false;toast(error.message);}}
   if(button.hasAttribute('data-blueprint-calculate')){button.disabled=true;try{const area=button.dataset.materialKind,planner=document.querySelector(`[data-material-area="${area}"]`);planner.open=true;await loadMaterialPlanner(planner.querySelector('[data-material-body]'),area,button.dataset.blueprintCalculate);planner.scrollIntoView({behavior:'smooth',block:'start'});}catch(error){toast(error.message);}finally{button.disabled=false;}}
  });
- return {render};
+ return {render,focusPilot:(id,page)=>{activePage=page;filters={q:'',kind:'',pilot:String(id),history:false,bpo:true,bpc:true};offset=0;}};
 }

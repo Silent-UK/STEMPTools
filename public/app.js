@@ -1,3 +1,4 @@
+import {myCharacterPreferences,myCharacterDetail} from './my-character-view.mjs';
 import {overviewPreferences,overviewRefresh,overviewIssues,overviewMatches,overviewTotals,overviewGroups,OVERVIEW_FILTERS,OVERVIEW_SORTS} from './overview-model.mjs';
 import {adminNav,FONT_SIZES} from './settings-options.mjs';
 import {createApiClient} from './api-client.mjs';
@@ -258,6 +259,7 @@ async function render() {
         else pageIntro.classList.add('page-actions');
       }else heading.innerHTML='<h1>'+esc(nav.find(([id])=>id===page)?.[2]||'Overview')+'</h1>';
 
+      if(myPilotFocus?.page===page&&['pi','dens','clones'].includes(page))content.insertAdjacentHTML('afterbegin',`<div class="notice compact">Showing ${esc(chars.find(c=>c.id===myPilotFocus.id)?.name||'selected character')} <button data-action="my-focus-clear">Show all characters</button></div>`);
       applyPIStatusFilters();
       applyVisualStyles();
       renderedPage=page;
@@ -465,7 +467,7 @@ function updatePIShareAll(){
 }
 async function operations() {
   const kind = page === "pi" ? "pi" : "dens",
-    rows = await api(kind==="pi"&&piShared?"/pi/shared":"/operations/" + kind);
+    rows = (await api(kind==="pi"&&piShared?"/pi/shared":"/operations/" + kind)).filter(c=>myPilotFocus?.page===page?c.id===myPilotFocus.id:true);
   const populated = (kind==="pi"&&!piShared?visibleCharacters(rows):rows).filter(c => Array.isArray(c.data) && c.data.length > 0);
   const pending = rows.filter(c => !Array.isArray(c.data) || c.error).length;
   if(kind==="pi"){[piDashboard,piShares]=await Promise.all([api("/pi/dashboard"),api("/pi/shares")]);}
@@ -479,7 +481,7 @@ async function operations() {
       kind==="pi"?`<div class="actions pi-toolbar"><button data-action="pi-settings">⚙ Settings</button><button data-nav="pi-market">Market</button><button data-action="pi-share">Share</button><button data-action="pi-shared" aria-pressed="${piShared}">Shared with me</button></div>`:"",
     ) +
     (kind==="pi"?piSharingSummary():"") +
-    (kind==="dens" ? denOverview(rows) : (piShared?'<p class="muted">Read-only PI shared with you. All shared pilots are shown.</p>':piDashboardView(piDashboard))+piFilterBar()) +
+    (kind==="dens" ? denOverview(rows) : (piShared?'<p class="muted">Read-only PI shared with you. All shared pilots are shown.</p>':myPilotFocus?.page==='pi'?'':piDashboardView(piDashboard))+piFilterBar()) +
     (kind === "pi" ? "" : `<div class="den-snapshot-note">Stored keys and anarchy reflect the last sync. ISK values use EVE’s market average, before fees. Upcoming spawn times are not included in the available ESI data.</div>`) +
     (pending ? `<div class="notice">${pending} character${pending === 1 ? '' : 's'} awaiting a successful sync. ${kind==='pi'&&piShared?'The owner needs to sync these pilots.':'Use Refresh all characters to retry.'}</div>` : '') +
     (populated.length ? (kind==="pi" ? (items,render)=>items.map(render).join('') : groupedCharacters)(populated,
@@ -558,7 +560,7 @@ function cloneLocations(clones) {
  return [...locations.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(location=>`<details class="asset-location compact"><summary><strong>${esc(location.name)}</strong><span class="muted"> · ${location.clones.length} ${location.clones.length===1?'clone':'clones'}</span><span class="clone-region">${esc([location.system,location.region].filter(Boolean).join(' · ')||'Region unavailable')}</span></summary>${location.clones.sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(clone=>`<div class="clone-location-entry"><strong>${esc(clone.name||'Unnamed clone')}</strong><div class="clone-implants">${implantList(clone.implants)}</div></div>`).join('')}</details>`).join('') || '<small>No stored jump clones</small>';
 }
 async function clonesPage() {
- const chars=await api("/operations/clones");
+ const chars=(await api("/operations/clones")).filter(c=>myPilotFocus?.page===page?c.id===myPilotFocus.id:true);
  return intro("Clones","Jump clones sorted by location. Readiness is estimated from the last EVE snapshot.")+'<div class="clone-grid">'+groupedCharacters(chars,c=>`<section class="panel compact"><div class="panelhead clone-header">${portrait(c)}${c.data?`<div class="clone-header-stats"><div class="clone-readiness"><strong>Next Clone Jump</strong> - <span data-clone-ready="${esc(c.data.ready_at||"")}">${cloneTimer(c.data.ready_at)}</span></div><div class="clone-capacity" title="Stored jump clones / capacity from active Infomorph Psychology skills; excludes your active body">Total Clones <strong>${c.data.clones.length}/${c.data.capacity??'—'}</strong></div></div>`:''}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>`:""}${!c.data?empty("Awaiting clone sync"):`<details class="clone-active asset-location" open><summary>Active clone · ${c.data.active_implants.length} implants</summary><div class="clone-implants">${implantList(c.data.active_implants)}</div></details>${cloneLocations(c.data.clones)}`}</section>`)+'</div>';
 }
 setInterval(()=>document.querySelectorAll("[data-clone-ready]").forEach(el=>el.textContent=cloneTimer(el.dataset.cloneReady)),10000);
@@ -581,7 +583,9 @@ async function mining(){
 }
 let industryPilot=null;
 async function industry() {
-  const all=industryWithJobs(await api('/operations/industry')),visible=visibleCharacters(all);
+  const source=await api('/operations/industry'),all=industryWithJobs(source);
+  if(myPilotFocus?.page==='industry'){const focus=source.find(c=>c.id===myPilotFocus.id);if(focus&&!all.some(c=>c.id===focus.id))all.push(focus);}
+  const visible=visibleCharacters(all);
   if(industryPilot!==null&&!visible.some(c=>c.id===industryPilot))industryPilot=null;
   const rows=industryPilot===null?all:visible;
   const picker=`<div class="training-overview character-picker"><button class="training-card" data-industry-all="1" aria-pressed="${industryPilot===null}"><span><strong>All Characters</strong><small>${all.length} pilots · including alts</small></span></button>${visible.map(c=>`<button class="training-card" data-industry-pilot="${c.id}" aria-pressed="${industryPilot===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.data?c.data.jobs.length+' jobs':'Awaiting Sync'}</small></span></button>`).join('')}</div>`;
@@ -785,7 +789,16 @@ root.addEventListener("click", async (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   try {
-    if(b.dataset.action==='dismiss-overview-guide'){
+    if(b.dataset.action==='my-focus-clear'){myPilotFocus=null;await render();
+    } else if(b.dataset.myTarget){
+      selected=Number(b.dataset.myPilot);myPilotFocus={id:selected,page:b.dataset.myTarget};
+      if(Object.hasOwn(pageAlts,b.dataset.myTarget))pageAlts[b.dataset.myTarget]=true;
+      if(b.dataset.myTarget==='industry')industryPilot=selected;
+      if(b.dataset.myTarget==='assets'){assetFilters={q:'',character:String(selected),location:''};assetSearchAll=false;assetOffset=0;}
+      if(b.dataset.myTarget==='market')expansion.focusPilot(selected);
+      if(b.dataset.myTarget==='blueprints')features.focusPilot(selected,'blueprints');
+      page=b.dataset.myTarget;history.replaceState(null,'','#'+page);await render();
+    } else if(b.dataset.action==='dismiss-overview-guide'){
       b.disabled=true;await api('/settings',{overview_guide_dismissed:true});me.preferences.overview_guide_dismissed=true;b.closest('.overview-guide').remove();
     } else if(b.dataset.action==='overview-clear'){
       overviewPrefs.q='';overviewPrefs.filter='all';saveOverviewView();document.querySelector('#overview-search').value='';document.querySelector('#overview-filter').value='all';updateOverviewList();
@@ -798,7 +811,7 @@ root.addEventListener("click", async (e) => {
     } else if (b.dataset.action === "page-alts" && Object.hasOwn(pageAlts,page)) {
       pageAlts[page]=!pageAlts[page];assetOffset=0;await render();
     } else if(b.dataset.action==='pi-shared') {
-      piShared=!piShared;await render();
+      myPilotFocus=null;piShared=!piShared;await render();
     } else if(b.dataset.piEditShare) {
       piShares=await api('/pi/shares');openDialog(piShareView());dialog.querySelector('#pi-share-recipient').value=b.dataset.piEditShare;updatePIShareSelection();
     } else if(b.dataset.action==='pi-share') {
@@ -863,7 +876,7 @@ This wipes their saved data, fittings, plans, settings, group memberships, ESI t
     } else if (b.dataset.industryAll||b.dataset.industryPilot) {
       industryPilot=b.dataset.industryAll?null:Number(b.dataset.industryPilot);selected=industryPilot||selected;await render();
     } else if (b.dataset.selectChar) {
-      selected=Number(b.dataset.selectChar);miningOffset=0;
+      selected=Number(b.dataset.selectChar);if(page==='characters'){myCharacterView.selected=selected;myCharacterView.alts=chars.find(c=>c.id===selected)?.parent_id!==selected||pageAlts.characters;saveMyCharacterView();}miningOffset=0;
       if(page==='characters'&&chars.find(c=>c.id===selected)?.parent_id!==selected)pageAlts.characters=true;
       assetOffset=0;
       await render();
@@ -872,6 +885,7 @@ This wipes their saved data, fittings, plans, settings, group memberships, ESI t
       document.querySelectorAll("button[data-theme]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.theme===b.dataset.theme)));
       b.closest("details").open=false;
     } else if (b.dataset.nav) {
+      myPilotFocus=null;
       if(page==='characters'&&Object.hasOwn(pageAlts,b.dataset.nav)&&chars.find(c=>c.id===Number(selected))?.parent_id!==Number(selected))pageAlts[b.dataset.nav]=true;
       page = b.dataset.nav;
       history.replaceState(null,"","#"+page);
@@ -1216,25 +1230,26 @@ setInterval(()=>document.querySelectorAll('[data-extractor-expiry]').forEach(el=
 
 root.addEventListener("change",e=>{if(e.target.matches('#asset-search input[name="all"]'))e.target.form.requestSubmit();});
 
-let myCharacterSnapshot=null;
-async function myCharacters(){
- const visible=visibleCharacters(chars);
- selectVisibleCharacter(visible);
- if(!selected)return intro('My Characters','Your pilot at a glance.')+empty('Add a character to get started');
- const id=Number(selected),c=chars.find(c=>c.id===id);
- const requests=await Promise.allSettled([api('/characters/'+id+'/skills'),...['industry','pi','clones','dens'].map(kind=>api('/operations/'+kind)),api('/assets?character='+id),api('/operations/fatigue')]);
- const value=i=>requests[i].status==='fulfilled'?requests[i].value:null;
- const skill=value(0),industry=value(1)?.find(c=>c.id===id),pi=value(2)?.find(c=>c.id===id),clones=value(3)?.find(c=>c.id===id),dens=value(4)?.find(c=>c.id===id),assets=value(5);
- myCharacterSnapshot={id,data:skill?.data};
- const metric=(label,value,target)=>`<button class="my-metric" data-nav="${target}"><small>${label}</small><strong>${value}</strong><span>View →</span></button>`;
- const jobs=industry?.data?.jobs,now=Date.now();
- const active=jobs?.filter(j=>j.status==='active'&&Date.parse(j.end_date)>now).length;
- const ready=jobs?.filter(j=>j.status==='active'&&Date.parse(j.end_date)<=now).length;
- const attributes=skill?.data?.attributes;
- const siblings=chars.filter(x=>x.parent_id===c.parent_id&&x.id!==id);
- return intro('My Characters','Training, skills and activity for your selected pilot.',`<div class="actions"><button data-compare="${id}">Compare</button><button data-sync-char="${id}">↻ Sync character</button></div>`)+`<div class="my-character-picker">${characterTiles(visible,x=>x.parent_id===x.id?'Main character':'Alt')}${altFilter()}</div><div class="my-character-layout"><aside class="panel compact my-profile"><img class="my-portrait" src="https://images.evetech.net/characters/${id}/portrait?size=256" alt="${esc(c.name)}"><h2>${esc(c.name)}</h2><small>${c.parent_id===id?'Main character':'Alt of '+esc(chars.find(x=>x.id===c.parent_id)?.name||'linked main')}</small><div class="production"><span>Total SP</span><strong>${num(c.total_sp)}</strong></div><div class="production"><span>Wallet</span><strong>${num(c.isk)} ISK</strong></div>${fatigueView(value(6)?.find(row=>row.id===id))}<h3>Linked characters</h3>${siblings.length?siblings.map(x=>`<button class="my-sibling" data-select-char="${x.id}"><img src="https://images.evetech.net/characters/${x.id}/portrait?size=32" alt="">${esc(x.name)}</button>`).join(''):'<small>No linked alts in this group</small>'}<h3>Snapshot status</h3>${c.snapshots.map(s=>`<div class="production"><span>${esc(s.kind)}</span><small>${date(s.updated)}</small></div>`).join('')}${c.errors.map(e=>`<p class="notice error">${esc(e.kind)}: ${esc(e.message)}</p>`).join('')}</aside><div class="my-character-content"><div class="my-training-layout"><section class="panel compact my-training-panel"><div class="panelhead"><h2>Training</h2><button data-nav="skills">Skills & queue →</button></div><div id="my-character-training">${characterTraining(skill?.data)}</div></section><div class="my-activity">${metric('Industry jobs',active==null?'—':active+' active · '+ready+' ready','industry')}${metric('Blueprints',num(industry?.data?.blueprints.length),'blueprints')}${metric('PI colonies',num(pi?.data?.length),'pi')}${metric('Mercenary dens',num(dens?.data?.length),'dens')}${metric('Asset stacks',num(assets?.total),'assets')}${metric('Asset locations',num(assets?.locationCount),'assets')}</div></div><div class="my-chart-grid">${characterCharts(skill?.data)}<section class="panel compact"><div class="panelhead"><h2>Clones & implants</h2><button data-nav="clones">View →</button></div>${clones?.data?`<div class="production"><span>Next Clone Jump</span><strong data-clone-ready="${esc(clones.data.ready_at||'')}">${cloneTimer(clones.data.ready_at)}</strong></div><div class="production"><span>Jump clones</span><strong>${clones.data.clones.length} / ${clones.data.capacity??'—'}</strong></div><h3>Active implants</h3>${implantList(clones.data.active_implants)}`:'<small>Awaiting clone data</small>'}</section><section class="panel compact"><h2>Attributes & remaps</h2>${attributes?['perception','memory','willpower','intelligence','charisma'].map(k=>`<div class="production"><span class="icon-label">${eveIcon({perception:10216,memory:10208,willpower:10212,intelligence:10221,charisma:10225}[k])}${k[0].toUpperCase()+k.slice(1)}</span><strong>${num(attributes[k])}</strong></div>`).join('')+`<div class="production"><span>Bonus remaps</span><strong>${num(attributes.bonus_remaps)}</strong></div><small>Last remap: ${attributes.last_remap_date?date(attributes.last_remap_date):'Not reported'}</small>`:'<small>Awaiting attributes</small>'}</section></div><small>Activity and skillpoints use saved snapshots. Timers follow the reported training schedule between syncs. Unavailable data is shown as —.</small></div></div>`;
+let myCharacterSnapshot=null,myCharacterView=myCharacterPreferences(),myCharacterScope='',myPilotFocus=null;
+function saveMyCharacterView(){try{localStorage.setItem(myCharacterScope,JSON.stringify(myCharacterView));}catch{}}
+function loadMyCharacterView(){
+ const scope='tools-my-characters:'+me.main_id+':'+(me.inspect?.name||'self');
+ if(scope===myCharacterScope)return;
+ myCharacterScope=scope;try{myCharacterView=myCharacterPreferences(JSON.parse(localStorage.getItem(scope)||'{}'));}catch{myCharacterView=myCharacterPreferences();}
+ if(chars.some(c=>c.id===myCharacterView.selected)){selected=myCharacterView.selected;pageAlts.characters=myCharacterView.alts||chars.find(c=>c.id===selected)?.parent_id!==selected;}
 }
-setInterval(()=>{const target=document.querySelector('#my-character-training');if(page==='characters'&&target&&myCharacterSnapshot?.id===Number(selected)){target.innerHTML=characterTraining(myCharacterSnapshot.data);applyVisualStyles();}},10000);
+async function myCharacters(){
+ loadMyCharacterView();if(renderedPage!=='characters'&&chars.some(c=>c.id===myCharacterView.selected))selected=myCharacterView.selected;const visible=visibleCharacters(chars);selectVisibleCharacter(visible);
+ if(!selected)return intro('My Characters','Your pilot at a glance.')+empty('Add a character to get started');
+ const id=Number(selected),c=chars.find(c=>c.id===id),requests=await Promise.allSettled([api('/characters/'+id+'/skills'),api('/characters/'+id+'/dashboard')]);
+ if(page!=='characters'||Number(selected)!==id)return '';
+ const skill=requests[0].status==='fulfilled'?requests[0].value:null,dashboard=requests[1].status==='fulfilled'?requests[1].value:null;
+ myCharacterSnapshot={id,data:skill?.data};myCharacterView.selected=id;myCharacterView.alts=pageAlts.characters;saveMyCharacterView();
+ return intro('My Characters','Training, skills and activity for your selected pilot.')+`<div class="my-character-picker">${characterTiles(visible,p=>p.parent_id===p.id?'Main character':'Alt')}${altFilter()}</div>`+myCharacterDetail({c,chars,skill,dashboard,view:myCharacterView,failures:requests.flatMap((r,i)=>r.status==='rejected'?[(i?'Activity and clone details':'Training data')+' could not load.']:[])},{esc,num,date,cloneTimer,implantList,fatigueView});
+}
+setInterval(()=>{const target=document.querySelector('#my-character-training');if(page==='characters'&&target&&myCharacterSnapshot?.id===Number(selected)){target.innerHTML=characterTraining(myCharacterSnapshot.data,Date.now(),myCharacterView.sections.includes('queue'));const duration=document.querySelector('[data-my-queue-duration]');if(duration&&myCharacterSnapshot.data)duration.textContent=queuedDuration(myCharacterSnapshot.data.queue);applyVisualStyles();}},10000);
+root.addEventListener('change',event=>{if(event.target.id!=='my-chart-mode')return;myCharacterView.chart=event.target.value==='percent'?'percent':'sp';saveMyCharacterView();document.querySelector('#my-character-charts').innerHTML=characterCharts(myCharacterSnapshot?.data,myCharacterView.chart);applyVisualStyles();});
+document.addEventListener('toggle',event=>{if(!event.target.isConnected||page!=='characters'||!event.target.matches?.('[data-my-section]'))return;const key=event.target.dataset.mySection;myCharacterView.sections=myCharacterView.sections.filter(s=>s!==key);if(event.target.open)myCharacterView.sections.push(key);saveMyCharacterView();},true);
 
 function applyVisualStyles(){
  if(me?.inspect){

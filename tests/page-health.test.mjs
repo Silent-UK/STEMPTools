@@ -8,7 +8,7 @@ import * as corporation from '../lib/corp.mjs';
 import {openStore} from '../lib/store.mjs';
 import {hash,cryptoBox} from '../lib/security.mjs';
 const base='http://127.0.0.1',key='ab'.repeat(32);
-const personal=['/me','/characters','/skills/overview','/characters/100/skills','/operations/clones','/operations/wallet-history','/operations/contracts','/operations/standings','/ratting','/operations/market','/operations/mining','/operations/industry','/operations/dens','/operations/pi','/assets','/documents','/groups','/settings','/notifications','/pi/dashboard','/pi/shares','/pi/shared','/material-planner/personal','/recruit/application','/discord'];
+const personal=['/me','/characters','/skills/overview','/characters/100/skills','/characters/100/dashboard','/operations/clones','/operations/wallet-history','/operations/contracts','/operations/standings','/ratting','/operations/market','/operations/mining','/operations/industry','/operations/dens','/operations/pi','/assets','/documents','/groups','/settings','/notifications','/pi/dashboard','/pi/shares','/pi/shared','/material-planner/personal','/recruit/application','/discord'];
 const corporate=['overview','members','pilots','wallet','contracts','assets','pilot-assets','standings','market','industry','blueprints','structures','harvest','surveys','surveys/browser'].map(s=>'/corporation/'+s);
 const admin=['users','groups','links','pages','esi','corporations','whitelist','recruitment','discord','affiliations','group-conditions'].map(s=>'/admin/'+s);
 async function fixture(fn){
@@ -27,8 +27,8 @@ test('ordinary member cannot enter any admin, corporate or inspect page API',()=
  for(const path of [...corporate,...admin,'/recruitment','/inspect/mail?character=100','/inspect/contacts?character=100','/inspect/pilot-check','/inspect/pilot-combat','/material-planner/corporation'])assert.equal((await request(path,{actor:200})).status,403,path);
 }));
 test('empty personal pages load without exposing credentials or other accounts',()=>fixture(async({request})=>{
- for(const path of personal.filter(p=>p!=='/characters/100/skills')){const r=await request(path,{actor:200});assert.equal(r.status,200,path);assert.match(r.headers.get('cache-control'),/no-store/);const text=await r.text();assert.ok(!text.includes('private-test-token'),path);if(path!=='/pi/shares')assert.ok(!text.includes('Pilot 100'),path); /* Sharing lists registered recipient names, never their private snapshots. */}
- for(const path of ['/characters/100/skills','/characters/100/saved-fittings'])assert.equal((await request(path,{actor:200})).status,404,path);
+ for(const path of personal.filter(p=>!['/characters/100/skills','/characters/100/dashboard'].includes(p))){const r=await request(path,{actor:200});assert.equal(r.status,200,path);assert.match(r.headers.get('cache-control'),/no-store/);const text=await r.text();assert.ok(!text.includes('private-test-token'),path);if(path!=='/pi/shares')assert.ok(!text.includes('Pilot 100'),path); /* Sharing lists registered recipient names, never their private snapshots. */}
+ for(const path of ['/characters/100/skills','/characters/100/dashboard','/characters/100/saved-fittings'])assert.equal((await request(path,{actor:200})).status,404,path);
 }));
 test('CSRF, malformed writes and unknown API paths fail safely',()=>fixture(async({request})=>{
  for(const path of ['/settings','/sync','/notifications/dismiss','/groups/1/apply'])assert.equal((await request(path,{actor:200,method:'POST',body:{},origin:'https://foreign.example'})).status,403,path);
@@ -52,4 +52,10 @@ test('asset search reuses catalogue lookups for repeated item types',()=>fixture
  const items=Array.from({length:1000},(_,i)=>({item_id:10000+i,type_id:34,quantity:1,location_id:60003760,root_location_id:60003760}));
  db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(200,'assets',JSON.stringify({items,locations:{60003760:'Example Station'}}),Date.now(),Date.now()+100000);
  const before=typeReads(),r=await request('/assets',{actor:200});assert.equal(r.status,200);assert.equal((await r.json()).total,1000);assert.equal(typeReads()-before,1);
+}));
+
+test('selected character dashboard returns owned summaries without raw private asset data',()=>fixture(async({db,request})=>{
+ db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(200,'assets',JSON.stringify({items:[{item_id:999,location_id:123,secret:'private-asset-marker'}]}),Date.now(),Date.now()+10000);
+ const response=await request('/characters/200/dashboard',{actor:200});assert.equal(response.status,200);const body=await response.json();assert.deepEqual(body.activity.assets,{stacks:1,locations:1});assert.ok(!JSON.stringify(body).includes('private-asset-marker'));assert.equal(body.location,null);
+ assert.equal((await request('/characters/100/dashboard',{actor:200})).status,404);
 }));
