@@ -47,7 +47,7 @@ async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
     expires: Date.now() + 3600000,
     scopes: [],
   };
-  const { app, corp } = createApp({
+  const { app, corp, usersReview } = createApp({
     fittingSimulator:()=>({}),
     base: "http://127.0.0.1",
     data: dir,
@@ -105,7 +105,7 @@ async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
     return { uid, session };
   };
   try {
-    await fn({ db, request, user, corp, identity: (v) => (identity = v) });
+    await fn({ db, request, user, corp, usersReview, identity: (v) => (identity = v) });
   } finally {
     await new Promise((r) => server.close(r));
     db.close();
@@ -1922,3 +1922,14 @@ test('Discord administration is private, setup cannot be hidden before connectin
  const groups=await(await request('/api/admin/groups',{session:owner.session})).json();assert.equal(groups.groups[0].discord_role_id,'123456789012345678');
  assert.equal((await request('/api/admin/groups',{session:owner.session,method:'POST',body:{name:'Bad',icon:'◇',mode:'auto',rules:[],pages:[],discord_role_id:'not-a-role'}})).status,400);
 }));
+
+test('Users whitelist cleanup is owner-only, freshly verified and never treats ESI failure as denial',async()=>{
+ let denied=true;
+ await fixture(async({db,request,user,usersReview})=>{
+ const owner=user(100,'Owner'),target=user(200,'Outside'),admin=user(300,'Admin');db.prepare('UPDATE users SET admin=1 WHERE id=?').run(admin.uid);
+ assert.equal((await request('/api/admin/users/whitelist-review',{session:owner.session,method:'POST',body:{}})).status,202);await usersReview.tick();
+ const users=await(await request('/api/admin/users',{session:owner.session})).json();assert.equal(users.find(u=>u.id===target.uid).whitelist.status,'denied');assert.equal(users.find(u=>u.id===admin.uid).whitelist.status,'protected');assert.equal(users[0].discord,null);
+ const remove=actor=>request('/api/admin/users/'+target.uid+'/whitelist-remove',{session:actor.session,method:'DELETE',body:{confirm_main_id:200}});
+ assert.equal((await remove(admin)).status,403);denied=false;assert.equal((await remove(owner)).status,400);assert.ok(db.prepare('SELECT id FROM users WHERE id=?').get(target.uid));denied=true;assert.equal((await remove(owner)).status,200);assert.equal(db.prepare('SELECT id FROM users WHERE id=?').get(target.uid),undefined);
+ },fakeCat,{membershipLookup:async id=>({corporation_id:id===200&&denied?999:668298004})});
+});

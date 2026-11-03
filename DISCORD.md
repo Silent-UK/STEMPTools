@@ -21,3 +21,9 @@ Secrets are encrypted with the site's existing encryption key and never returned
 # Link aliases
 
 Admin > Links accepts either an HTTP(S) destination or a bare domain (defaults to HTTPS). An optional Short Path such as Google creates https://<this-tools-site>/Google, which redirects to the destination. It does not proxy the external page or provision another hostname. Paths are case insensitive and unique, and application paths are reserved. A blank Short Path preserves direct links. Public alias URLs can be shared without sign-in, like their external destinations.
+
+# Users directory
+
+Admin > Users can search mains, linked pilots, IDs, corporations and Group names. Role filters cover Owner/Admin/Member/Recruit and approved site Groups. Sort by name, last online (unknown dates last), or linked-character count in either direction. Discord Connected/Not Connected appears beneath corporation only when integration is enabled; it means a Discord identity is linked.
+
+Check Whitelist queues a review of account login mains, four at a time. Refresh Status shows results. Individual alts are never cleanup candidates. Only confirmed denied accounts receive the whole-account cleanup action; Unknown is shown when ESI cannot verify membership. Only the site owner can execute deletion, with an explicit confirmation. The login main is rechecked immediately before wiping the account, and admins, the acting account and active recruitment applications are protected. Linked pilots, saved data, credentials and sessions are wiped together using the existing account-deletion routine; Discord role cleanup follows the existing deletion ledger. Nothing is deleted automatically.

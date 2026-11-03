@@ -1,3 +1,4 @@
+import {usersReviewService} from './lib/users-review.mjs';
 import {discordService,discordRoutes} from './lib/discord.mjs';
 import {recruitmentService,recruitmentRoutes} from './lib/recruitment.mjs';
 import {recruitAccount,restrictedRecruitPath,recruitInspectPath} from './lib/recruitment-store.mjs';
@@ -58,6 +59,7 @@ export function createApp(config) {
   const recruitment=recruitmentService(db,eve,cat,config);
   const whitelist=whitelistService(db,config.membershipLookup || (async id=>(await eve.request("/characters/"+id)).data),id=>eve.publicGet("/corporations/"+id));
   const discord=discordService(db,box,config,whitelist);
+  const usersReview=usersReviewService(db,whitelist,config);
   const ownerUser=db.prepare("SELECT id FROM users WHERE main_id=?").get(config.owner);
   const legacy=db.prepare("SELECT * FROM corporation_connections WHERE corporation_id=?").get(STEMP_ID);
   if(ownerUser&&legacy)db.prepare("INSERT OR IGNORE INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(ownerUser.id,legacy.character_id,legacy.character_name,legacy.owner_hash,STEMP_ID,legacy.tokens,JSON.stringify(["esi-characters.read_corporation_roles.v1"]),0,legacy.role,0);
@@ -152,7 +154,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.33.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.33.1" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -884,9 +886,11 @@ export function createApp(config) {
     FROM characters c JOIN character_buckets b ON b.character_id=c.id LEFT JOIN jobs j ON j.character_id=c.id LEFT JOIN sync_attempts a ON a.character_id=c.id ORDER BY c.name`).all().map(c=>({...c,errors:db.prepare("SELECT kind,message FROM sync_errors WHERE character_id=?").all(c.id)}));
   }
   app.get("/api/admin/users",(req,res)=>{
-    const chars=adminCharacters();
-    res.json(db.prepare("SELECT u.id,u.name,u.main_id,u.admin,l.last_login,COALESCE(a.last_seen,l.last_login) last_online,a.last_seen FROM users u LEFT JOIN user_logins l ON l.user_id=u.id LEFT JOIN user_activity a ON a.user_id=u.id ORDER BY last_online DESC,u.name COLLATE NOCASE").all().map(u=>({...u,owner:u.main_id===config.owner,admin:u.main_id===config.owner||u.admin===1,characters:chars.filter(c=>c.user_id===u.id)})));
+    const chars=adminCharacters(),discordEnabled=discord.read().enabled;
+    res.json(db.prepare("SELECT u.id,u.name,u.main_id,u.admin,l.last_login,COALESCE(a.last_seen,l.last_login) last_online,a.last_seen FROM users u LEFT JOIN user_logins l ON l.user_id=u.id LEFT JOIN user_activity a ON a.user_id=u.id ORDER BY last_online DESC,u.name COLLATE NOCASE").all().map(u=>({...u,owner:u.main_id===config.owner,admin:u.main_id===config.owner||u.admin===1,recruit:Boolean(recruitAccount(db,u.id)),groups:db.prepare('SELECT g.id,g.name,m.status FROM access_groups g JOIN group_members m ON m.group_id=g.id WHERE m.user_id=? ORDER BY g.name').all(u.id),whitelist:db.prepare('SELECT status,checked,message FROM user_whitelist_reviews WHERE user_id=?').get(u.id)||null,discord:discordEnabled?{enabled:true,connected:Boolean(db.prepare('SELECT 1 FROM discord_accounts WHERE user_id=?').get(u.id))}:null,characters:chars.filter(c=>c.user_id===u.id)})));
   });
+  app.post('/api/admin/users/whitelist-review',(_req,res)=>res.status(202).json(usersReview.start()));
+  app.delete('/api/admin/users/:id/whitelist-remove',async(req,res)=>res.json(await usersReview.remove(req.session,Number(req.params.id),req.body.confirm_main_id)));
   app.post("/api/admin/esi/rebalance",(req,res)=>res.json(sync.rebalance()));
   app.post('/api/admin/users/:id/admin',(req,res)=>{
     if(req.session.main_id!==config.owner)return res.sendStatus(403);
@@ -944,7 +948,7 @@ export function createApp(config) {
         : message,
     });
   });
-  return { app, db, cat, sync, corp, recruitment, discord };
+  return { app, db, cat, sync, corp, recruitment, discord, usersReview };
 }
 if (
   process.argv[1] &&
@@ -959,11 +963,12 @@ if (
     owner: Number(process.env.OWNER_CHARACTER_ID || 122543287),
     contact: process.env.ESI_CONTACT || "tools.areyouaspy.co.uk",
   };
-  const { app, sync, corp, recruitment, discord } = createApp(config);
+  const { app, sync, corp, recruitment, discord, usersReview } = createApp(config);
   app.listen(Number(process.env.PORT || 3014), "127.0.0.1", () =>
     console.log("Tools listening on " + (process.env.PORT || 3014)),
   );
   setInterval(()=>discord.tick().catch(()=>console.error("Discord sync failed")),15000).unref();
+  setInterval(()=>usersReview.tick().catch(()=>console.error("Whitelist review failed")),1000).unref();
   recruitment.schedule();
   setInterval(()=>recruitment.schedule(),3600000).unref();
   setInterval(()=>recruitment.tick().catch(()=>console.error("Recruitment sync failed")),3000).unref();
