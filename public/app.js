@@ -338,7 +338,7 @@ setInterval(()=>{
 },10000);
 function trainingPanel(s) {
  const data=s.data;const {current,waiting}=splitQueue(data.queue);
- return `<section class="panel compact current-training"><div class="panelhead"><h2>Currently training</h2><small>${num(data.skills.total_sp)} SP · Snapshot ${date(s.updated)}</small></div>${current ? `<div class="production"><strong>${esc(current.name)} · Level ${current.finished_level}</strong><span><span data-training-until="${esc(current.finish_date)}">${eta(current.finish_date)}</span> remaining · ${date(current.finish_date)}</span></div>` : "<small>No active training reported</small>"}<div class="panelhead"><h3>Training queue · ${waiting.length}</h3><small data-training-queued>${queuedDuration(data.queue)}</small></div>${
+ return `<section class="panel compact current-training"><div class="production"><strong>Unallocated SP</strong><strong>${data.skills.unallocated_sp==null?"—":num(data.skills.unallocated_sp)}</strong></div><div class="panelhead"><h2>Currently training</h2><small>${num(data.skills.total_sp)} SP · Snapshot ${date(s.updated)}</small></div>${current ? `<div class="production"><strong>${esc(current.name)} · Level ${current.finished_level}</strong><span><span data-training-until="${esc(current.finish_date)}">${eta(current.finish_date)}</span> remaining · ${date(current.finish_date)}</span></div>` : "<small>No active training reported</small>"}<div class="panelhead"><h3>Training queue · ${waiting.length}</h3><small data-training-queued>${queuedDuration(data.queue)}</small></div>${
       waiting.length
         ? `<div class="training-queue-scroll" role="region" aria-label="Training queue" tabindex="0">` + table(
             ["Skill", "Level", "Finishes", "Remaining"],
