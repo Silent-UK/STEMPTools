@@ -1,3 +1,5 @@
+import {clonePreferences,cloneReadiness} from './clone-model.mjs';
+import {cloneToolbar,cloneResults} from './clone-view.mjs';
 import {skillsPreferences,filterTrainingPilots,skillFiltersActive,skillsCSV,skillsDate,queueState} from './skills-model.mjs';
 import {skillsPilotToolbar,skillsPilotCards,skillsTrainingPanel,skillsLevelCards,skillsTrainedToolbar,skillsTrainedResults} from './skills-view.mjs';
 import {myCharacterPreferences,myCharacterDetail} from './my-character-view.mjs';
@@ -526,19 +528,32 @@ function blueprintStations(blueprints) {
 }
 function implantList(items) {return items.length ? items.map(i=>`<span class="clone-implant">${eveIcon(i.id)}${esc(i.name)}</span>`).join("") : '<small>No implants</small>';}
 function cloneTimer(v) {return !v || Date.parse(v)<=Date.now() ? "Now" : eta(v);}
-function cloneLocations(clones) {
- const locations=new Map();
- for(const clone of clones) {
-  const key=String(clone.location_id);
-  if(!locations.has(key))locations.set(key,{name:clone.location,region:clone.region,system:clone.system,clones:[]});
-  locations.get(key).clones.push(clone);
- }
- return [...locations.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(location=>`<details class="asset-location compact"><summary><strong>${esc(location.name)}</strong><span class="muted"> · ${location.clones.length} ${location.clones.length===1?'clone':'clones'}</span><span class="clone-region">${esc([location.system,location.region].filter(Boolean).join(' · ')||'Region unavailable')}</span></summary>${location.clones.sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(clone=>`<div class="clone-location-entry"><strong>${esc(clone.name||'Unnamed clone')}</strong><div class="clone-implants">${implantList(clone.implants)}</div></div>`).join('')}</details>`).join('') || '<small>No stored jump clones</small>';
+let cloneRows=[],cloneView=clonePreferences(),cloneScope='',cloneStatusKey='';
+function saveCloneView(){try{localStorage.setItem(cloneScope,JSON.stringify(cloneView));}catch{}}
+function loadCloneView(){const scope='tools-clones:'+me.main_id+':'+(me.inspect?.name||'self');if(scope===cloneScope)return;cloneScope=scope;try{cloneView=clonePreferences(JSON.parse(localStorage.getItem(scope)||'{}'));}catch{cloneView=clonePreferences();}}
+function cloneHelpers(){return {esc,portrait,implantList};}
+function stripeClonePanels(){let index=0;document.querySelectorAll('#clone-results .clone-character').forEach(panel=>{const alts=panel.closest('details.alt-group');if(!alts||alts.open)panel.dataset.cloneShade=String(index++%2);});}
+function refreshCloneResults(){const target=document.querySelector('#clone-results');if(target){target.innerHTML=cloneResults(cloneRows,chars,cloneView,cloneHelpers());applyVisualStyles();}}
+async function clonesPage(){
+ loadCloneView();const rows=await api('/operations/clones');
+ if(page!=='clones')return '';
+ cloneRows=rows.filter(c=>myPilotFocus?.page===page?c.id===myPilotFocus.id:true).map(c=>({...c,reconnect:chars.find(p=>p.id===c.id)?.reconnect||false}));
+ cloneStatusKey=JSON.stringify(cloneRows.map(c=>[c.id,cloneReadiness(c).kind]));
+ return intro('Clones','Your active implants, home clone and stored jump clones.')+cloneToolbar(cloneView,cloneHelpers())+`<div id="clone-results">${cloneResults(cloneRows,chars,cloneView,cloneHelpers())}</div><small class="clones-help">Readiness is estimated from the last EVE snapshot. Home-clone information appears after a successful clone sync. View preferences are saved on this browser.</small>`;
 }
-async function clonesPage() {
- const chars=(await api("/operations/clones")).filter(c=>myPilotFocus?.page===page?c.id===myPilotFocus.id:true);
- return intro("Clones","Jump clones sorted by location. Readiness is estimated from the last EVE snapshot.")+'<div class="clone-grid">'+groupedCharacters(chars,c=>`<section class="panel compact"><div class="panelhead clone-header">${portrait(c)}${c.data?`<div class="clone-header-stats"><div class="clone-readiness"><strong>Next Clone Jump</strong> - <span data-clone-ready="${esc(c.data.ready_at||"")}">${cloneTimer(c.data.ready_at)}</span></div><div class="clone-capacity" title="Stored jump clones / capacity from active Infomorph Psychology skills; excludes your active body">Total Clones <strong>${c.data.clones.length}/${c.data.capacity??'—'}</strong></div></div>`:''}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>`:""}${!c.data?empty("Awaiting clone sync"):`<details class="clone-active asset-location" open><summary>Active clone · ${c.data.active_implants.length} implants</summary><div class="clone-implants">${implantList(c.data.active_implants)}</div></details>${cloneLocations(c.data.clones)}`}</section>`)+'</div>';
-}
+root.addEventListener('input',event=>{if(event.target.id!=='clone-search')return;cloneView.q=event.target.value;saveCloneView();refreshCloneResults();});
+root.addEventListener('change',event=>{if(!['clone-filter','clone-view'].includes(event.target.id))return;cloneView[event.target.id==='clone-filter'?'filter':'view']=event.target.value;saveCloneView();refreshCloneResults();});
+root.addEventListener('click',event=>{
+ const action=event.target.closest('[data-clones-action]')?.dataset.clonesAction;if(!action||page!=='clones')return;
+ if(action==='clear'){cloneView.q='';cloneView.filter='all';saveCloneView();document.querySelector('#clone-search').value='';document.querySelector('#clone-filter').value='all';refreshCloneResults();return;}
+ if(['expand','collapse'].includes(action)){const opened=action==='expand';document.querySelectorAll('#clone-results [data-clone-open]').forEach(el=>{const key=el.dataset.cloneOpen;cloneView.open=cloneView.open.filter(k=>k!==key);cloneView.closed=cloneView.closed.filter(k=>k!==key);cloneView[opened?'open':'closed'].push(key);el.open=opened;});stripeClonePanels();saveCloneView();}
+});
+document.addEventListener('toggle',event=>{const el=event.target;if(page!=='clones'||!el.isConnected||!el.matches?.('[data-clone-open]'))return;stripeClonePanels();if(cloneView.q.trim()||cloneView.filter!=='all')return;const key=el.dataset.cloneOpen;cloneView.open=cloneView.open.filter(k=>k!==key);cloneView.closed=cloneView.closed.filter(k=>k!==key);cloneView[el.open?'open':'closed'].push(key);saveCloneView();},true);
+setInterval(()=>{
+ if(page!=='clones')return;
+ document.querySelectorAll('[data-clone-readiness]').forEach(el=>{const pilot=cloneRows.find(c=>c.id===Number(el.dataset.cloneReadiness));if(pilot){const state=cloneReadiness(pilot);el.textContent=state.label;el.dataset.cloneState=state.kind;}});
+ const key=JSON.stringify(cloneRows.map(c=>[c.id,cloneReadiness(c).kind]));if(key!==cloneStatusKey&&!document.activeElement?.closest('#clone-results')&&!document.activeElement?.matches('input,select,textarea')){cloneStatusKey=key;refreshCloneResults();}
+},10000);
 setInterval(()=>document.querySelectorAll("[data-clone-ready]").forEach(el=>el.textContent=cloneTimer(el.dataset.cloneReady)),10000);
 const pageAlts={contracts:false,wallet:false,mining:false,industry:false,pi:false,assets:false,characters:false};
 function altFilter() {return `<div class="training-visibility"><button data-action="page-alts" aria-pressed="${pageAlts[page]}">${pageAlts[page]?"Hide alts":"Show alts"}</button></div>`;}
@@ -1210,6 +1225,7 @@ root.addEventListener('change',event=>{if(event.target.id!=='my-chart-mode')retu
 document.addEventListener('toggle',event=>{if(!event.target.isConnected||page!=='characters'||!event.target.matches?.('[data-my-section]'))return;const key=event.target.dataset.mySection;myCharacterView.sections=myCharacterView.sections.filter(s=>s!==key);if(event.target.open)myCharacterView.sections.push(key);saveMyCharacterView();},true);
 
 function applyVisualStyles(){
+ if(page==='clones')stripeClonePanels();
  if(me?.inspect){
   root.querySelectorAll('[data-sync-char],[data-move],[data-unlink],[data-group-char],[data-subscription-char],[data-action="sync"],[data-action="add-character"]').forEach(el=>{el.disabled=true;el.title='Inspect is read-only. Exit Inspect to make changes.';});
   root.querySelectorAll('a[href^="/auth/login"]').forEach(el=>{el.removeAttribute('href');el.setAttribute('aria-disabled','true');el.title='Exit Inspect before connecting characters.';});
