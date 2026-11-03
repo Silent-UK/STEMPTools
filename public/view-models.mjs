@@ -21,3 +21,10 @@ export function skillGroups(skills) {
       skills: skills.sort((a, b) => a.name.localeCompare(b.name)),
     }));
 }
+
+export function queuedDuration(queue,now=Date.now()){
+ const rows=Array.isArray(queue)?queue:[];
+ if(rows.some(row=>!Number.isFinite(Date.parse(row.finish_date))))return 'Queue duration unavailable';
+ const end=rows.reduce((last,row)=>Math.max(last,Date.parse(row.finish_date)),now),minutes=Math.max(0,Math.ceil((end-now)/60000));
+ return `${Math.floor(minutes/1440)}d ${Math.floor(minutes%1440/60)}h ${minutes%60}m Queued`;
+}

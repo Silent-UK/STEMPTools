@@ -43,7 +43,7 @@ const eveIcon = (id) =>
   Number(id) > 0
     ? `<img class="eve-icon" loading="lazy" src="https://images.evetech.net/types/${Number(id)}/icon?size=64" alt="">`
     : "";
-import { splitQueue, skillGroups } from "./view-models.mjs";
+import { splitQueue, skillGroups, queuedDuration } from "./view-models.mjs";
 const root = document.querySelector("#app"),
   dialog = document.querySelector("#dialog");
 const esc = (v) =>
@@ -313,7 +313,7 @@ let trainingOverview=[], selectedTrainingKey="", showTrainingAlts=false, selecte
 function trainingKey(row) {const q=splitQueue(row?.queue||[]).current;return q ? `${q.queue_position}:${q.skill_id}:${q.finish_date}` : "none";}
 function trainingCards() {
  const visible=characterGroups(trainingOverview).flatMap(g=>[...(g.main?[g.main]:[]),...(showTrainingAlts?g.alts:[])]);
- return visible.map(c=>{const current=splitQueue(c.queue).current;return `<button class="training-card" data-select-char="${c.id}" aria-pressed="${Number(selected)===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.total_sp==null ? "Awaiting sync" : num(c.total_sp)+" SP"}</small><span class="training-skill">${current ? `${esc(current.name)} · ${current.finished_level}` : c.updated ? "No scheduled training" : "Queue unavailable"}</span><small>${current ? eta(current.finish_date)+" remaining" : ""}</small></span></button>`;}).join('');
+ return visible.map(c=>{const current=splitQueue(c.queue).current;return `<button class="training-card" data-select-char="${c.id}" aria-pressed="${Number(selected)===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.total_sp==null ? "Awaiting sync" : num(c.total_sp)+" SP"}</small><span class="training-skill">${current ? `${esc(current.name)} · ${current.finished_level}` : c.updated ? "No scheduled training" : "Queue unavailable"}</span><small data-current-training>${current ? eta(current.finish_date)+" remaining" : ""}</small><small data-queued-duration>${queuedDuration(c.queue)}</small></span></button>`;}).join('');
 }
 setInterval(()=>{
  if(page!=="skills" || !document.querySelector("#training-overview"))return;
@@ -322,8 +322,10 @@ setInterval(()=>{
  if(!c)return;
  const current=splitQueue(c.queue).current;
  tile.querySelector(".training-skill").textContent=current?`${current.name} · ${current.finished_level}`:c.updated?"No scheduled training":"Queue unavailable";
- tile.querySelector("span>small:last-child").textContent=current?eta(current.finish_date)+" remaining":"";
+ tile.querySelector("[data-current-training]").textContent=current?eta(current.finish_date)+" remaining":"";
+ tile.querySelector("[data-queued-duration]").textContent=queuedDuration(c.queue);
  });
+ document.querySelectorAll("[data-training-queued]").forEach(el=>el.textContent=queuedDuration(selectedSkillsSnapshot?.snapshot?.data?.queue));
  document.querySelectorAll("[data-training-until]").forEach(el=>el.textContent=eta(el.dataset.trainingUntil));
  const key=trainingKey(trainingOverview.find(c=>c.id===Number(selected)));
  if(key!==selectedTrainingKey && !dialog.open && !document.activeElement?.matches("input,select,textarea")){
@@ -336,7 +338,7 @@ setInterval(()=>{
 },10000);
 function trainingPanel(s) {
  const data=s.data;const {current,waiting}=splitQueue(data.queue);
- return `<section class="panel compact current-training"><div class="panelhead"><h2>Currently training</h2><small>${num(data.skills.total_sp)} SP · Snapshot ${date(s.updated)}</small></div>${current ? `<div class="production"><strong>${esc(current.name)} · Level ${current.finished_level}</strong><span><span data-training-until="${esc(current.finish_date)}">${eta(current.finish_date)}</span> remaining · ${date(current.finish_date)}</span></div>` : "<small>No active training reported</small>"}<h3>Training queue · ${waiting.length}</h3>${
+ return `<section class="panel compact current-training"><div class="panelhead"><h2>Currently training</h2><small>${num(data.skills.total_sp)} SP · Snapshot ${date(s.updated)}</small></div>${current ? `<div class="production"><strong>${esc(current.name)} · Level ${current.finished_level}</strong><span><span data-training-until="${esc(current.finish_date)}">${eta(current.finish_date)}</span> remaining · ${date(current.finish_date)}</span></div>` : "<small>No active training reported</small>"}<div class="panelhead"><h3>Training queue · ${waiting.length}</h3><small data-training-queued>${queuedDuration(data.queue)}</small></div>${
       waiting.length
         ? `<div class="training-queue-scroll" role="region" aria-label="Training queue" tabindex="0">` + table(
             ["Skill", "Level", "Finishes", "Remaining"],
