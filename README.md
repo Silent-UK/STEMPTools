@@ -207,3 +207,7 @@ See [RECRUITMENT.md](RECRUITMENT.md) for applicant signup, reviewer permissions,
 Discord integration and link aliases: see [setup and role behaviour](DISCORD.md).
 
 Custom Pages: see [editing, formatting and access settings](PAGES.md).
+
+## Page healthcheck
+
+See [HEALTHCHECK.md](HEALTHCHECK.md) for the 3 November 2026 page-by-page loading/security review, fixes, verification coverage and remaining public-distribution work.

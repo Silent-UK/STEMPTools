@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createApiClient} from '../public/api-client.mjs';
+test('coalesces concurrent reads but refetches after completion',async()=>{let calls=0,resolve;const api=createApiClient({network:async()=>{calls++;return new Promise(r=>resolve=r)}});const a=api('/characters'),b=api('/characters');assert.equal(calls,1);resolve(Response.json([]));assert.deepEqual(await a,[]);await b;const c=api('/characters');assert.equal(calls,2);resolve(Response.json([]));await c;});
+test('mutation failures are never retried and status codes survive',async()=>{let calls=0;const api=createApiClient({network:async()=>{calls++;return Response.json({error:'Denied'},{status:403})}});await assert.rejects(()=>api('/settings',{},'POST'),e=>e.status===403&&e.message==='Denied');assert.equal(calls,1);});
+test('read and write timeouts end loading with distinct safe guidance',async()=>{const network=async(_url,{signal})=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('aborted'))));const api=createApiClient({network,readTimeout:5,writeTimeout:5});await assert.rejects(()=>api('/characters'),/taking too long to load/);await assert.rejects(()=>api('/settings',{}),/Check whether it completed/);});
+test('invalid JSON is reported instead of becoming successful empty data',async()=>{const api=createApiClient({network:async()=>new Response('<html>proxy error</html>',{status:502})});await assert.rejects(()=>api('/characters'),e=>e.status===502&&/unexpected response/.test(e.message));});

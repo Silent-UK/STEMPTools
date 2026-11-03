@@ -7,7 +7,7 @@ const root=fileURLToPath(new URL('../',import.meta.url)),files=[];
 const extensions=new Set(['.mjs','.js','.ts','.json','.py','.css','.html','.md','.sh','.service','.timer','.conf']);
 function walk(dir){if(!existsSync(dir))return;for(const item of readdirSync(dir,{withFileTypes:true})){const path=join(dir,item.name);if(item.isDirectory()){if(item.name!=='__pycache__')walk(path);}else if(item.isFile()&&(extensions.has(extname(path))||item.name==='LICENSE'))files.push(path);}}
 for(const dir of ['lib','public','scripts','vendor','tests','deploy'])walk(join(root,dir));
-for(const name of ['server.mjs','package.json','package-lock.json','README.md','RECRUITMENT.md','DISCORD.md','PAGES.md','AGENTS.md','FITTING_WORKSPACE_REVIEW.md','PATCH_NOTES.md','LICENSE','.env.example','.gitignore','.gitattributes'])if(existsSync(join(root,name)))files.push(join(root,name));
+for(const name of ['server.mjs','package.json','package-lock.json','README.md','RECRUITMENT.md','DISCORD.md','PAGES.md','AGENTS.md','FITTING_WORKSPACE_REVIEW.md','HEALTHCHECK.md','PATCH_NOTES.md','LICENSE','.env.example','.gitignore','.gitattributes'])if(existsSync(join(root,name)))files.push(join(root,name));
 const locals=[],central=[];let offset=0;
 for(const path of [...new Set(files)].sort()){
  const name=Buffer.from('tools-source/'+relative(root,path).replaceAll('\\','/')),data=Buffer.from(readFileSync(path,'utf8').replace(/\r\n/g,'\n')),compressed=deflateRawSync(data,{level:9}),crc=crc32(data);

@@ -1,3 +1,4 @@
+import {createApiClient} from './api-client.mjs';
 import {pilotAssetSearchUI} from './pilot-asset-search-view.mjs';
 import {sitePagesUI} from './site-pages-view.mjs';
 import {pageNavigation} from './site-pages-model.mjs';
@@ -95,26 +96,7 @@ function toast(message) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (box.style.display = "none"), 6500);
 }
-async function api(path, body, method = "POST") {
-  const r = await fetch("/api" + path, {
-    cache: "no-store",
-    ...(body !== undefined
-      ? {
-          method,
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        }
-      : {}),
-  });
-  let data;
-  try {
-    data = await r.json();
-  } catch {
-    data = { error: "Request failed" };
-  }
-  if (!r.ok) throw Error(data.error || "Request failed");
-  return data;
-}
+const api=createApiClient();
 const tag = (text, style = "") =>
   `<span class="tag ${style}">${esc(text)}</span>`;
 const portrait = (c) =>
@@ -170,7 +152,7 @@ const pilotAssetSearch=pilotAssetSearchUI({api,esc,intro,num,date,toast,refresh:
 const sitePages=sitePagesUI({api,esc,intro,date,toast,context:()=>({me,chars}),refresh:async reload=>{if(reload){me=await api('/me');renderedPage=null;}await render();}});
 const customNavigation=(section,base=[])=>pageNavigation(section,base,me.pages||[]).map(navigationButton).join('');
 const isKnownPage=id=>knownPages.includes(id)||(me?.pages||[]).some(p=>'page-'+p.id===id);
-const knownPages=[...nav.map(n=>n[0]),...corpNav.map(n=>n[0]),"settings","groups","fitting-workbench","fitting-import","admin-groups","admin-links","admin-pages","inspect-mail","inspect-contacts","admin-users","admin-esi","admin-corp","admin-whitelist","recruitment","recruit-application","admin-recruitment","admin-discord","inspect-pilot-check","inspect-pilot-combat"];
+const knownPages=["compare","pi-market",...nav.map(n=>n[0]),...corpNav.map(n=>n[0]),"settings","groups","fitting-workbench","fitting-import","admin-groups","admin-links","admin-pages","inspect-mail","inspect-contacts","admin-users","admin-esi","admin-corp","admin-whitelist","recruitment","recruit-application","admin-recruitment","admin-discord","inspect-pilot-check","inspect-pilot-combat"];
 window.addEventListener("hashchange",()=>{const requested=location.hash.slice(1);if(me&&isKnownPage(requested)){page=requested;render();}});
 function sidebarSection(){
  const custom=(me?.pages||[]).find(p=>'page-'+p.id===page);if(custom)return custom.section;
@@ -225,9 +207,11 @@ async function render() {
   const run = ++renderId;
   if(!samePage) shell();
   const content = document.querySelector("#content");
+  content.setAttribute("aria-busy","true");
   if(!samePage) content.innerHTML = empty("Loading your workspace…");
   try {
-    [chars,siteNotifications]=await Promise.all([api("/characters"),api("/notifications")]);
+    [chars,siteNotifications]=await Promise.all([api("/characters"),api("/notifications").catch(()=>siteNotifications)]);
+    if(run!==renderId)return;
     refreshNotificationMenu();
     snapshotSignature=snapshotKey(chars);
     document.querySelector("[data-action=update-view]")?.setAttribute("hidden","");
@@ -278,9 +262,10 @@ async function render() {
       if(samePage) window.scrollTo({top:scrollY,behavior:"instant"});
     }
   } catch (e) {
+    if(run===renderId&&e.status===401){me=null;login();return;}
     if (run === renderId)
-      content.innerHTML = `<div class="notice error">${esc(e.message)}</div>`;
-  }
+      content.innerHTML = `<div class="notice error" role="alert">${esc(e.message)} <button type="button" data-action="retry-page">Retry</button></div>`;
+  } finally {if(run===renderId)content.setAttribute('aria-busy','false');}
 }
 function subscriptionColorClass(state) {
  return state.days===null?'':`subscription-days-${Math.max(0,Math.min(30,state.days))}`;
@@ -1234,6 +1219,11 @@ async function myCharacters(){
 setInterval(()=>{const target=document.querySelector('#my-character-training');if(page==='characters'&&target&&myCharacterSnapshot?.id===Number(selected)){target.innerHTML=characterTraining(myCharacterSnapshot.data);applyVisualStyles();}},10000);
 
 function applyVisualStyles(){
+ if(me?.inspect){
+  root.querySelectorAll('[data-sync-char],[data-move],[data-unlink],[data-group-char],[data-subscription-char],[data-action="sync"],[data-action="add-character"]').forEach(el=>{el.disabled=true;el.title='Inspect is read-only. Exit Inspect to make changes.';});
+  root.querySelectorAll('a[href^="/auth/login"]').forEach(el=>{el.removeAttribute('href');el.setAttribute('aria-disabled','true');el.title='Exit Inspect before connecting characters.';});
+ }
+
  document.querySelectorAll('[data-eve-color]').forEach(el=>{if(/^#[a-f0-9]{8}$/i.test(el.dataset.eveColor))el.style.color=el.dataset.eveColor;});
  document.querySelectorAll('[data-viz-width]').forEach(el=>el.style.width=Math.max(0,Math.min(100,Number(el.dataset.vizWidth)||0))+'%');
  document.querySelectorAll('[data-viz-gradient]').forEach(el=>el.style.background='conic-gradient('+el.dataset.vizGradient+')');
@@ -1246,7 +1236,7 @@ setInterval(()=>document.querySelectorAll('[data-corp-job-end]').forEach(el=>el.
 
 let compareBase=null,compareIds=[],compareMatches=false,comparePilots=[],compareShowAlts=false;
 async function skillComparison(){
- const base=chars.find(c=>c.id===compareBase);if(!base)return intro('Compare skills','Select a character first.',`<button data-nav="characters">← My Characters</button>`);
+ const base=chars.find(c=>c.id===compareBase)||chars.find(c=>c.id===Number(selected))||chars[0];if(base)compareBase=base.id;if(!base)return intro('Compare skills','Select a character first.',`<button data-nav="characters">← My Characters</button>`);
  compareIds=compareIds.filter(id=>id!==base.id&&chars.some(c=>c.id===id&&(compareShowAlts||c.parent_id===c.id)));
  const chosen=[base,...compareIds.map(id=>chars.find(c=>c.id===id))];
  const results=await Promise.allSettled(chosen.map(c=>api('/characters/'+c.id+'/skills')));
@@ -1290,10 +1280,13 @@ try {
     checkingSnapshots=true;
     try{siteNotifications=await api("/notifications");refreshNotificationMenu();const latest=await api("/characters");if(snapshotKey(latest)!==snapshotSignature)document.querySelector("[data-action=update-view]")?.removeAttribute("hidden");}catch{}finally{checkingSnapshots=false;}
   },30000);
-} catch {
-  login();
+} catch(error) {
+  if(error.status===401)login();
+  else root.innerHTML=`<main class="startup-error"><section class="panel"><h1>Unable to load Tools</h1><p role="alert">${esc(error.message)}</p><button type="button" data-action="reload-app">Try again</button></section></main>`;
 }
 
 setInterval(()=>document.querySelectorAll('[data-eve-clock]').forEach(clock=>{clock.textContent=eveClock();}),1000);
 
 root.addEventListener('submit',async event=>{if(event.target.id!=='users-filters')return;event.preventDefault();usersFilters={...usersFilters,...Object.fromEntries(new FormData(event.target))};await render();});
+
+root.addEventListener('click',event=>{const action=event.target.closest('[data-action]')?.dataset.action;if(action==='retry-page')void render();if(action==='reload-app')location.reload();});

@@ -113,7 +113,7 @@ export function createApp(config) {
           )
           .get(hash(session), Date.now())
       : null;
-    if (req.path.startsWith("/api") || req.path.startsWith("/auth"))
+    if (req.path.toLowerCase().startsWith("/api") || req.path.toLowerCase().startsWith("/auth"))
       res.set("Cache-Control", "no-store");
     next();
   });
@@ -367,6 +367,7 @@ export function createApp(config) {
       }
       if (!req.is("application/json"))
         return res.status(415).json({ error: "Use JSON" });
+      if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))return res.status(400).json({error:'Use a JSON object.'});
     }
     next();
   });
@@ -632,7 +633,8 @@ export function createApp(config) {
       char = Number(req.query.character || 0),
       location = String(req.query.location || "").toLowerCase(),
       offset = Math.max(0, Number(req.query.offset) || 0);
-    const rows = [];
+    const rows = [],types=new Map();
+    const type=id=>{if(!types.has(id))types.set(id,cat.type(id));return types.get(id);};
     const sources = [];
     for (const c of db
       .prepare("SELECT id,name FROM characters WHERE user_id=?")
@@ -647,12 +649,12 @@ export function createApp(config) {
       if (!s) continue;
       const data = JSON.parse(s.data);
       const inventory=data.items.map(item=>({...item,
-        name:cat.type(item.type_id)?.name || String(item.type_id),
+        name:type(item.type_id)?.name || String(item.type_id),
         location:data.locations[item.root_location_id] || String(item.root_location_id),
         location_type_id:data.locationTypes?.[item.root_location_id] || null,
         character:c.name,character_id:c.id,
       }));
-      rows.push(...assetMatches(inventory,q,location));
+      for(const item of assetMatches(inventory,q,location))rows.push(item);
     }
     const grouped = new Map();
     for (const row of rows) {
@@ -663,14 +665,14 @@ export function createApp(config) {
           name: row.location,
           type_id: row.location_type_id,
           type_name: row.location_type_id
-            ? cat.type(row.location_type_id)?.name || null
+            ? type(row.location_type_id)?.name || null
             : null,
           items: [],
         });
       const group = grouped.get(key);
       if (!group.type_id && row.location_type_id) {
         group.type_id = row.location_type_id;
-        group.type_name = cat.type(row.location_type_id)?.name || null;
+        group.type_name = type(row.location_type_id)?.name || null;
       }
       group.items.push(row);
     }
@@ -922,6 +924,7 @@ export function createApp(config) {
   app.get("/api/admin/esi",(req,res)=>res.json({characters:adminCharacters(),buckets:[0,10,20,30,40,50]}));
   app.get("/api/admin/corporations",(req,res)=>res.json(db.prepare("SELECT corporation_id,name,character_id,character_name,verified,role FROM corporation_connections ORDER BY name").all()));
   whitelistRoutes(app,{db,eve,whitelist});
+  app.use('/api',(_req,res)=>res.status(404).json({error:'API endpoint not found.'}));
   app.get('/Recruit',(_req,res)=>res.sendFile(fileURLToPath(new URL('./public/index.html',import.meta.url))));
   app.use(
     express.static(
@@ -948,7 +951,7 @@ export function createApp(config) {
             : "EVE login could not be completed. Please try again.",
         );
     res.status(status).json({
-      error: message.startsWith("SQLITE")
+      error: String(err.code||'').startsWith('SQLITE') || message.startsWith("SQLITE")
         ? "Request could not be saved"
         : message,
     });
