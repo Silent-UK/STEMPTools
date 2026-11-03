@@ -1391,3 +1391,12 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .overview-character-identity .pilot strong{color:var(--purple)}
 
 #page-sync-slot:empty{display:none}.training-visibility-footer{margin:6px 0 4px}.training-overview:has(+.training-visibility-footer){margin-bottom:0}
+
+/* Dense pilot selection is exclusive to My Characters. */
+.my-character-picker .character-picker{grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:7px;margin-bottom:0}
+.my-character-picker .training-card{padding:7px;gap:7px;min-height:58px}
+.my-character-picker .training-card .portrait{width:30px;height:30px;flex:0 0 30px}
+.my-character-picker .training-card strong{white-space:normal;overflow-wrap:anywhere;font-size:12px}
+.my-character-picker .training-visibility{margin:6px 0 10px}
+@media(min-width:1700px){.my-character-picker .character-picker{grid-template-columns:repeat(8,minmax(0,1fr))}}
+@media(min-width:1900px){.my-character-picker .character-picker{grid-template-columns:repeat(9,minmax(0,1fr))}}
