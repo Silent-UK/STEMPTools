@@ -1400,3 +1400,5 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .my-character-picker .training-visibility{margin:6px 0 10px}
 @media(min-width:1700px){.my-character-picker .character-picker{grid-template-columns:repeat(8,minmax(0,1fr))}}
 @media(min-width:1900px){.my-character-picker .character-picker{grid-template-columns:repeat(9,minmax(0,1fr))}}
+
+#training-overview{grid-template-columns:repeat(auto-fit,minmax(min(205px,100%),1fr));gap:7px}#training-overview>.training-card{padding:8px;gap:8px}
