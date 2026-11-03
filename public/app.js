@@ -364,7 +364,7 @@ async function skills() {
   const data = s.data;
   selectedSkillsSnapshot={id:Number(selected),snapshot:s};
   const heading = intro(
-    "Skills & training queue",
+    "Skills & Training Queues",
     "Current skills and EVE’s reported training schedule.",
     `<div class="actions">${selected ? `<button data-sync-char="${selected}">↻ Sync character</button>` : ""}</div>`,
   ) + `<div id="training-overview" class="training-overview">${trainingCards()}</div><div class="training-visibility training-visibility-footer"><button data-action="training-alts" aria-pressed="${showTrainingAlts}">${showTrainingAlts?"Hide alts":"Show alts"}</button></div><small class="training-note">Training follows the saved EVE schedule between syncs. SP totals are from the last snapshot.</small>`;
