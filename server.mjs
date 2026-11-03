@@ -1,3 +1,4 @@
+import {discordService,discordRoutes} from './lib/discord.mjs';
 import {recruitmentService,recruitmentRoutes} from './lib/recruitment.mjs';
 import {recruitAccount,restrictedRecruitPath,recruitInspectPath} from './lib/recruitment-store.mjs';
 import {whitelistRoutes} from './lib/whitelist-routes.mjs';
@@ -56,6 +57,7 @@ export function createApp(config) {
   managementStore(db);
   const recruitment=recruitmentService(db,eve,cat,config);
   const whitelist=whitelistService(db,config.membershipLookup || (async id=>(await eve.request("/characters/"+id)).data),id=>eve.publicGet("/corporations/"+id));
+  const discord=discordService(db,box,config,whitelist);
   const ownerUser=db.prepare("SELECT id FROM users WHERE main_id=?").get(config.owner);
   const legacy=db.prepare("SELECT * FROM corporation_connections WHERE corporation_id=?").get(STEMP_ID);
   if(ownerUser&&legacy)db.prepare("INSERT OR IGNORE INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(ownerUser.id,legacy.character_id,legacy.character_name,legacy.owner_hash,STEMP_ID,legacy.tokens,JSON.stringify(["esi-characters.read_corporation_roles.v1"]),0,legacy.role,0);
@@ -110,6 +112,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
+  app.get(/^\/([A-Za-z][A-Za-z0-9_-]{0,59})$/, (req,res,next)=>{const slug=req.params[0];if(['recruit','health'].includes(slug.toLowerCase()))return next();const link=db.prepare("SELECT url FROM external_links WHERE slug=? COLLATE NOCASE AND slug<>''").get(slug);return link?res.redirect(302,link.url):next();});
   app.post('/api/inspect', (req,res)=>{
     if(!req.session)return res.sendStatus(401);
     if(!recruitment.canReview(req.session))return res.sendStatus(403);
@@ -149,7 +152,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.32.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.33.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -364,8 +367,9 @@ export function createApp(config) {
   });
   fittingImportRoutes(app,{db,eve,cat});
   fittingWorkbenchRoutes(app,{db,eve,cat,simulate:config.fittingSimulator});
+  discordRoutes(app,{discord,config});
   recruitmentRoutes(app,{db,recruitment,config});
-  managementRoutes(app,{db,eve,corp,cat,config,whitelist});
+  managementRoutes(app,{db,eve,corp,cat,config,whitelist,discord});
   materialRoutes(app,{db,cat,corp,grants,admin:req=>isSiteAdmin(req.session,config.owner)});
   app.get("/api/me", async (req,res)=>{const director=req.inspect?.recruitment_only?false:await corp.access(req.session.user_id),pages=req.inspect?.recruitment_only?[]:grants(db,req.session.user_id).filter(p=>Object.hasOwn(CORPORATE_PAGES,p));res.json({recruit:Boolean(req.recruit),recruiter:!req.inspect&&recruitment.canReview(req.session),name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:isSiteAdmin(req.session,config.owner)||director||pages.length>0,corporate_pages:isSiteAdmin(req.session,config.owner)||director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:req.recruit?[]:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
   app.use("/api/corporation",async(req,res,next)=>{
@@ -940,7 +944,7 @@ export function createApp(config) {
         : message,
     });
   });
-  return { app, db, cat, sync, corp, recruitment };
+  return { app, db, cat, sync, corp, recruitment, discord };
 }
 if (
   process.argv[1] &&
@@ -955,10 +959,11 @@ if (
     owner: Number(process.env.OWNER_CHARACTER_ID || 122543287),
     contact: process.env.ESI_CONTACT || "tools.areyouaspy.co.uk",
   };
-  const { app, sync, corp, recruitment } = createApp(config);
+  const { app, sync, corp, recruitment, discord } = createApp(config);
   app.listen(Number(process.env.PORT || 3014), "127.0.0.1", () =>
     console.log("Tools listening on " + (process.env.PORT || 3014)),
   );
+  setInterval(()=>discord.tick().catch(()=>console.error("Discord sync failed")),15000).unref();
   recruitment.schedule();
   setInterval(()=>recruitment.schedule(),3600000).unref();
   setInterval(()=>recruitment.tick().catch(()=>console.error("Recruitment sync failed")),3000).unref();

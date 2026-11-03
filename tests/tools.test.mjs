@@ -1055,7 +1055,7 @@ test("only owner manages admin grants, delegated access updates immediately and 
   const users=await (await request('/api/admin/users',{session:owner.session})).json();
   assert.equal(users.find(u=>u.id===owner.uid).owner,true);assert.equal(users.find(u=>u.id===other.uid).admin,true);
   assert.ok(!JSON.stringify(users).includes('tokens'));assert.ok(!JSON.stringify(users).includes('owner_hash'));
-  assert.equal((await request('/api/inspect',{session:other.session,body:{user_id:owner.uid},method:'POST'})).status,400);
+  assert.equal((await request('/api/inspect',{session:other.session,body:{user_id:owner.uid},method:'POST'})).status,403);
   assert.equal((await request('/api/inspect',{session:other.session,body:{user_id:third.uid},method:'POST'})).status,200);
   assert.equal((await request('/api/admin/users',{session:other.session})).status,403);
   assert.equal((await request('/api/admin/esi/rebalance',{session:other.session,body:{},method:'POST'})).status,403);
@@ -1520,7 +1520,7 @@ test('saved fitting imports are owned, private, idempotent and recover after del
 
 test('new corporation pages require their own grant and assets never grant wallet or pilot access',()=>fixture(async({db,user,request})=>{
  const director=user(1401,'Director'),viewer=user(1402,'Viewer'),other=user(1403,'Other');connectCorpFixture(db,director.uid,1401);
- db.prepare("INSERT INTO access_groups VALUES(1,'Assets','A','','auto','[]','[\"corp-assets\"]')").run();db.prepare("INSERT INTO group_members VALUES(1,?,'approved')").run(viewer.uid);
+ db.prepare("INSERT INTO access_groups(id,name,icon,description,mode,rules,pages) VALUES(1,'Assets','A','','auto','[]','[\"corp-assets\"]')").run();db.prepare("INSERT INTO group_members VALUES(1,?,'approved')").run(viewer.uid);
  assert.equal((await request('/api/corporation/assets',{session:other.session})).status,403);
  const response=await request('/api/corporation/assets',{session:viewer.session});assert.equal(response.status,200);assert.equal((await response.json()).total,1);
  for(const path of ['wallet','pilots'])assert.equal((await request('/api/corporation/'+path,{session:viewer.session})).status,403);
@@ -1672,7 +1672,7 @@ test('owner-confirmed account wipe removes private records and preserves other a
   db.prepare('INSERT INTO user_logins VALUES(?,1)').run(target.uid);db.prepare('INSERT INTO user_activity VALUES(?,1)').run(target.uid);
   db.prepare("INSERT INTO page_preferences VALUES(?,'{}')").run(target.uid);db.prepare("INSERT INTO pi_settings VALUES(?,'{}')").run(target.uid);
   db.prepare('INSERT INTO pi_shares VALUES(?,?,200)').run(target.uid,other.uid);
-  db.prepare("INSERT INTO access_groups VALUES(1,'Group','G','','approval','[]','[]')").run();db.prepare("INSERT INTO group_members VALUES(1,?,'approved')").run(target.uid);
+  db.prepare("INSERT INTO access_groups(id,name,icon,description,mode,rules,pages) VALUES(1,'Group','G','','approval','[]','[]')").run();db.prepare("INSERT INTO group_members VALUES(1,?,'approved')").run(target.uid);
   db.prepare("INSERT INTO fitting_imports VALUES(?,200,1,'target-fit','Saved')").run(target.uid);
   db.prepare("INSERT INTO oauth VALUES('delete-flow','browser',?,NULL,'verifier',9999999999999)").run(target.uid);db.prepare("INSERT INTO oauth_mining VALUES('delete-flow',200)").run();
   db.prepare('INSERT INTO inspections VALUES(?,?)').run(hash(other.session),target.uid);db.prepare('INSERT INTO inspections VALUES(?,?)').run(hash(target.session),other.uid);
@@ -1893,3 +1893,32 @@ test('admins can grant the distinct Recruitment management permission through gr
   assert.equal((await request('/api/groups',{session:token})).status,200);
  },fakeCat,{membershipLookup:async()=>({corporation_id:corporation})});
 });
+
+test('short links normalize domains, reject reserved and duplicate slugs and redirect publicly',()=>fixture(async({user,request})=>{
+ const admin=user(100,'Admin'),member=user(200,'Member');
+ const save=body=>request('/api/admin/links',{session:admin.session,method:'POST',body});
+ assert.equal((await save({name:'Google',url:'google.com',slug:'Google'})).status,200);
+ const response=await request('/Google');assert.equal(response.status,302);assert.equal(response.headers.get('location'),'https://google.com/');
+ assert.equal((await request('/google')).status,302);
+ assert.equal((await save({name:'Duplicate',url:'https://example.com',slug:'GOOGLE'})).status,400);
+ for(const slug of ['api','auth','Recruit','health','bad/path'])assert.equal((await save({name:'Bad',url:'google.com',slug})).status,400);
+ assert.equal((await save({name:'Bad',url:'javascript:alert(1)',slug:'bad'})).status,400);
+ assert.equal((await request('/api/admin/links',{session:member.session,method:'POST',body:{name:'Bad',url:'google.com',slug:'bad'}})).status,403);
+}));
+test('admin accounts cannot be inspected, and promotion ends existing inspections',()=>fixture(async({db,user,request})=>{
+ const owner=user(100,'Owner'),a=user(200,'Admin A'),b=user(300,'Admin B');db.prepare('UPDATE users SET admin=1 WHERE id=?').run(a.uid);
+ assert.equal((await request('/api/inspect',{session:owner.session,method:'POST',body:{user_id:a.uid}})).status,403);
+ assert.equal((await request('/api/inspect',{session:a.session,method:'POST',body:{user_id:b.uid}})).status,200);
+ db.prepare('UPDATE users SET admin=1 WHERE id=?').run(b.uid);
+ const me=await(await request('/api/me',{session:a.session})).json();assert.equal(me.main_id,200);assert.equal(me.inspect,null);
+ assert.equal((await request('/api/inspect',{session:a.session,method:'POST',body:{user_id:b.uid}})).status,403);
+}));
+test('Discord administration is private, setup cannot be hidden before connecting and mappings validate',()=>fixture(async({user,request})=>{
+ const owner=user(100,'Owner'),member=user(200,'Member');
+ assert.equal((await request('/api/admin/discord',{session:member.session})).status,403);
+ assert.equal((await request('/api/admin/discord/hide-guide',{session:owner.session,method:'POST',body:{}})).status,400);
+ assert.equal((await request('/api/discord/connect',{session:member.session,method:'POST',body:{},origin:'https://evil.test'})).status,403);
+ assert.equal((await request('/api/admin/groups',{session:owner.session,method:'POST',body:{name:'Dreads',icon:'◇',description:'',mode:'auto',rules:[],pages:[],discord_role_id:'123456789012345678'}})).status,200);
+ const groups=await(await request('/api/admin/groups',{session:owner.session})).json();assert.equal(groups.groups[0].discord_role_id,'123456789012345678');
+ assert.equal((await request('/api/admin/groups',{session:owner.session,method:'POST',body:{name:'Bad',icon:'◇',mode:'auto',rules:[],pages:[],discord_role_id:'not-a-role'}})).status,400);
+}));
