@@ -146,8 +146,8 @@ nav button {
   gap: 11px;
 }
 nav button.active {
-  background: #282640;
-  color: #c2b9ff;
+  background: var(--theme-active);
+  color: var(--purple);
 }
 nav button span {
   width: 22px;
