@@ -1402,3 +1402,8 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 @media(min-width:1900px){.my-character-picker .character-picker{grid-template-columns:repeat(9,minmax(0,1fr))}}
 
 #training-overview{grid-template-columns:repeat(auto-fit,minmax(min(205px,100%),1fr));gap:7px}#training-overview>.training-card{padding:8px;gap:8px}
+
+.character-picker.mining-picker{grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:7px}
+.character-picker.asset-pilot-picker{grid-template-columns:repeat(auto-fit,minmax(min(205px,100%),1fr));gap:7px}
+.character-picker.mining-picker .training-card,.character-picker.asset-pilot-picker .training-card{padding:7px;gap:7px}
+.character-picker.mining-picker .portrait,.character-picker.asset-pilot-picker .portrait{width:30px;height:30px;flex:0 0 30px}

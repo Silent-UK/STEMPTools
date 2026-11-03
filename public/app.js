@@ -649,7 +649,7 @@ async function assets() {
   const qs = new URLSearchParams({ ...assetFilters, offset: assetOffset });
   const data = await api("/assets?" + qs);
   return (
-    intro("Asset Search", "Search the selected character, or tick Search All to include every main and alt.") + altFilter() + characterTiles(visible,c=>c.snapshots.some(s=>s.kind==="assets")?"Assets synced":"Awaiting sync") +
+    intro("Asset Search", "Search the selected character, or tick Search All to include every main and alt.") + altFilter() + characterTiles(visible,c=>c.snapshots.some(s=>s.kind==="assets")?"Assets synced":"Awaiting sync").replace('character-picker','character-picker asset-pilot-picker') +
     `<form id="asset-search" class="toolbar"><label class="asset-search-all"><input type="checkbox" name="all" ${assetSearchAll?'checked':''}> Search All</label><input name="q" aria-label="Item name" placeholder="Search item name…" value="${esc(assetFilters.q)}"><input type="hidden" name="character" value="${Number(selected)||''}"><input name="location" aria-label="Location" placeholder="Filter location…" value="${esc(assetFilters.location)}"><button class="primary">Search</button></form><section class="panel"><div class="panelhead"><h2>${num(data.total)} matching stacks</h2><small>${data.locationCount ? assetOffset + 1 : 0}–${Math.min(assetOffset + 20, data.locationCount)} of ${num(data.locationCount)} locations</small></div>${
       data.locations.length
         ? data.locations
