@@ -19,7 +19,8 @@ import {fittingWorkbenchUI} from './fitting-workbench.mjs';
 import {expansionUI} from './expansion-view.mjs';
 import {managementUI} from './management-view.mjs';
 import {contractsView} from './contracts-view.mjs';
-import {walletView} from './wallet-view.mjs';
+import {personalWalletView} from './personal-wallet-view.mjs';
+import {walletPreferences,validateWalletFilters,walletAnalysis,walletCSV} from './personal-wallet-model.mjs';
 import {loyaltyView} from './loyalty-view.mjs';
 import {featureUI,materialPlanner,fatigueView} from './feature-view.mjs';
 import {comparisonTable} from './skill-compare.mjs';
@@ -802,7 +803,7 @@ root.addEventListener("click", async (e) => {
     } else if (b.dataset.piFilter) {
       const key=b.dataset.piFilter;piStatusFilters.has(key)?piStatusFilters.delete(key):piStatusFilters.add(key);applyPIStatusFilters();
     } else if (b.dataset.action === "page-alts" && Object.hasOwn(pageAlts,page)) {
-      pageAlts[page]=!pageAlts[page];assetOffset=0;await render();
+      pageAlts[page]=!pageAlts[page];if(page==='wallet')saveWalletView();assetOffset=0;await render();
     } else if(b.dataset.action==='pi-shared') {
       myPilotFocus=null;piShared=!piShared;await render();
     } else if(b.dataset.piEditShare) {
@@ -976,7 +977,7 @@ root.addEventListener("input", (e) => {
 });
 root.addEventListener("submit", async (e) => {
   if(e.target.id==='contracts-filter'){e.preventDefault();contractsFilters=Object.fromEntries(new FormData(e.target));contractsOffset=0;await render();return;}
-  if(e.target.id==='wallet-filter'){e.preventDefault();const f=new FormData(e.target);const next=Object.fromEntries(f);if(next.mode!==walletFilters.mode)next.type='';walletFilters=next;walletOffset=0;await render();return;}
+  if(e.target.id==='wallet-filter'){e.preventDefault();try{const form=new FormData(e.target),next={...walletFilters,...Object.fromEntries(form)},changed=next.mode!==walletFilters.mode;if(changed)next.type='';next.exclude_own=!changed&&next.mode==='journal'?form.has('exclude_own'):walletFilters.exclude_own;next.personal_only=!changed&&next.mode==='transactions'?form.has('personal_only'):walletFilters.personal_only;validateWalletFilters(next);walletFilters=walletPreferences(next);walletOffset=0;saveWalletView();await render();}catch(error){toast(error.message);}return;}
   if(e.target.id==='skill-compare-form'){e.preventDefault();const f=new FormData(e.target);compareIds=f.getAll('pilot').map(Number);await render();return;}
   if(e.target.id==='mining-filter'){e.preventDefault();const f=new FormData(e.target);miningFilters={days:String(f.get('days')),metric:String(f.get('metric')),q:String(f.get('q')||'')};miningOffset=0;await render();return;}
   if(e.target.id==='whitelist-add'){e.preventDefault();const f=new FormData(e.target);try{await api('/admin/whitelist',{kind:f.get('kind'),entity_id:Number(f.get('entity_id'))});await render();}catch(error){toast(error.message);}return;}
@@ -1232,6 +1233,7 @@ function applyVisualStyles(){
  }
 
  document.querySelectorAll('[data-eve-color]').forEach(el=>{if(/^#[a-f0-9]{8}$/i.test(el.dataset.eveColor))el.style.color=el.dataset.eveColor;});
+ document.querySelectorAll('[data-wallet-height]').forEach(el=>el.style.height=Math.max(0,Math.min(100,Number(el.dataset.walletHeight)||0))+'%');
  document.querySelectorAll('[data-viz-width]').forEach(el=>el.style.width=Math.max(0,Math.min(100,Number(el.dataset.vizWidth)||0))+'%');
  document.querySelectorAll('[data-viz-gradient]').forEach(el=>el.style.background='conic-gradient('+el.dataset.vizGradient+')');
  document.querySelectorAll('[data-asset-indent]').forEach(el=>el.style.paddingLeft=Math.max(0,Math.min(192,Number(el.dataset.assetIndent)||0))+'px');
@@ -1256,15 +1258,29 @@ root.addEventListener('change',async e=>{if(['compare-show-alts','compare-base']
 
 root.addEventListener('change',async e=>{if(e.target.id==='document-tag-filter'){documentFilters[e.target.dataset.kind]=e.target.value;await render();}});
 
-let walletLP=false;
-let walletPilot='',walletOffset=0,walletFilters={mode:'journal',days:'30',direction:'',q:''};
+let walletLP=false,walletPilot='',walletOffset=0,walletFilters=walletPreferences(),walletScope='',walletLedgerPilots=[];
+function saveWalletView(){try{localStorage.setItem(walletScope,JSON.stringify({...walletFilters,pilot:walletPilot,lp:walletLP,alts:pageAlts.wallet}));}catch{}}
+function loadWalletView(){const scope='tools-wallet:'+me.main_id+':'+(me.inspect?.name||'self');if(scope===walletScope)return;walletScope=scope;try{walletFilters=walletPreferences(JSON.parse(localStorage.getItem(scope)||'{}'));validateWalletFilters(walletFilters);}catch{walletFilters=walletPreferences();}walletLP=walletFilters.lp;walletPilot=walletFilters.pilot;pageAlts.wallet=walletFilters.alts;}
 async function walletPage(){
- const rows=await api(walletLP?'/operations/loyalty':'/operations/wallet-history'),visible=visibleCharacters(chars);
- if(walletPilot&&!visible.some(c=>String(c.id)===walletPilot))walletPilot='';
- const pilots=walletPilot?rows.filter(c=>String(c.id)===walletPilot):rows,balanceChars=walletPilot?chars.filter(c=>String(c.id)===walletPilot):chars,known=balanceChars.filter(c=>c.isk!=null);
- return intro('Wallet',walletLP?'Loyalty point balances by pilot and corporation.':'Balances, wallet journal and market transactions for your characters.',`<label class="unassigned-toggle"><input id="wallet-lp-toggle" type="checkbox" role="switch" ${walletLP?'checked':''}> LP Wallet</label><button data-action="sync">↻ Sync wallets</button>`)+`<section class="panel wallet-summary"><div ${walletLP?'hidden':''}><small>${walletPilot?'Pilot balance':'Combined balance · all mains and alts'}</small><strong>${known.length?known.reduce((n,c)=>n+c.isk,0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})+' ISK':'Unavailable'}</strong>${known.length!==balanceChars.length?'<small>Some balances are unavailable; known subtotal shown.</small>':''}</div><label>Pilot<select id="wallet-pilot"><option value="">All characters · including alts</option>${visible.map(c=>`<option value="${c.id}" ${String(c.id)===walletPilot?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>${altFilter()}</section><details><summary>${walletLP?'LP':'Wallet'} sync status</summary><div class="wallet-status">${pilots.map(c=>`<small><strong>${esc(c.name)}</strong> · ${c.updated?date(c.updated):(walletLP?'Awaiting LP sync · reconnect for LP access':'Awaiting first wallet history sync')}${c.error?' · '+esc(c.error):''}</small>`).join('')}</div></details>`+(walletLP?loyaltyView(pilots):walletView(pilots,walletFilters,walletOffset));
+ loadWalletView();if(walletPilot&&!chars.some(c=>String(c.id)===walletPilot))walletPilot='';
+ const lp=walletLP,pilotId=walletPilot;
+ const rows=lp?await api('/operations/loyalty'):pilotId?[{id:Number(pilotId),name:chars.find(c=>String(c.id)===pilotId)?.name,...await api('/characters/'+pilotId+'/wallet-history')}]:await api('/operations/wallet-history');
+ if(page!=='wallet'||lp!==walletLP||pilotId!==walletPilot)return '';
+ const visible=visibleCharacters(chars);if(pilotId&&!visible.some(c=>String(c.id)===pilotId))visible.push(chars.find(c=>String(c.id)===pilotId));
+ const pilots=pilotId?rows.filter(c=>String(c.id)===pilotId):rows,balanceChars=pilotId?chars.filter(c=>String(c.id)===pilotId):chars;
+ walletLedgerPilots=pilots;saveWalletView();
+ return intro('Wallet',lp?'Loyalty point balances by pilot and corporation.':'Balances and recorded ISK movements for your linked characters.',`<label class="unassigned-toggle"><input id="wallet-lp-toggle" type="checkbox" role="switch" ${lp?'checked':''}> LP Wallet</label><button data-action="sync">↻ Sync wallets</button>`)+`<section class="panel compact wallet-summary"><strong class="wallet-selection-label">${pilotId?esc(chars.find(c=>String(c.id)===pilotId)?.name):'All linked characters'}</strong><label>Pilot<select id="wallet-pilot"><option value="">All characters · including alts</option>${visible.map(c=>`<option value="${c.id}" ${String(c.id)===pilotId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>${altFilter()}</section>`+(lp?loyaltyView(pilots):personalWalletView(pilots,chars,walletFilters,walletOffset,balanceChars));
 }
-root.addEventListener('change',async e=>{if(e.target.id==='wallet-lp-toggle'){walletLP=e.target.checked;walletOffset=0;await render();return;}if(e.target.id==='wallet-pilot'){walletPilot=e.target.value;walletOffset=0;await render();}});
+root.addEventListener('change',async event=>{
+ if(event.target.id==='wallet-lp-toggle'){walletLP=event.target.checked;walletOffset=0;saveWalletView();await render();return;}
+ if(event.target.id==='wallet-pilot'){walletPilot=event.target.value;walletOffset=0;saveWalletView();await render();return;}
+ if(event.target.form?.id==='wallet-filter'&&event.target.name==='days'){const custom=event.target.value==='custom';event.target.form.querySelectorAll('[data-wallet-custom]').forEach(label=>{label.hidden=!custom;label.querySelector('input').disabled=!custom;label.querySelector('input').required=custom;});}
+});
+root.addEventListener('click',async event=>{
+ const action=event.target.closest('[data-wallet-action]')?.dataset.walletAction;if(!action||page!=='wallet')return;
+ if(action==='clear'){walletFilters=walletPreferences({mode:walletFilters.mode});walletOffset=0;saveWalletView();await render();}
+ if(action==='export'){if(document.querySelector('#content')?.getAttribute('aria-busy')==='true')return;const rows=walletAnalysis(walletLedgerPilots,chars,walletFilters).rows,url=URL.createObjectURL(new Blob([walletCSV(rows,walletFilters)],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='tools-wallet-'+(walletPilot||'all')+'-'+walletFilters.mode+'.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+});
 
 let contractsPilot='',contractsOffset=0,contractsFilters={type:'',status:'',q:''};
 async function contractsPage(){

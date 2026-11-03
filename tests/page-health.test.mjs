@@ -8,7 +8,7 @@ import * as corporation from '../lib/corp.mjs';
 import {openStore} from '../lib/store.mjs';
 import {hash,cryptoBox} from '../lib/security.mjs';
 const base='http://127.0.0.1',key='ab'.repeat(32);
-const personal=['/me','/characters','/skills/overview','/characters/100/skills','/characters/100/dashboard','/operations/clones','/operations/wallet-history','/operations/contracts','/operations/standings','/ratting','/operations/market','/operations/mining','/operations/industry','/operations/dens','/operations/pi','/assets','/documents','/groups','/settings','/notifications','/pi/dashboard','/pi/shares','/pi/shared','/material-planner/personal','/recruit/application','/discord'];
+const personal=['/me','/characters','/skills/overview','/characters/100/skills','/characters/100/dashboard','/characters/100/wallet-history','/operations/clones','/operations/wallet-history','/operations/contracts','/operations/standings','/ratting','/operations/market','/operations/mining','/operations/industry','/operations/dens','/operations/pi','/assets','/documents','/groups','/settings','/notifications','/pi/dashboard','/pi/shares','/pi/shared','/material-planner/personal','/recruit/application','/discord'];
 const corporate=['overview','members','pilots','wallet','contracts','assets','pilot-assets','standings','market','industry','blueprints','structures','harvest','surveys','surveys/browser'].map(s=>'/corporation/'+s);
 const admin=['users','groups','links','pages','esi','corporations','whitelist','recruitment','discord','affiliations','group-conditions'].map(s=>'/admin/'+s);
 async function fixture(fn){
@@ -27,8 +27,8 @@ test('ordinary member cannot enter any admin, corporate or inspect page API',()=
  for(const path of [...corporate,...admin,'/recruitment','/inspect/mail?character=100','/inspect/contacts?character=100','/inspect/pilot-check','/inspect/pilot-combat','/material-planner/corporation'])assert.equal((await request(path,{actor:200})).status,403,path);
 }));
 test('empty personal pages load without exposing credentials or other accounts',()=>fixture(async({request})=>{
- for(const path of personal.filter(p=>!['/characters/100/skills','/characters/100/dashboard'].includes(p))){const r=await request(path,{actor:200});assert.equal(r.status,200,path);assert.match(r.headers.get('cache-control'),/no-store/);const text=await r.text();assert.ok(!text.includes('private-test-token'),path);if(path!=='/pi/shares')assert.ok(!text.includes('Pilot 100'),path); /* Sharing lists registered recipient names, never their private snapshots. */}
- for(const path of ['/characters/100/skills','/characters/100/dashboard','/characters/100/saved-fittings'])assert.equal((await request(path,{actor:200})).status,404,path);
+ for(const path of personal.filter(p=>!['/characters/100/skills','/characters/100/dashboard','/characters/100/wallet-history'].includes(p))){const r=await request(path,{actor:200});assert.equal(r.status,200,path);assert.match(r.headers.get('cache-control'),/no-store/);const text=await r.text();assert.ok(!text.includes('private-test-token'),path);if(path!=='/pi/shares')assert.ok(!text.includes('Pilot 100'),path); /* Sharing lists registered recipient names, never their private snapshots. */}
+ for(const path of ['/characters/100/skills','/characters/100/dashboard','/characters/100/wallet-history','/characters/100/saved-fittings'])assert.equal((await request(path,{actor:200})).status,404,path);
 }));
 test('CSRF, malformed writes and unknown API paths fail safely',()=>fixture(async({request})=>{
  for(const path of ['/settings','/sync','/notifications/dismiss','/groups/1/apply'])assert.equal((await request(path,{actor:200,method:'POST',body:{},origin:'https://foreign.example'})).status,403,path);
@@ -64,4 +64,11 @@ test('dashboard resolves a roles-only alliance ID using the cached public allian
  db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(200,'roles',JSON.stringify({corporation_id:77,corporation_name:'Example Corp',alliance_id:99003581}),Date.now(),Date.now()+10000);
  db.prepare('INSERT INTO public_cache VALUES(?,?,?)').run('/alliances/99003581',JSON.stringify({name:'Fraternity.'}),Date.now()+10000);
  const result=await (await request('/characters/200/dashboard',{actor:200})).json();assert.equal(result.identity.alliance,'Fraternity.');assert.equal(result.identity.alliance_id,99003581);
+}));
+
+test('selected wallet history enforces ownership and retains saved records after a sync error',()=>fixture(async({db,request})=>{
+ db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(200,'wallet-history',JSON.stringify({journal:[{id:1,date:'2026-11-03T00:00:00Z',amount:10}],transactions:[]}),Date.now(),Date.now()+10000);
+ db.prepare('INSERT INTO sync_errors VALUES(?,?,?)').run(200,'wallet-history','Temporary failure');
+ const response=await request('/characters/200/wallet-history',{actor:200});assert.equal(response.status,200);const body=await response.json();assert.equal(body.data.journal.length,1);assert.equal(body.error,'Temporary failure');
+ assert.equal((await request('/characters/200/wallet-history',{actor:100})).status,404);
 }));
