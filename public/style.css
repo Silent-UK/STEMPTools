@@ -1378,3 +1378,5 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 #content [data-pi-character][data-pi-shade="1"]{--pi-surface:color-mix(in srgb,var(--theme-panel) 94%,white 6%)}
 #content [data-pi-character] .planetgrid>.planet,
 #content [data-pi-character] .production:nth-child(even){background-color:var(--pi-surface)}
+
+.training-detail>.unallocated-sp{padding:12px 14px;margin-bottom:10px;font-size:16px;line-height:1.4}.unallocated-sp>strong{display:block}.unallocated-sp>strong>span{margin-left:4px;font-variant-numeric:tabular-nums}

@@ -332,13 +332,13 @@ setInterval(()=>{
  selectedTrainingKey=key;
  // Only replace the training panel at a queue boundary, leaving the page and open skills alone.
  const s=selectedSkillsSnapshot?.id===Number(selected)?selectedSkillsSnapshot.snapshot:null;
- if(s?.data){const template=document.createElement("template");template.innerHTML=trainingPanel(s);const old=document.querySelector(".current-training");if(old){const y=window.scrollY,queueScroll=old.querySelector(".training-queue-scroll")?.scrollTop||0;old.replaceWith(template.content.firstElementChild);const queue=document.querySelector(".training-queue-scroll");if(queue)queue.scrollTop=queueScroll;window.scrollTo({top:y,behavior:"instant"});}}
+ if(s?.data){const template=document.createElement("template");template.innerHTML=trainingPanel(s);const old=document.querySelector(".training-detail");if(old){const y=window.scrollY,queueScroll=old.querySelector(".training-queue-scroll")?.scrollTop||0;old.replaceWith(template.content.firstElementChild);const queue=document.querySelector(".training-queue-scroll");if(queue)queue.scrollTop=queueScroll;window.scrollTo({top:y,behavior:"instant"});}}
 
  }
 },10000);
 function trainingPanel(s) {
  const data=s.data;const {current,waiting}=splitQueue(data.queue);
- return `<section class="panel compact current-training"><div class="production"><strong>Unallocated SP</strong><strong>${data.skills.unallocated_sp==null?"—":num(data.skills.unallocated_sp)}</strong></div><div class="panelhead"><h2>Currently training</h2><small>${num(data.skills.total_sp)} SP · Snapshot ${date(s.updated)}</small></div>${current ? `<div class="production"><strong>${esc(current.name)} · Level ${current.finished_level}</strong><span><span data-training-until="${esc(current.finish_date)}">${eta(current.finish_date)}</span> remaining · ${date(current.finish_date)}</span></div>` : "<small>No active training reported</small>"}<div class="panelhead"><h3>Training queue · ${waiting.length}</h3><small data-training-queued>${queuedDuration(data.queue)}</small></div>${
+ return `<div class="training-detail"><section class="panel compact unallocated-sp"><strong>Unallocated SP: <span>${data.skills.unallocated_sp==null?"—":num(data.skills.unallocated_sp)}</span></strong></section><section class="panel compact current-training"><div class="panelhead"><h2>Currently training</h2><small>${num(data.skills.total_sp)} SP · Snapshot ${date(s.updated)}</small></div>${current ? `<div class="production"><strong>${esc(current.name)} · Level ${current.finished_level}</strong><span><span data-training-until="${esc(current.finish_date)}">${eta(current.finish_date)}</span> remaining · ${date(current.finish_date)}</span></div>` : "<small>No active training reported</small>"}<div class="panelhead"><h3>Training queue · ${waiting.length}</h3><small data-training-queued>${queuedDuration(data.queue)}</small></div>${
       waiting.length
         ? `<div class="training-queue-scroll" role="region" aria-label="Training queue" tabindex="0">` + table(
             ["Skill", "Level", "Finishes", "Remaining"],
@@ -348,7 +348,7 @@ function trainingPanel(s) {
             ),
           ) + "</div>"
         : "<small>No further skills queued</small>"
-    }</section>`;
+    }</section></div>`;
 }
 async function skills() {
   trainingOverview = await api("/skills/overview");
