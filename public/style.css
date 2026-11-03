@@ -1345,3 +1345,14 @@ input.slide-toggle{min-width:34px;max-width:34px}#feature-filter label:has(input
 .overview-character-row .actions{display:flex;flex-wrap:wrap;gap:6px}
 .overview-character-row .actions button,.overview-character-row .actions .button{flex:0 0 auto;white-space:nowrap}
 .overview-character-row .actions button[data-move]{width:28px;min-width:28px;max-width:28px;flex:0 0 28px;padding:5px 0;justify-content:center}
+
+/* Subtle alternating surfaces, retaining selection, hover and status colours. */
+.training-card:nth-child(even):not([aria-pressed="true"]):not(:hover),
+.cards>.card:nth-child(even),.planetgrid>.planet:nth-child(even),
+.overview-character-group:nth-child(even)>.overview-character-row,
+.overview-character-list>.overview-character-row:nth-child(even),
+.production:nth-child(even),
+tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-danger){
+ background-color:rgba(255,255,255,.035);
+ background-color:color-mix(in srgb,var(--theme-panel) 94%,white 6%);
+}
