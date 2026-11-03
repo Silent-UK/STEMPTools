@@ -1642,7 +1642,9 @@ test('all members can see links and sidebar font size is validated and account-p
   for(const value of ['tiny',null,18])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{font_size:value}})).status,400);
   for(const value of ['normal','small','large','extra-large'])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{font_size:value}})).status,200);
   assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{'admin-links':false}})).status,200);
+  assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{overview_guide_dismissed:true}})).status,200);
   const savedSettings=await(await request('/api/me',{session:a.session})).json();
+  assert.equal(savedSettings.preferences.overview_guide_dismissed,true);
   assert.equal(savedSettings.preferences.font_size,'extra-large');
   assert.equal(savedSettings.preferences['admin-links'],false);
   assert.equal((await(await request('/api/me',{session:b.session})).json()).preferences.font_size,undefined);

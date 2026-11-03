@@ -1,3 +1,4 @@
+import {overviewPreferences,overviewRefresh,overviewIssues,overviewMatches,overviewTotals,overviewGroups,OVERVIEW_FILTERS,OVERVIEW_SORTS} from './overview-model.mjs';
 import {adminNav,FONT_SIZES} from './settings-options.mjs';
 import {createApiClient} from './api-client.mjs';
 import {pilotAssetSearchUI} from './pilot-asset-search-view.mjs';
@@ -277,29 +278,37 @@ function subscriptionCell(c) {
  const state=subscriptionStatus(owner.subscription_end);
  return `<div class="subscription-cell" ${inherited?`data-subscription-inherits="${owner.id}"`:""}><strong class="subscription-status ${subscriptionColorClass(state)}">${state.label}</strong><input type="date" ${inherited?'disabled':`data-subscription-char="${c.id}"`} value="${esc(owner.subscription_end||'')}" aria-label="Subscription expiry for ${esc(c.name)}" title="Manually recorded expiry date · EVE / UTC">${inherited?`<small>From ${esc(owner.name)}</small>`:""}<small class="subscription-save" role="status"></small></div>`;
 }
-let overviewExpanded=false;
-try {overviewExpanded=localStorage.getItem('stemp-overview-expanded')==='true';}catch{}
+let overviewExpanded=false,overviewPrefs=overviewPreferences(),overviewScope='';
+const overviewOpenGroups=new Set();
+function loadOverviewView(){
+ const scope='tools-overview:'+me.main_id+':'+(me.inspect?.name||'self');
+ if(overviewScope===scope)return;
+ overviewScope=scope;
+ try{overviewPrefs=overviewPreferences(JSON.parse(localStorage.getItem(scope)||'{}'));}catch{overviewPrefs=overviewPreferences();}
+ overviewExpanded=overviewPrefs.expanded;overviewOpenGroups.clear();overviewPrefs.groups.forEach(id=>overviewOpenGroups.add(id));
+}
+function saveOverviewView(){overviewPrefs.expanded=overviewExpanded;overviewPrefs.groups=[...overviewOpenGroups];try{localStorage.setItem(overviewScope,JSON.stringify(overviewPrefs));}catch{}}
+function overviewIsOpen(id){return overviewExpanded||overviewOpenGroups.has(id)||!!overviewPrefs.q.trim()||overviewPrefs.filter!=='all';}
 function overviewPortrait(c,alts=[]) {
- const toggle=!overviewExpanded&&alts.length?` <span class="muted">—</span> <button class="overview-alt-toggle" data-overview-alts="${c.id}" aria-expanded="${expandedAltGroups.has(c.id)}" aria-controls="overview-alts-${c.id}">Alts (${alts.length}) ${expandedAltGroups.has(c.id)?'▾':'▸'}</button>`:'';
+ const toggle=!overviewExpanded&&alts.length?` <button class="overview-alt-toggle" data-overview-alts="${c.id}" aria-expanded="${overviewIsOpen(c.id)}" aria-controls="overview-alts-${c.id}">Alts (${alts.length}) ${overviewIsOpen(c.id)?'▾':'▸'}</button>`:'';
  return portrait(c).replace('</strong>','</strong>'+toggle);
 }
 function stripeOverviewRows(){let index=0;document.querySelectorAll(".overview-character-list .overview-character-row:not(.overview-character-head)").forEach(row=>{if(!row.closest("[hidden]"))row.dataset.overviewShade=String(index++%2);});}
 function overviewCharacters() {
  let visibleRowIndex=0;
- const renderCharacter=(c,alts=[],visible=true)=>`<div class="overview-character-row" data-overview-shade="${visible?visibleRowIndex++%2:0}"><div class="overview-character-identity">${groupControl(c)}${overviewPortrait(c,alts)}</div><div class="numeric">${num(c.total_sp)}</div><div class="numeric">${c.isk==null?"—":c.isk.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>${subscriptionCell(c)}<div>${c.reconnect ? tag("Reconnect required", "warn") : c.job ? tag(c.job, "purple") : c.errors.length ? tag("Refresh issue", "warn") : tag(c.snapshots.length ? "Connected" : "Awaiting first sync", "dim")}${c.errors.map((e) => `<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join("")}</div><div>${date(c.snapshots.length ? Math.min(...c.snapshots.map((s) => s.updated)) : null)}</div><div><div class="actions"><button data-sync-char="${c.id}">↻ Sync</button>${c.main ? "" : `<button data-move="${c.id}" data-direction="-1" aria-label="Move ${esc(c.name)} up" ${!canMoveCharacter(c,-1) ? "disabled" : ""}>↑</button><button data-move="${c.id}" data-direction="1" aria-label="Move ${esc(c.name)} down" ${!canMoveCharacter(c,1) ? "disabled" : ""}>↓</button>`}<a class="button" href="/auth/login?link=1">Reconnect</a>${c.main ? "" : `<button class="danger" data-unlink="${c.id}">Unlink</button>`}</div></div></div>`;
- return `<div class="overview-character-scroll"><div class="overview-character-list"><div class="overview-character-row overview-character-head"><span>Character</span><span>Skillpoints</span><span>ISK</span><span>Subscription</span><span>Data status</span><span>Last refreshed</span><span>Actions</span></div>${characterGroups(chars).map(g=>`<div class="overview-character-group">${g.main?renderCharacter(g.main,g.alts):''}${g.alts.length?`<div id="overview-alts-${g.id}" class="overview-alt-rows" ${overviewExpanded||expandedAltGroups.has(g.id)?'':'hidden'}>${g.alts.map(c=>renderCharacter(c,[],overviewExpanded||expandedAltGroups.has(g.id))).join('')}</div>`:''}</div>`).join('')}</div></div>`;
+ const groups=overviewGroups(characterGroups(chars),chars,overviewPrefs),searching=!!overviewPrefs.q.trim()||overviewPrefs.filter!=='all';
+ const renderCharacter=(c,alts=[],visible=true)=>{
+ const grouped=alts.length&&overviewPrefs.totals&&!overviewIsOpen(c.id),members=[c,...alts],sp=overviewTotals(grouped?members:[c],'total_sp'),isk=overviewTotals(grouped?members:[c],'isk'),refresh=overviewRefresh(c),issues=overviewIssues(c,chars);
+ return `<div id="overview-character-${c.id}" class="overview-character-row" tabindex="-1" data-overview-shade="${visible?visibleRowIndex++%2:0}"><div class="overview-character-identity">${groupControl(c)}${overviewPortrait(c,alts)}${searching&&!overviewMatches(c,chars,overviewPrefs)?'<small class="overview-context">Group context</small>':''}</div><div class="numeric">${num(sp.value)}${grouped?`<small>Group total · ${members.length} chars${sp.partial?' · partial':''}</small>`:''}</div><div class="numeric">${isk.value==null?'—':isk.value.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}${grouped?`<small>Group total${isk.partial?' · partial':''}</small>`:''}</div>${subscriptionCell(c)}<div>${issues.some(i=>i.kind==='reconnect')?tag('Reconnect required','warn'):c.job?tag(c.job,'purple'):c.errors.length?tag(refresh.temporary?'Temporary ESI issue':'Refresh issue','warn'):tag(c.snapshots.length?'Connected':'Awaiting first sync','dim')}${c.errors.length?`<details><summary>Refresh details (${c.errors.length})</summary>${c.errors.map(e=>`<small>${esc(e.kind)}: ${esc(e.message)}</small>`).join('')}<small>Saved data is retained.</small></details>`:''}</div><div><small>Latest success</small>${date(refresh.latest)}${refresh.older?`<small class="overview-stale">Some data is due for refresh</small>`:''}${refresh.oldest&&refresh.oldest!==refresh.latest?`<details><summary>Data age</summary><small>Oldest saved data: ${date(refresh.oldest)}</small></details>`:''}</div><div><div class="actions"><button data-sync-char="${c.id}">↻ Sync</button>${issues.some(i=>i.kind==='reconnect')?'<a class="button" href="/auth/login?link=1">Reconnect</a>':''}<details class="overview-actions"><summary aria-label="More actions for ${esc(c.name)}">•••</summary><div>${issues.some(i=>i.kind==='reconnect')?'':'<a class="button" href="/auth/login?link=1">Reconnect</a>'}${c.main?'':`<button data-move="${c.id}" data-direction="-1" ${!canMoveCharacter(c,-1)?'disabled':''}>↑ Move up</button><button data-move="${c.id}" data-direction="1" ${!canMoveCharacter(c,1)?'disabled':''}>↓ Move down</button><button class="danger" data-unlink="${c.id}">Unlink</button>`}</div></details></div></div></div>`;
+ };
+ return `<small id="overview-result-count" role="status">${groups.length} of ${characterGroups(chars).length} groups shown${searching?' · matching groups expanded; related characters kept together':''}</small><div class="overview-character-scroll"><div class="overview-character-list"><div class="overview-character-row overview-character-head"><span>Character</span><span>Skillpoints</span><span>ISK</span><span>Subscription</span><span>Data status</span><span>Last successful refresh</span><span>Actions</span></div>${groups.map(g=>`<div class="overview-character-group">${g.main?renderCharacter(g.main,g.alts):''}${g.alts.length?`<div id="overview-alts-${g.id}" class="overview-alt-rows" ${overviewIsOpen(g.id)?'':'hidden'}>${g.alts.map(c=>renderCharacter(c,[],overviewIsOpen(g.id))).join('')}</div>`:''}</div>`).join('')}</div></div>${groups.length?'':empty('No characters match','Try another name or clear the filters.')}`;
 }
+function updateOverviewList(){const target=document.querySelector('#overview-list');if(target){target.innerHTML=overviewCharacters();applyVisualStyles();}}
 function overview() {
-  const synced = chars.filter((c) => ['skills','dens','pi','assets','industry','clones','wallet','wallet-history'].every(kind=>c.snapshots.some(s=>s.kind===kind))).length,
-    working = chars.filter((c) => c.job).length,
-    issues = chars.filter((c) => c.reconnect || c.errors.length).length;
-  return (
-    ` ${me.recruit?`<section class="notice"><strong>Recruit Overview</strong><p>Use Add character to connect another Main, or choose Alt and its main. You can adjust these links below. Your account, pilots and links carry over when normal corporation membership access is confirmed.</p><button data-nav="recruit-application">View Application</button></section>`:''}${chars.some(c=>c.missing_scopes?.length)?`<section class="notice scope-notice"><strong>Additional Scopes have been added to the site for ESI, please reconnect your accounts to get access to these features.</strong><details><summary>${chars.filter(c=>c.missing_scopes?.length).length} Pilot(s) Need Reconnection</summary>${chars.filter(c=>c.missing_scopes?.length).map(c=>`<div class="production"><span>${esc(c.name)} · ${c.missing_scopes.length} missing scope(s)</span><a href="/auth/login?link=1">Reconnect</a></div>`).join('')}</details></section>`:''}<div class="cards overview-totals"><div class="card"><div class="label">Total Skillpoints</div><div class="stat">${num(chars.some(c=>c.total_sp!==null)?chars.reduce((n,c)=>n+(c.total_sp||0),0):null)}</div></div><div class="card"><div class="label">Total ISK</div><div class="stat">${num(chars.some(c=>c.isk!==null)?chars.reduce((n,c)=>n+(c.isk||0),0):null)}</div></div></div><section class="panel"><div class="panelhead"><h2>Your characters</h2><div class="actions overview-view-toggle" aria-label="Character display"><button data-overview-mode="combined" aria-pressed="${!overviewExpanded}">Combine alts</button><button data-overview-mode="expanded" aria-pressed="${overviewExpanded}">Expand</button></div></div>${
-      chars.length
-        ? overviewCharacters()
-        : empty("Add your first character")
-    }</section><div class="cards overview-health"><div class="card"><div class="label">Linked characters</div><div class="stat">${chars.length}</div><small>Your mains and their alts.</small></div><div class="card"><div class="label">Complete snapshots</div><div class="stat">${synced}<span class="muted"> / ${chars.length}</span></div><small>${working ? working + " character refreshes queued" : "Background refresh every hour"}</small></div><div class="card"><div class="label">Needs attention</div><div class="stat">${issues}</div><small>Connection or data refresh issues</small></div></div>`
-  );
+ loadOverviewView();
+ const issues=chars.flatMap(c=>overviewIssues(c,chars).map(issue=>({...issue,pilot:c.name,id:c.id}))),affected=new Set(issues.map(i=>i.id)).size,sp=overviewTotals(chars,'total_sp'),isk=overviewTotals(chars,'isk'),working=chars.filter(c=>c.job).length;
+ const stat=(label,value,note='')=>`<div class="card"><div class="label">${label}</div><div class="stat">${value}</div>${note?`<small>${note}</small>`:''}</div>`;
+ return `${!me.preferences?.overview_guide_dismissed?`<section class="notice overview-guide" aria-label="Getting started"><div class="panelhead"><strong>Getting started</strong><button data-action="dismiss-overview-guide" ${me.inspect?'disabled':''} aria-label="Dismiss getting started guide permanently" title="Hide this guide permanently">×</button></div><p><strong>Mains:</strong> use <strong>Add character</strong>, sign in with EVE, then choose <strong>Main</strong> in the character dropdown. <strong>Alts:</strong> add each character, then choose <strong>Alt of…</strong> and its main in that dropdown. <strong>Subscription:</strong> set the main’s expiry date in the Subscription column; linked alts inherit it. Dates are recorded manually and do not change your EVE subscription.</p></section>`:''}<div class="cards overview-totals overview-summary">${stat('Total Skillpoints',num(sp.value),sp.partial?'Partial · some characters await data':'All linked characters')}${stat('Total ISK',num(isk.value),isk.partial?'Partial · some wallets await data':'All linked characters')}${stat('Characters',chars.length,characterGroups(chars).length+' main groups')}${stat('Needs Attention',affected,issues.length+' checks flagged')}</div>${me.recruit?`<section class="notice"><strong>Recruit Overview</strong><p>Your characters and main/alt links carry over when corporation membership is confirmed.</p><button data-nav="recruit-application">View Application</button></section>`:''}<details class="panel compact overview-attention" ${issues.length?'open':''}><summary>Needs Attention · ${affected} character${affected===1?'':'s'}</summary>${issues.length?issues.map(i=>`<div class="overview-issue"><strong>${esc(i.pilot)}</strong><span>${esc(i.message)}</span><button data-overview-issue="${i.id}" data-issue-page="${i.page}">${i.kind==='skills'?'View queue':i.kind==='subscription'?'Set subscription':'View character'}</button></div>`).join(''):'<small>No connection, refresh, subscription or skill queue warnings in the available data.</small>'}</details>${chars.some(c=>overviewRefresh(c).temporary)?'<div class="notice">Some ESI refreshes are temporarily failing. Your saved information is still shown; access and roles are not changed by this warning.</div>':''}<section class="panel"><div class="panelhead"><h2>Your characters</h2><div class="actions overview-view-toggle" aria-label="Character display"><button data-overview-mode="combined" aria-pressed="${!overviewExpanded}">Combine alts</button><button data-overview-mode="expanded" aria-pressed="${overviewExpanded}">Expand</button></div></div><div class="overview-toolbar"><label>Search<input id="overview-search" type="search" maxlength="120" placeholder="Character name…" value="${esc(overviewPrefs.q)}"></label><label>Show<select id="overview-filter">${Object.entries(OVERVIEW_FILTERS).map(([id,label])=>`<option value="${id}" ${overviewPrefs.filter===id?'selected':''}>${label}</option>`).join('')}</select></label><label>Sort<select id="overview-sort">${Object.entries(OVERVIEW_SORTS).map(([id,label])=>`<option value="${id}" ${overviewPrefs.sort===id?'selected':''}>${label}</option>`).join('')}</select></label><label class="overview-total-toggle"><input id="overview-group-totals" type="checkbox" ${overviewPrefs.totals?'checked':''}> Group totals when collapsed</label><button data-action="overview-clear">Clear filters</button></div><div id="overview-list">${chars.length?overviewCharacters():empty('Add your first character')}</div><small>${working?working+' character refreshes queued · ':''}Background refreshes respect EVE cache times. Subscription expiry is manually recorded. View preferences are remembered on this browser.</small></section>`;
 }
 let trainingOverview=[], selectedTrainingKey="", showTrainingAlts=false, selectedSkillsSnapshot=null;
 function trainingKey(row) {const q=splitQueue(row?.queue||[]).current;return q ? `${q.queue_position}:${q.skill_id}:${q.finish_date}` : "none";}
@@ -776,7 +785,15 @@ root.addEventListener("click", async (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   try {
-    if (b.dataset.piFilter) {
+    if(b.dataset.action==='dismiss-overview-guide'){
+      b.disabled=true;await api('/settings',{overview_guide_dismissed:true});me.preferences.overview_guide_dismissed=true;b.closest('.overview-guide').remove();
+    } else if(b.dataset.action==='overview-clear'){
+      overviewPrefs.q='';overviewPrefs.filter='all';saveOverviewView();document.querySelector('#overview-search').value='';document.querySelector('#overview-filter').value='all';updateOverviewList();
+    } else if(b.dataset.overviewIssue){
+      const id=Number(b.dataset.overviewIssue);
+      if(b.dataset.issuePage==='skills'){selected=id;page='skills';history.replaceState(null,'','#skills');await render();}
+      else {overviewPrefs.q='';overviewPrefs.filter='all';const c=chars.find(c=>c.id===id);overviewOpenGroups.add(c?.parent_id||id);saveOverviewView();document.querySelector('#content').innerHTML=overview();applyVisualStyles();const row=document.getElementById('overview-character-'+id);row?.scrollIntoView({block:'center'});row?.focus();}
+    } else if (b.dataset.piFilter) {
       const key=b.dataset.piFilter;piStatusFilters.has(key)?piStatusFilters.delete(key):piStatusFilters.add(key);applyPIStatusFilters();
     } else if (b.dataset.action === "page-alts" && Object.hasOwn(pageAlts,page)) {
       pageAlts[page]=!pageAlts[page];assetOffset=0;await render();
@@ -796,13 +813,12 @@ root.addEventListener("click", async (e) => {
       document.querySelector('#training-overview').innerHTML=trainingCards();
     } else if(b.dataset.overviewMode) {
       overviewExpanded=b.dataset.overviewMode==='expanded';
-      try{localStorage.setItem('stemp-overview-expanded',String(overviewExpanded));}catch{}
-      document.querySelector('#content').innerHTML=overview();
+      saveOverviewView();
+      document.querySelector('#content').innerHTML=overview();applyVisualStyles();
     } else if(b.dataset.overviewAlts) {
-      const id=Number(b.dataset.overviewAlts),open=!expandedAltGroups.has(id);
-      open?expandedAltGroups.add(id):expandedAltGroups.delete(id);
-      document.getElementById('overview-alts-'+id).hidden=!open;stripeOverviewRows();
-      b.setAttribute('aria-expanded',String(open));b.textContent=b.textContent.replace(/[▾▸]$/,open?'▾':'▸');
+      const id=Number(b.dataset.overviewAlts);
+      if(overviewPrefs.q.trim()||overviewPrefs.filter!=='all'){toast('Clear filters to collapse matching groups.');return;}
+      overviewOpenGroups.has(id)?overviewOpenGroups.delete(id):overviewOpenGroups.add(id);saveOverviewView();updateOverviewList();
     } else if(b.dataset.surveySystem || b.dataset.surveyMoon || b.dataset.surveyMode) {
       if(b.dataset.surveySystem){surveyFilters.system=b.dataset.surveySystem;surveyFilters.moon='';}
       if(b.dataset.surveyMoon)surveyFilters.moon=b.dataset.surveyMoon;
@@ -1292,3 +1308,7 @@ setInterval(()=>document.querySelectorAll('[data-eve-clock]').forEach(clock=>{cl
 root.addEventListener('submit',async event=>{if(event.target.id!=='users-filters')return;event.preventDefault();usersFilters={...usersFilters,...Object.fromEntries(new FormData(event.target))};await render();});
 
 root.addEventListener('click',event=>{const action=event.target.closest('[data-action]')?.dataset.action;if(action==='retry-page')void render();if(action==='reload-app')location.reload();});
+
+
+root.addEventListener('input',event=>{if(event.target.id!=='overview-search')return;overviewPrefs.q=event.target.value;saveOverviewView();updateOverviewList();});
+root.addEventListener('change',event=>{const id=event.target.id;if(!['overview-filter','overview-sort','overview-group-totals'].includes(id))return;if(id==='overview-group-totals')overviewPrefs.totals=event.target.checked;else overviewPrefs[id==='overview-filter'?'filter':'sort']=event.target.value;saveOverviewView();updateOverviewList();});

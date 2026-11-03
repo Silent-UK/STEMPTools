@@ -1,3 +1,4 @@
+import {personalAlerts} from './public/personal-alerts.mjs';
 import {pilotAssetSearch} from './lib/pilot-asset-search.mjs';
 import {sitePagesStore,sitePageRoutes,visibleSitePages} from './lib/site-pages.mjs';
 import {usersReviewService} from './lib/users-review.mjs';
@@ -414,6 +415,14 @@ export function createApp(config) {
     res.json(
       rows.map((c) => ({
         ...c,
+        training_warning: (()=>{const parent=db.prepare('SELECT parent_id FROM character_groups WHERE character_id=?').get(c.id)?.parent_id||req.session.main_id;
+          if(parent!==c.id)return null;
+          const skill=db.prepare("SELECT data,updated FROM snapshots WHERE character_id=? AND kind='skills'").get(c.id);
+          if(!skill)return null;
+          const error=db.prepare("SELECT message FROM sync_errors WHERE character_id=? AND kind='skills'").get(c.id)?.message;
+          const subscription=db.prepare('SELECT expires_on FROM character_subscriptions WHERE character_id=?').get(c.id)?.expires_on;
+          return personalAlerts([{id:c.id,name:c.name,parent_id:parent,subscription_end:subscription,snapshots:{skills:{data:JSON.parse(skill.data),updated:skill.updated,error}}}]).find(a=>a.page==='skills')?.message||null;
+        })(),
         missing_scopes:SCOPES.filter(scope=>!JSON.parse(db.prepare('SELECT scopes FROM characters WHERE id=? AND user_id=?').get(c.id,req.session.user_id).scopes).includes(scope)),
         total_sp: JSON.parse(db.prepare("SELECT data FROM snapshots WHERE character_id=? AND kind='skills'").get(c.id)?.data || "null")?.skills?.total_sp ?? null,
         isk: JSON.parse(db.prepare("SELECT data FROM snapshots WHERE character_id=? AND kind='wallet'").get(c.id)?.data || "null")?.balance ?? null,
