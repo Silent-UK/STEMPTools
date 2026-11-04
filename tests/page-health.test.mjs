@@ -79,3 +79,9 @@ test('ratting detail returns only owned positive bounty and ESS history, retaini
  db.prepare('INSERT INTO sync_errors VALUES(?,?,?)').run(200,'wallet-history','Temporary failure');
  const before=typeReads(),response=await request('/ratting?detail=1',{actor:200});assert.equal(response.status,200);const body=await response.json();assert.equal(body.length,1);assert.equal(body[0].id,200);assert.equal(body[0].data.journal.length,2);assert.equal(body[0].error,'Temporary failure');assert.equal(typeReads()-before,1);const text=JSON.stringify(body);assert(!text.includes('owner-100'));assert(!text.includes('unrelated-wallet-entry'));assert(!text.includes('not-ratting'));
 }));
+
+
+test('Mining raw pricing selects only the current account’s ledger types',()=>fixture(async({db,request})=>{
+ for(const [id,type] of [[100,77],[200,99]])db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,'mining',JSON.stringify({rows:[{type_id:type,quantity:100}]}),Date.now(),Date.now()+10000);
+ const r=await request('/mining/refining?ores=1',{actor:200});assert.equal(r.status,200);const body=await r.json();assert.deepEqual(body.ore_prices.map(p=>p.id),[99]);assert.equal(body.price_source,'Jita IV–4 lowest sell');assert.equal(body.ore_prices[0].price,null);
+}));

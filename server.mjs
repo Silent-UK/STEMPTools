@@ -159,7 +159,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.36.6" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.37.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -548,7 +548,8 @@ export function createApp(config) {
     const ids=new Set(saved.flatMap(s=>JSON.parse(s.data).rows.map(r=>r.type_id)));
     const recipes=Object.fromEntries([...ids].filter(id=>miningRecipes[id]).map(id=>[id,miningRecipes[id]]));
     const outputs=[...new Set(Object.values(recipes).flatMap(r=>r.materials.map(m=>m.id)))];
-    res.json({recipes,prices:await pricePI(outputs)});
+    const oreIds=req.query.ores==='1'?[...ids]:[],quotes=await pricePI([...new Set([...outputs,...oreIds])]);
+    res.json({recipes,prices:quotes.filter(q=>outputs.includes(q.id)),ore_prices:quotes.filter(q=>oreIds.includes(q.id)),price_source:'Jita IV–4 lowest sell'});
   });
   app.get('/api/pi/market',async(req,res)=>{
     const recipes=piRecipes(),fuelNames=['Coolant','Enriched Uranium','Mechanical Parts','Oxygen','Robotics'];
