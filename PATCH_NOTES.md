@@ -1,3 +1,9 @@
+# STEMP Tools v0.38.4
+
+- Moon Scans: select multiple highest ore tiers alongside the existing search. No tier selection shows all moons. Colour-code R4, R8, R16, R32 and R64 in filters, moon entries and ore composition.
+- Import two additional batches (782 rows): 194 new moons, six precision improvements and no new conflicts. Total collection: 21,768 unique moons.
+- Preserve previous rounded compositions in source history. Accept spreadsheet decimal fractions without inventing missing percentages.
+
 # STEMP Tools v0.38.3
 
 - Moon Scans: show each listed moon’s highest ore tier and compact monthly Athanor / Drill values together. Athanor follows the selected refine percentage; Drill remains at 40%.

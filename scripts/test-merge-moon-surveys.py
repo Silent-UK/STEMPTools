@@ -15,6 +15,14 @@ class MoonImportTest(unittest.TestCase):
   a=[{'name':'Coesite','fraction':.453518569469},{'name':'Sylvite','fraction':.248165696859}]
   self.assertTrue(module.compatible(a,[{'name':'Sylvite','fraction':.2481},{'name':'Coesite','fraction':.4535}]))
   self.assertFalse(module.compatible(a,[{'name':'Zeolites','fraction':.2481},{'name':'Coesite','fraction':.4535}]))
+ def test_decimal_fractions_and_empty_zero_slots(self):
+  ores,issues,notes=module.parse_ores(['Bitumens','0.329097122','Coesite','26.95%','','0.00%'])
+  self.assertEqual(issues,[]);self.assertEqual(ores[0]['fraction'],.329097122);self.assertEqual(len(ores),2);self.assertTrue(notes)
+ def test_whole_percent_upgrades_require_matching_ores_and_rounding(self):
+  a=[{'name':'Loparite','fraction':.2},{'name':'Scheelite','fraction':.09}]
+  self.assertTrue(module.precision_upgrade(a,[{'name':'Loparite','fraction':.1974},{'name':'Scheelite','fraction':.0916}]))
+  self.assertFalse(module.precision_upgrade(a,[{'name':'Loparite','fraction':.19},{'name':'Scheelite','fraction':.0916}]))
+  self.assertFalse(module.precision_upgrade([{'name':'Ore','fraction':.123456}],[{'name':'Ore','fraction':.1234}]))
  def test_incomplete_composition_is_not_normalised(self):
   ores,issues,_=module.parse_ores(['Bitumens','30%','Sylvite','50%'])
   self.assertEqual(sum(o['fraction'] for o in ores),.8);self.assertEqual(issues,[])

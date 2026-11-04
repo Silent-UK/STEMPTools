@@ -33,7 +33,9 @@ def parse_ores(cells):
  canonical={n.casefold():n for n in TIERS}
  while i<len(cells):
   name=cells[i].strip();i+=1
-  if not name:continue
+  if not name:
+   if i<len(cells) and re.fullmatch(r'0(?:\.0+)?%?',cells[i].strip()):i+=1
+   continue
   if name.upper() in ['N/A','NA','NONE']:
    if i<len(cells) and (not cells[i].strip() or re.fullmatch(r'0(?:\.0+)?%?',cells[i].strip())):i+=1
    else:issues.append('Placeholder has a nonzero or missing quantity')
@@ -45,7 +47,9 @@ def parse_ores(cells):
   value=cells[i].strip() if i<len(cells) else ''
   fraction=None
   if re.fullmatch(r'[0-9]+\.[0-9]+\.%',value):notes.append('Removed stray trailing decimal point for '+name);value=value[:-2]+'%'
-  if re.fullmatch(r'(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)%+',value):
+  if re.fullmatch(r'0\.[0-9]+|1(?:\.0+)?',value):
+   i+=1;fraction=float(value);notes.append('Read decimal fraction for '+name+' as '+str(fraction*100)+'%')
+  elif re.fullmatch(r'(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)%+',value):
    i+=1;fraction=float(value.rstrip('%'))/100
    if value.endswith('%%'):notes.append('Removed repeated percent sign for '+name)
    if not 0<fraction<=1:issues.append('Invalid percentage for '+name);fraction=None
@@ -61,6 +65,9 @@ def parse_ores(cells):
 def compatible(a,b):
  x={o['name'].casefold():o['fraction'] for o in a};y={o['name'].casefold():o['fraction'] for o in b}
  return x.keys()==y.keys() and all(x[k]==y[k] if x[k] is None or y[k] is None else abs(x[k]-y[k])<=0.000101 for k in x)
+def precision_upgrade(a,b):
+ x={o['name'].casefold():o['fraction'] for o in a};y={o['name'].casefold():o['fraction'] for o in b}
+ return x.keys()==y.keys() and bool(x) and all(x[k] is not None and y[k] is not None and abs(x[k]*100-round(x[k]*100))<1e-8 and abs(x[k]-y[k])<=0.005000001 for k in x) and any(abs(x[k]-y[k])>0.000101 for k in x)
 def main():
  parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--date',required=True);parser.add_argument('--write',action='store_true');parser.add_argument('files',nargs='+');args=parser.parse_args();datetime.date.fromisoformat(args.date)
  data=json.loads(gzip.decompress((ROOT/'lib/moon-surveys.json.gz').read_bytes()));found={r['key']:r for r in data['rows']};before=len(found)
@@ -75,7 +82,7 @@ def main():
    offset=len(row)-12;system=row[offset];requested.add(system.casefold());batch.append((rowno,row,offset))
   batches.append((hashlib.sha256(raw).hexdigest(),batch))
  systems,regions,constellations,moons=locations(ROOT/'data/sde.zip',requested)
- report={'input_rows':0,'added':0,'duplicates':0,'conflicts':0,'quality_rows':[],'normalised_rows':[],'conflict_rows':[],'regions':collections.Counter(),'batches':[]}
+ report={'input_rows':0,'added':0,'duplicates':0,'conflicts':0,'precision_updates':[],'quality_rows':[],'normalised_rows':[],'conflict_rows':[],'regions':collections.Counter(),'batches':[]}
  for digest,batch in batches:
   label='Additional scans '+args.date+' '+digest[:10];report['batches'].append({'source':label,'rows':len(batch),'sha256':digest});data['tabs'][label]=len(batch)
   for rowno,row,offset in batch:
@@ -92,7 +99,11 @@ def main():
     if source in old['sources']:report['duplicates']+=1;continue
     old['sources'].append(source)
     if notes:old.setdefault('supplemental_notes',[]).append({'source':label,'row':rowno,'notes':notes})
-    if compatible(old['ores'],ores) and not issues:report['duplicates']+=1
+    if compatible(old['ores'],ores) and (not issues or sorted(issues)==sorted(old.get('issues',[]))):report['duplicates']+=1
+    elif not issues and precision_upgrade(old['ores'],ores):
+     old.setdefault('precision_history',[]).append({'ores':old['ores'],'sources':old['sources'][:-1]})
+     old['ores']=ores;old.setdefault('import_notes',[]).append('Updated whole-percent composition with matching two-decimal scan; original retained in source history.')
+     report['precision_updates'].append(record['name'])
     else:
      report['conflict_rows'].append({'moon':record['name'],'previous':old['ores'],'incoming':ores});old['conflict']=True;old.setdefault('alternatives',[]).append({'ores':ores,'tab':label,'row':rowno,'issues':issues,'notes':notes,'raw_source_row':row});report['conflicts']+=1
    else:found[key]=record;report['added']+=1;report['regions'][record['region']]+=1
