@@ -1,3 +1,11 @@
+# STEMP Tools v0.40.0
+
+- Skill Plans and Fittings: searchable libraries with saved visibility, tag, hull, pilot readiness and sort preferences; compact summaries and paginated themed rows.
+- Show pilot progress, remaining SP, training estimates, inactive skills, saved queue coverage and snapshot warnings. Export full plans or copy missing skills.
+- Create a private prerequisite-complete skill plan from a fitting, link it for your account and navigate between plans, fittings and the Workbench. Distinguish fitting minimums from extra plan goals.
+- Protect unsaved document and Workbench edits, show fitting loading/retry states, and keep revoked private plan links from breaking visible fittings.
+- Verify private-document isolation, pilot ownership and read-only inspection protections.
+
 # STEMP Tools v0.39.0
 
 - Blueprint library: accurate packaged original totals, copy runs, unique types and locations.

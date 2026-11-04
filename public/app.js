@@ -1,3 +1,4 @@
+import {documentLibraryUI,documentPilotView} from './document-library.mjs';
 import {recruitSignup} from './auth-navigation.mjs';
 import {clonePreferences,cloneReadiness} from './clone-model.mjs';
 import {cloneToolbar,cloneResults} from './clone-view.mjs';
@@ -166,7 +167,7 @@ const sitePages=sitePagesUI({api,esc,intro,date,toast,context:()=>({me,chars}),r
 const customNavigation=(section,base=[])=>pageNavigation(section,base,me.pages||[]).map(navigationButton).join('');
 const isKnownPage=id=>knownPages.includes(id)||(me?.pages||[]).some(p=>'page-'+p.id===id);
 const knownPages=["compare","pi-market",...nav.map(n=>n[0]),...corpNav.map(n=>n[0]),"settings","groups","fitting-workbench","fitting-import","admin-groups","admin-links","admin-pages","inspect-mail","inspect-contacts","admin-users","admin-esi","admin-corp","admin-whitelist","recruitment","recruit-application","admin-recruitment","admin-discord","inspect-pilot-check","inspect-pilot-combat"];
-window.addEventListener("hashchange",()=>{const requested=location.hash.slice(1);if(me&&isKnownPage(requested)){page=requested;render();}});
+window.addEventListener("hashchange",()=>{const requested=location.hash.slice(1);if(me&&isKnownPage(requested)){if(page==='fitting-workbench'&&requested!==page&&!fittingWorkbench.canLeave()){history.replaceState(null,'','#'+page);return;}page=requested;render();}});
 function sidebarSection(){
  const custom=(me?.pages||[]).find(p=>'page-'+p.id===page);if(custom)return custom.section;
  if(page.startsWith('admin-'))return 'admin';
@@ -198,7 +199,7 @@ root.addEventListener('click',async event=>{const button=event.target.closest('[
 function refreshNotificationMenu(){const slot=document.querySelector('#notification-slot');if(!slot)return;const open=slot.querySelector('details')?.open;slot.innerHTML=notificationMenu();if(open&&slot.querySelector('details'))slot.querySelector('details').open=true;}
 function shell() {
   rememberSidebar();
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.39.0</small></div></div><div><details class="personal-nav sidebar-section" data-sidebar="personal" ${sidebarOpen('personal')?'open':''}><summary>My Characters</summary><nav>${customNavigation('personal',nav.filter(([id])=>me.recruit?['overview','characters'].includes(id):me.preferences?.[id]!==false&&(!me.inspect?.recruitment_only||!['plans','fittings','pi'].includes(id))))}</nav></details>${me.links?.length?`<details class="links-nav sidebar-section" data-sidebar="links" ${sidebarOpen('links')?'open':''}><summary>Links</summary><nav>${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.slug?'/'+l.slug:l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}${(me.pages||[]).some(p=>p.section==='pages')?`<details class="pages-nav sidebar-section" data-sidebar="pages" ${sidebarOpen('pages')?'open':''}><summary>Pages</summary><nav>${customNavigation('pages')}</nav></details>`:''}<details class="management-nav sidebar-section" data-sidebar="management" ${sidebarOpen('management')?'open':''}><summary>Management</summary><nav>${customNavigation('management',[...(me.recruit||me.inspect?.recruitment_only?[]:[['groups','◇','Groups'],['settings','⚙','Settings']]),...(me.recruiter?[['recruitment','♙','Recruitment']]:[]),...(me.recruit?[['recruit-application','♙','Application']]:[])])}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" data-sidebar="inspect" ${sidebarOpen('inspect')?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-pilot-check','✓','Pilot Check'],['inspect-pilot-combat','⚔','Pilot Combat'],['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${(me.corporation||(me.pages||[]).some(p=>p.section==='corporation'))?`<details class="corp-nav sidebar-section" data-sidebar="corporation" ${sidebarOpen('corporation')?'open':''}><summary>Corporation Management</summary><nav>${customNavigation('corporation',corpNav.filter(([id])=>me.corporate_pages?.includes(id)&&me.preferences?.[id]!==false))}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" data-sidebar="admin" ${sidebarOpen('admin')?'open':''}><summary>Admin</summary><nav>${adminNav.filter(([id])=>me.preferences?.[id]!==false).map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><time class="eve-clock" data-eve-clock title="EVE Time · UTC">${eveClock()}</time></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<span id="notification-slot">${notificationMenu()}</span><span id="page-sync-slot"></span>${page==="overview"?'<button class="primary" data-action="add-character">+ Add character</button>':""}</div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.40.0</small></div></div><div><details class="personal-nav sidebar-section" data-sidebar="personal" ${sidebarOpen('personal')?'open':''}><summary>My Characters</summary><nav>${customNavigation('personal',nav.filter(([id])=>me.recruit?['overview','characters'].includes(id):me.preferences?.[id]!==false&&(!me.inspect?.recruitment_only||!['plans','fittings','pi'].includes(id))))}</nav></details>${me.links?.length?`<details class="links-nav sidebar-section" data-sidebar="links" ${sidebarOpen('links')?'open':''}><summary>Links</summary><nav>${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.slug?'/'+l.slug:l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}${(me.pages||[]).some(p=>p.section==='pages')?`<details class="pages-nav sidebar-section" data-sidebar="pages" ${sidebarOpen('pages')?'open':''}><summary>Pages</summary><nav>${customNavigation('pages')}</nav></details>`:''}<details class="management-nav sidebar-section" data-sidebar="management" ${sidebarOpen('management')?'open':''}><summary>Management</summary><nav>${customNavigation('management',[...(me.recruit||me.inspect?.recruitment_only?[]:[['groups','◇','Groups'],['settings','⚙','Settings']]),...(me.recruiter?[['recruitment','♙','Recruitment']]:[]),...(me.recruit?[['recruit-application','♙','Application']]:[])])}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" data-sidebar="inspect" ${sidebarOpen('inspect')?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-pilot-check','✓','Pilot Check'],['inspect-pilot-combat','⚔','Pilot Combat'],['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${(me.corporation||(me.pages||[]).some(p=>p.section==='corporation'))?`<details class="corp-nav sidebar-section" data-sidebar="corporation" ${sidebarOpen('corporation')?'open':''}><summary>Corporation Management</summary><nav>${customNavigation('corporation',corpNav.filter(([id])=>me.corporate_pages?.includes(id)&&me.preferences?.[id]!==false))}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" data-sidebar="admin" ${sidebarOpen('admin')?'open':''}><summary>Admin</summary><nav>${adminNav.filter(([id])=>me.preferences?.[id]!==false).map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><time class="eve-clock" data-eve-clock title="EVE Time · UTC">${eveClock()}</time></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<span id="notification-slot">${notificationMenu()}</span><span id="page-sync-slot"></span>${page==="overview"?'<button class="primary" data-action="add-character">+ Add character</button>':""}</div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
   document.documentElement.style.setProperty('--font-scale',FONT_SIZES[me.preferences?.font_size]||1);
   const fontSize=Number(me.preferences?.sidebar_font_size)||12;root.querySelector('.shell>aside')?.style.setProperty('--sidebar-font-size',Math.max(10,Math.min(20,fontSize))*(FONT_SIZES[me.preferences?.font_size]||1)+'px');
 }
@@ -371,38 +372,14 @@ root.addEventListener('click',event=>{
  if(button.dataset.skillsExport){const snapshot=selectedSkillsSnapshot?.snapshot;if(!snapshot?.data)return;const url=URL.createObjectURL(new Blob([skillsCSV(snapshot.data,button.dataset.skillsExport)],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='tools-'+Number(selected)+'-'+button.dataset.skillsExport+'.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 });
 const documentFilters={plan:'',fitting:''};
+const documentLibrary=documentLibraryUI({api,context:()=>({me,chars}),refresh:()=>render(),onDocuments:all=>{docs=all;}});
+const documentEvidence=new Map();let currentDocument=null;
 function documentTags(){return ['Personal','Corp','Alliance',...[...new Set(docs.map(d=>d.tag||'Personal'))].filter(t=>!['Personal','Corp','Alliance'].includes(t)).sort((a,b)=>a.localeCompare(b))];}
 async function documents() {
-  docs = await api("/documents");
-  const kind = page === "plans" ? "plan" : "fitting",
-    rows = docs.filter((d) => d.kind === kind&&(!documentFilters[kind]||(d.tag||'Personal')===documentFilters[kind]));
-  return (
-    intro(
-      kind === "plan" ? "Skill Plans" : "Fitting hangar",
-      kind === "plan"
-        ? "Create a training goal. See exactly what each character still needs."
-        : "Save EFT setups, share with members and check pilot skill requirements.",
-      `<div class="actions">${kind==="fitting"?'<button class="primary" data-nav="fitting-workbench">Open Fitting Workbench</button><button data-nav="fitting-import">Import In-Game Fittings</button>':""}<button class="primary" data-create="${kind}">+ New ${kind}</button></div>`,
-    ) +
-    (kind === "fitting"
-      ? '<div class="notice">Skill readiness checks the hull and fitted items. It does not simulate CPU, powergrid, damage, tank or fitting legality.</div>'
-      : `<div class="cards plan-totals"><div class="card"><small>Personal plans</small><strong>${rows.filter(d=>d.mine&&!d.shared).length}</strong></div><div class="card"><small>Corp plans</small><strong>${rows.filter(d=>d.shared).length}</strong><small>Shared with signed-in Tools members</small></div></div>`) +
-    `<div class="document-tag-filter"><label>Tag <select id="document-tag-filter" data-kind="${kind}"><option value="">All tags</option>${documentTags().map(t=>`<option ${documentFilters[kind]===t?'selected':''} value="${esc(t)}">${esc(t)}</option>`).join('')}</select></label></div><section class="panel">${
-      rows.length
-        ? table(
-            ["Name", "Tag", "Created by", "Visibility", ""],
-            rows.map(
-              (d) =>
-                `<tr><td><button class="fitting-name" data-document="${esc(d.id)}">${d.kind === "fitting" && d.ship ? `<img class="fitting-list-ship" src="https://images.evetech.net/types/${Number(d.ship.id)}/render?size=64" alt="${esc(d.ship.name)}" loading="lazy">` : ""}${esc(d.name)}</button><small>${date(d.updated)}</small></td><td>${tag(d.tag||'Personal','dim')}</td><td>${esc(d.author)} ${d.mine ? tag("YOURS", "dim") : ""}</td><td>${tag(d.shared ? "Members" : "Private", d.shared ? "purple" : "dim")}</td><td><button data-document="${esc(d.id)}" aria-expanded="false">${d.kind === "fitting" ? "View" : "Open & compare →"}</button></td></tr>${d.kind === "fitting" ? `<tr class="fitting-expansion" data-fitting-row="${esc(d.id)}" hidden><td colspan="5"><div class="inline-fitting" data-fitting-content="${esc(d.id)}"></div></td></tr>` : ""}`,
-            ),
-          )
-        : empty(
-            "No " + (kind === "plan" ? "skill plans" : "fittings") + " yet",
-            "Create your first one or ask another member to share theirs.",
-          )
-    }</section>`
-  );
+ const kind=page==='plans'?'plan':'fitting';
+ return intro(kind==='plan'?'Skill Plans':'Fitting Hangar',kind==='plan'?'Training goals, pilot progress and linked fittings.':'Saved loadouts, pilot readiness and linked skill plans.',`<div class="actions">${kind==='fitting'?'<button class="primary" data-nav="fitting-workbench">Open Fitting Workbench</button><button data-nav="fitting-import">Import In-Game Fittings</button>':''}${!me.inspect?'<button data-create="'+kind+'">+ New '+kind+'</button>':''}</div>`)+await documentLibrary.render(kind);
 }
+
 let piDashboard=null,piDraftTargets=[],piShared=false,piShares=null;
 const piStatusFilters=new Set();
 function piFilterBar(){return `<div class="pi-status-filters" role="group" aria-label="Filter planets by extractor status">${[['stopped','Not Running'],['attention','Needs Attention'],['critical','Critical']].map(([key,label])=>`<button data-pi-filter="${key}" aria-pressed="${piStatusFilters.has(key)}">${label}</button>`).join('')}<small>Any selected status · no selection shows all</small><small id="pi-filter-count" role="status"></small><button class="pi-filter-alts" data-action="page-alts" aria-pressed="${pageAlts.pi}" ${piShared?"disabled":""}>${pageAlts.pi?"Hide alts":"Show alts"}</button></div><p id="pi-filter-empty" hidden>No planets match the selected filters.</p>`;}
@@ -707,6 +684,9 @@ function openDialog(html) {
   dialog.setAttribute("aria-labelledby", "dialog-title");
   dialog.showModal();
 }
+let documentDraftBaseline='';
+function documentDraftSignature(){const f=document.querySelector('#document-form');return f?JSON.stringify([Object.fromEntries(new FormData(f)),planEntries]):'';}
+function canCloseDocument(){return !documentDraftBaseline||documentDraftBaseline===documentDraftSignature()||confirm('Discard your unsaved document changes?');}
 let planEntries = [],
   searchResults = [];
 function createDocument(kind, body) {
@@ -714,7 +694,9 @@ function createDocument(kind, body) {
   openDialog(
     `<h2>${kind === "plan" ? "New skill plan" : "New fitting"}</h2><form id="document-form" data-kind="${kind}"><label>Name<input name="name" required maxlength="150" placeholder="${kind === "plan" ? "Avatar pilot" : "Fleet setup"}"></label>${kind === "plan" ? `<div class="formrow"><input id="catalog-query" aria-label="Search catalogue" placeholder="Search a skill or ship…"><select id="catalog-mode" aria-label="Search category"><option value="skills">Skills</option><option value="ships">Ships</option></select><button type="button" data-action="catalog">Find</button></div><div id="catalog-results"></div><details class="skill-import"><summary>Import from clipboard / text</summary><label>Skill list<textarea id="skill-import-text" rows="6" maxlength="100000" placeholder="Motion Prediction III&#10;Motion Prediction V&#10;Gunnery V"></textarea></label><div class="actions"><button type="button" data-action="paste-skills">Paste clipboard</button><button type="button" data-action="import-skills">Import skills</button><small id="skill-import-status" role="status">Repeated skills use the highest level. Existing skills are kept.</small></div></details><div id="plan-entries"></div>` : `<label>EFT fitting<textarea name="eft" required placeholder="[Avatar, Fleet setup]&#10;Damage Control II&#10;&#10;">${esc(body || "")}</textarea></label><small>Paste an EFT export from EVE or Pyfa. Unknown items are reported before saving.</small>`}<label>Tag<input name="tag" list="document-tag-options" maxlength="40" required value="Personal"><datalist id="document-tag-options">${documentTags().map(t=>`<option value="${esc(t)}"></option>`).join('')}</datalist></label><small>Choose a tag or enter your own. Tags do not change sharing permissions.</small><label><input type="checkbox" name="shared"> Share with signed-in Tools members</label><button class="primary">Save ${kind}</button></form>`,
   );
+ documentDraftBaseline=documentDraftSignature();
 }
+
 function showEntries() {
   document.querySelector("#plan-entries").innerHTML = planEntries
     .map(
@@ -731,14 +713,17 @@ function copyMissingControl(rows) {
  const text=missingSkillText(rows);
  return text ? `<div class="missing-copy"><button type="button" data-copy-missing="${esc(encodeURIComponent(text))}">Copy missing skills to clipboard</button><small class="copy-status" role="status"></small><textarea class="copy-fallback" aria-label="Missing skills for EVE" readonly hidden>${esc(text)}</textarea></div>` : '<small>No untrained levels to copy.</small>';
 }
-function fittingPilots(rows) {
- return `<section class="fitting-pilots mains-only"><div class="fitting-pilots-head"><h3>Connected characters</h3><button type="button" data-fitting-alts aria-pressed="false">Show alts</button></div>${groupedCharacters(rows,c=>`<article class="fitting-pilot">${c.ready===false ? `<details><summary class="pilot-status-line"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><strong>${esc(c.name)}</strong><span>-</span><span class="pilot-missing">Missing Skills</span></summary>${c.missing.map(r=>`<div class="missing-skill"><strong>${esc(r.name)}</strong><small>Level ${r.active} → ${r.required}${r.trained>=r.required?' · Trained but inactive':''}</small></div>`).join('')}${copyMissingControl(c.missing)}</details>` : `<div class="pilot-status-line"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><strong>${esc(c.name)}</strong><span>-</span><span class="${c.ready?'pilot-ready':'muted'}">${c.ready?'Ready':'Skills not synced'}</span></div>`}</article>`)}</section>`;
-}
+function fittingPilots(rows) {rows=rows.map(c=>({...c,alt:chars.some(p=>p.id===c.id&&p.parent_id!==p.id)}));for(const row of rows)documentEvidence.set(currentDocument.id+':'+row.id,row);return `<div data-dl-evidence="${esc(currentDocument.id)}">${documentPilotView(rows)}</div>`;}
+
+let documentRequestId=0;
 async function showDocument(id) {
-  const d = await api("/documents/" + id);
+ const request=++documentRequestId,loading=[...document.querySelectorAll("[data-fitting-content]")].find(el=>el.dataset.fittingContent===id);if(loading){loading.closest("[data-fitting-row]").hidden=false;loading.innerHTML='<p role="status">Loading fitting and pilot requirements…</p>';}
+ try{
+  const d = await api("/documents/" + encodeURIComponent(id));currentDocument=d;
   const plans=d.kind === "fitting" ? (await api("/documents")).filter(p=>p.kind === "plan") : [];
+  if(request!==documentRequestId)return;
   const html = (
-    `<h2>${esc(d.name)}</h2><div class="document-action-row"><div class="actions">${tag(d.shared ? "Shared with members" : "Private", "purple")}${d.mine ? `<button data-share="${id}" data-value="${!d.shared}">${d.shared ? "Make private" : "Share with members"}</button><button data-edit-doc="${id}">Edit</button><button class="danger" data-delete-doc="${id}">Delete</button>` : ""}<button data-copy-doc="${id}">Duplicate</button>${d.kind==='fitting'?`<button data-eve-fitting="${esc(id)}" ${me.inspect?'disabled':''}>Save to EVE</button>`:''}</div>${d.kind === "fitting" ? `<form id="link-fitting-plan" data-document="${id}" class="fitting-plan-controls"><label>Required skill plan<select name="plan"><option value="">Fitting requirements only</option>${plans.map(p=>`<option value="${esc(p.id)}" ${p.id===d.linkedPlan?"selected":""}>${esc(p.name)}</option>`).join("")}</select></label><button class="primary">Apply plan</button></form></div><div class="fitting-workspace"><div>${renderFitting(d.fitting)}</div>${fittingPilots(d.readiness||[])}</div><details><summary>EFT fitting · copy or export</summary><textarea readonly id="eft-export">${esc(d.body)}</textarea><button data-export="${id}">Download EFT</button></details>` : `</div><details><summary>${d.body.length} skills including prerequisites</summary><div id="plan-view">${d.body.map((r) => `<div class="production"><span>${esc(r.name || r.id)}</span><strong>Level ${r.level}</strong></div>`).join("")}</div></details>${fittingPilots(d.readiness||[])}`}<hr><h3>Check a character</h3><form id="compare" data-document="${id}"><div class="formrow"><select name="character" aria-label="Character">${charOptions()}</select><select name="speed" aria-label="Training speed"><option value="omega">Omega speed</option><option value="alpha">Alpha speed estimate</option></select><button class="primary">Compare</button></div></form><div id="comparison"></div>`
+    `<h2>${esc(d.name)}</h2><div class="document-action-row"><div class="actions">${tag(d.shared ? "Shared with members" : "Private", "purple")}${d.mine&&!me.inspect ? `<button data-share="${id}" data-value="${!d.shared}">${d.shared ? "Make private" : "Share with members"}</button><button data-edit-doc="${id}">Edit</button><button class="danger" data-delete-doc="${id}">Delete</button>` : ""}${!me.inspect?`<button data-copy-doc="${id}">Duplicate</button>`:""}${d.kind==='fitting'?`<button data-dl-workbench="${esc(id)}">Open in Workbench</button><button data-dl-create-plan="${esc(id)}" ${me.inspect?"disabled":""}>Create Skill Plan from Fitting</button><button data-eve-fitting="${esc(id)}" ${me.inspect?'disabled':''}>Save to EVE</button>`:''}</div>${d.kind === "fitting" ? `<form id="link-fitting-plan" data-document="${id}" class="fitting-plan-controls"><label>Required skill plan<select name="plan"><option value="">Fitting requirements only</option>${plans.map(p=>`<option value="${esc(p.id)}" ${p.id===d.linkedPlan?"selected":""}>${esc(p.name)}</option>`).join("")}</select></label><button class="primary" ${me.inspect?"disabled":""}>Apply plan</button>${d.linkedPlan?`<button type="button" data-dl-open="${esc(d.linkedPlan)}">Open Linked Plan</button>`:""}<small>Linked plans add requirements to the fitting minimums for your account.</small></form></div><div class="fitting-workspace"><div>${renderFitting(d.fitting)}</div>${fittingPilots(d.readiness||[])}</div><details><summary>EFT fitting · copy or export</summary><textarea readonly id="eft-export">${esc(d.body)}</textarea><button data-export="${id}">Download EFT</button></details>` : `</div><div class="actions"><button data-dl-export-plan="${esc(id)}">Export Full Plan</button>${(d.linkedFittings||[]).map(f=>`<button data-dl-open="${esc(f.id)}">Fitting: ${esc(f.name)}</button>`).join("")}</div><details><summary>${d.body.length} skills including prerequisites</summary><div id="plan-view">${d.body.map((r) => `<div class="production"><span>📖 ${esc(r.name || r.id)}</span><strong>Level ${r.level}</strong></div>`).join("")}</div></details>${fittingPilots(d.readiness||[])}`}<hr><h3>Check a character</h3><form id="compare" data-document="${id}"><div class="formrow"><select name="character" aria-label="Character">${charOptions()}</select><select name="speed" aria-label="Training speed"><option value="omega">Omega speed</option><option value="alpha">Alpha speed estimate</option></select><button class="primary" ${me.inspect?"disabled":""}>Compare</button></div></form><div id="comparison"></div>`
   );
   const holder=[...document.querySelectorAll("[data-fitting-content]")].find(el=>el.dataset.fittingContent===id);
   if(d.kind === "fitting" && holder) {
@@ -746,6 +731,7 @@ async function showDocument(id) {
     document.querySelectorAll("button[data-document]").forEach(button=>{if(button.textContent==="View"||button.textContent==="Hide"){button.textContent=button.dataset.document===id?"Hide":"View";button.setAttribute("aria-expanded",String(button.dataset.document===id));}});
     holder.innerHTML=html;
   } else {openDialog(html);dialog.classList.toggle("fitting-dialog",d.kind === "fitting");}
+ }catch(error){if(request!==documentRequestId)return;if(loading)loading.innerHTML=`<p role="alert" class="notice error">${esc(error.message)}</p><button data-dl-open="${esc(id)}">Retry</button>`;else throw error;}
 }
 root.addEventListener("click", async (e) => {
   const b = e.target.closest("button");
@@ -848,6 +834,7 @@ This wipes their saved data, fittings, plans, settings, group memberships, ESI t
       document.querySelectorAll("button[data-theme]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.theme===b.dataset.theme)));
       b.closest("details").open=false;
     } else if (b.dataset.nav) {
+      if(page==='fitting-workbench'&&b.dataset.nav!==page&&!fittingWorkbench.canLeave())return;
       myPilotFocus=null;
       if(page==='characters'&&Object.hasOwn(pageAlts,b.dataset.nav)&&chars.find(c=>c.id===Number(selected))?.parent_id!==Number(selected))pageAlts[b.dataset.nav]=true;
       page = b.dataset.nav;
@@ -883,7 +870,7 @@ This wipes their saved data, fittings, plans, settings, group memberships, ESI t
     } else if (b.dataset.create) createDocument(b.dataset.create);
     else if (b.dataset.document) {
       const row=[...document.querySelectorAll("[data-fitting-row]")].find(el=>el.dataset.fittingRow===b.dataset.document);
-      if(row && !row.hidden){row.hidden=true;row.querySelector(".inline-fitting").innerHTML="";document.querySelectorAll("button[data-document]").forEach(button=>{if(button.dataset.document===b.dataset.document&&button.textContent==="Hide"){button.textContent="View";button.setAttribute("aria-expanded","false");}});}
+      if(row && !row.hidden){documentRequestId++;row.hidden=true;row.querySelector(".inline-fitting").innerHTML="";document.querySelectorAll("button[data-document]").forEach(button=>{if(button.dataset.document===b.dataset.document&&button.textContent==="Hide"){button.textContent="View";button.setAttribute("aria-expanded","false");}});}
       else await showDocument(b.dataset.document);
     }
     else if (b.dataset.pageAssets) {
@@ -1058,6 +1045,7 @@ async function documentClick(e) {
         planEntries = d.body;
         showEntries();
       }
+      documentDraftBaseline=documentDraftSignature();
     } else if (b.dataset.export) {
       const d = await api("/documents/" + b.dataset.export);
       const url = URL.createObjectURL(
@@ -1112,7 +1100,7 @@ async function documentSubmit(e) {
   }
   if(e.target.id === "link-fitting-plan") {
     e.preventDefault();
-    try {await api("/documents/"+e.target.dataset.document+"/plan",{plan:new FormData(e.target).get("plan")});await showDocument(e.target.dataset.document);}catch(err){toast(err.message);}
+    try {await api("/documents/"+e.target.dataset.document+"/plan",{plan:new FormData(e.target).get("plan")});await render();await showDocument(e.target.dataset.document);}catch(err){toast(err.message);}
     return;
   }
 
@@ -1134,6 +1122,7 @@ async function documentSubmit(e) {
         },
         form.dataset.id ? "PUT" : "POST",
       );
+      documentDraftBaseline="";
       dialog.close();
       toast("Saved");
       await render();
@@ -1293,3 +1282,20 @@ root.addEventListener('click',event=>{const action=event.target.closest('[data-a
 
 root.addEventListener('input',event=>{if(event.target.id!=='overview-search')return;overviewPrefs.q=event.target.value;saveOverviewView();updateOverviewList();});
 root.addEventListener('change',event=>{const id=event.target.id;if(!['overview-filter','overview-sort','overview-group-totals'].includes(id))return;if(id==='overview-group-totals')overviewPrefs.totals=event.target.checked;else overviewPrefs[id==='overview-filter'?'filter':'sort']=event.target.value;saveOverviewView();updateOverviewList();});
+
+function downloadSkillPlan(text,name='skill-plan.txt'){const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+document.addEventListener('click',async e=>{
+ const b=e.target.closest('[data-dl-workbench],[data-dl-check],[data-dl-open],[data-dl-create-plan],[data-dl-export-plan],[data-dl-export-pilot],[data-dl-copy-pilot],[data-dl-missing-toggle],[data-dl-alts]');if(!b)return;e.preventDefault();b.disabled=true;const status=b.closest('.dl-pilot')?.querySelector('[role=status]');
+ try{
+  if(b.hasAttribute('data-dl-workbench')){if(page==='fitting-workbench'&&!fittingWorkbench.canLeave())return;dialog.close();fittingWorkbench.selectDocument(b.dataset.dlWorkbench);page='fitting-workbench';history.replaceState(null,'','#'+page);await render();}
+  else if(b.hasAttribute('data-dl-check')||b.hasAttribute('data-dl-open')){await showDocument(b.dataset.dlCheck||b.dataset.dlOpen);const selectedPilot=documentLibrary.pilot();if(selectedPilot){const form=document.querySelector('#compare');if(form)form.elements.character.value=selectedPilot;const card=[...document.querySelectorAll('[data-dl-pilot]')].find(el=>el.dataset.dlPilot===selectedPilot);if(card){if(card.dataset.dlAlt==='true'){const list=card.closest('.document-pilots');list.classList.add('show-alts');const toggle=list.querySelector('[data-dl-alts]');toggle.textContent='Hide alts';toggle.setAttribute('aria-pressed','true');}card.open=true;card.scrollIntoView({block:'nearest'});}}}
+  else if(b.hasAttribute('data-dl-create-plan')){const result=await api('/documents/'+encodeURIComponent(b.dataset.dlCreatePlan)+'/create-plan',{});toast('Private skill plan created and linked for your account.');await render();await showDocument(result.id);}
+  else if(b.hasAttribute('data-dl-export-plan')){const doc=await api('/documents/'+encodeURIComponent(b.dataset.dlExportPlan));downloadSkillPlan(doc.body.map(r=>r.name+' '+r.level).join('\n'));}
+  else if(b.hasAttribute('data-dl-alts')){const list=b.closest('.document-pilots'),show=list.classList.toggle('show-alts');b.textContent=show?'Hide alts':'Show alts';b.setAttribute('aria-pressed',String(show));}
+  else if(b.hasAttribute('data-dl-missing-toggle')){const list=b.closest('.dl-pilot');const show=b.textContent==='Show all required skills';list.querySelectorAll('[data-dl-complete="true"]').forEach(row=>row.hidden=!show);b.textContent=show?'Show missing skills only':'Show all required skills';}
+  else {const id=b.dataset.dlExportPilot||b.dataset.dlCopyPilot,doc=b.closest('[data-dl-evidence]')?.dataset.dlEvidence,row=documentEvidence.get(doc+':'+id);if(!row||row.ready===null)throw Error('Sync this pilot’s skills before exporting or copying.');const full=b.hasAttribute('data-dl-export-pilot'),text=row.rows.filter(r=>full||r.current<r.required).map(r=>r.name+' '+r.required).join('\n');if(full)downloadSkillPlan(text);else if(text){try{await navigator.clipboard.writeText(text);status.textContent='Missing skills copied.';}catch{status.innerHTML='<textarea readonly aria-label="Missing skills to copy"></textarea>';status.querySelector('textarea').value=text;status.querySelector('textarea').select();}}else status.textContent='No untrained levels to copy. Trained but inactive skills need activation, not more training.';}
+ }catch(error){if(status)status.textContent=error.message;else {b.insertAdjacentHTML('afterend',`<span role="alert" class="notice error">${esc(error.message)}</span>`);}}finally{b.disabled=false;}
+});
+dialog.addEventListener('cancel',e=>{if(!canCloseDocument())e.preventDefault();else documentDraftBaseline='';});
+dialog.addEventListener('click',e=>{if(e.target.closest('[data-action=close]')){if(!canCloseDocument()){e.preventDefault();e.stopImmediatePropagation();}else documentDraftBaseline='';}},true);
+window.addEventListener('beforeunload',e=>{if(documentDraftBaseline&&documentDraftSignature()!==documentDraftBaseline){e.preventDefault();e.returnValue='';}});

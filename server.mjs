@@ -1,3 +1,4 @@
+import {documentLibraryRoutes,skillEvidence} from './lib/document-library.mjs';
 import {characterDashboard} from './lib/character-dashboard.mjs';
 import {personalAlerts} from './public/personal-alerts.mjs';
 import {pilotAssetSearch} from './lib/pilot-asset-search.mjs';
@@ -159,7 +160,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.39.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.40.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -708,6 +709,7 @@ export function createApp(config) {
       ),
     ),
   );
+  documentLibraryRoutes(app,{db,cat});
   app.get("/api/documents", (req, res) =>
     res.json(
       db
@@ -730,7 +732,7 @@ export function createApp(config) {
   );
   function linkedPlan(row,user) {
     const link=db.prepare("SELECT plan_id FROM fitting_plans WHERE user_id=? AND fitting_id=?").get(user,row.id);
-    return link ? visibleDocument(db,user,link.plan_id) : null;
+    return link ? db.prepare("SELECT * FROM documents WHERE id=? AND kind='plan' AND (owner=? OR shared=1)").get(link.plan_id,user) : null;
   }
   function documentRequirements(row,user) {
     if(row.kind==="plan")return expandPlan(JSON.parse(row.body),cat);
@@ -752,15 +754,16 @@ export function createApp(config) {
     const readiness = (() => {
       const required = documentRequirements(row,req.session.user_id);
       return db.prepare("SELECT c.id,c.name,s.data,s.updated FROM characters c LEFT JOIN snapshots s ON s.character_id=c.id AND s.kind='skills' WHERE c.user_id=? ORDER BY (c.id=?) DESC,(SELECT position FROM character_order WHERE character_id=c.id),c.id").all(req.session.user_id,req.session.main_id).map(c=>{
-        if(!c.data)return {id:c.id,name:c.name,updated:null,ready:null,missing:[]};
-        const trained=new Map(JSON.parse(c.data).skills.skills.map(s=>[s.skill_id,s]));
-        const missing=required.filter(r=>(trained.get(r.id)?.active_skill_level||0)<r.level).map(r=>({id:r.id,name:cat.type(r.id)?.name||String(r.id),required:r.level,active:trained.get(r.id)?.active_skill_level||0,trained:trained.get(r.id)?.trained_skill_level||0}));
-        return {id:c.id,name:c.name,updated:c.updated,ready:missing.length===0,missing};
+        const error=db.prepare("SELECT message FROM sync_errors WHERE character_id=? AND kind='skills'").get(c.id)?.message||null;
+        const evidence=skillEvidence(required,c,cat,{error}),minimum=row.kind==='fitting'?new Map(parseFitting(JSON.parse(row.body),cat).requirements.map(r=>[r.id,r.level])):null;
+        evidence.rows=evidence.rows.map(r=>({...r,minimum_required:minimum?.get(r.id)||0,source:minimum?(minimum.get(r.id)||0)>=r.level?'Fitting minimum':'Linked plan':'Skill plan'}));evidence.missing=evidence.rows.filter(r=>r.active<r.required);
+        return {id:c.id,name:c.name,...evidence};
       });
     })();
     res.json({
       ...row,
       readiness,
+      linkedFittings:row.kind==='plan'?db.prepare("SELECT d.id,d.name FROM fitting_plans l JOIN documents d ON d.id=l.fitting_id WHERE l.user_id=? AND l.plan_id=? AND (d.owner=? OR d.shared=1)").all(req.session.user_id,row.id,req.session.user_id):[],
       linkedPlan: row.kind === "fitting" ? linkedPlan(row,req.session.user_id)?.id || null : null,
       body:
         row.kind === "plan"

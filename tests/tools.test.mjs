@@ -1991,3 +1991,25 @@ test('Search Pilots finds custom ship names, nested module locations and enforce
  db.prepare('DELETE FROM group_members WHERE group_id=?').run(group);assert.equal((await request('/api/corporation/pilot-assets?q=AIR',{session:viewer.session})).status,403);
  await request('/api/inspect',{session:owner.session,method:'POST',body:{user_id:pilot.uid}});assert.equal((await request('/api/corporation/pilot-assets?q=AIR',{session:owner.session})).status,403);
 },{...fakeCat,type:id=>({id,name:id===1?'Gnosis':'Damage Control II',category_id:id===1?6:7})}));
+
+test('document library keeps private documents and pilot evidence account scoped, creates private minimum plans and hides revoked links',()=>fixture(async({db,user,request})=>{
+ const a=user(100,'Main'),b=user(200,'Other'),insert=db.prepare('INSERT INTO documents VALUES(?,?,?,?,?,?,?)');
+ insert.run('library-fit',a.uid,'fitting','Fleet Fit',JSON.stringify('[Test ship, Test]'),1,1);
+ insert.run('library-secret',b.uid,'plan','Secret',JSON.stringify([{id:1,level:5}]),0,1);
+ const get=async(path,session=a.session)=>await(await request(path,{session})).json();
+ assert.equal((await get('/api/document-library')).some(d=>d.id==='library-secret'),false);
+ assert.equal((await request('/api/document-library?pilot=200',{session:a.session})).status,404);
+ assert.equal((await request('/api/documents/library-secret/create-plan',{session:a.session,method:'POST',body:{}})).status,404);
+ const created=await request('/api/documents/library-fit/create-plan',{session:a.session,method:'POST',body:{}});assert.equal(created.status,200);const {id}=await created.json();
+ const plan=await get('/api/documents/'+id);assert.equal(plan.owner,a.uid);assert.equal(plan.shared,0);assert.equal(plan.body.find(r=>r.id===1).level,3);assert.equal(plan.linkedFittings[0].id,'library-fit');
+ assert.equal((await request('/api/documents/'+id,{session:b.session})).status,404);
+ let fit=await get('/api/documents/library-fit');assert.equal(fit.linkedPlan,id);assert.equal(fit.readiness[0].ready,null);
+ await request('/api/documents/'+id,{session:a.session,method:'PATCH',body:{shared:true}});
+ assert.equal((await request('/api/documents/library-fit/plan',{session:b.session,method:'POST',body:{plan:id}})).status,200);
+ await request('/api/documents/'+id,{session:a.session,method:'PATCH',body:{shared:false}});
+ fit=await get('/api/documents/library-fit',b.session);assert.equal(fit.linkedPlan,null);
+ assert.equal((await get('/api/document-library',b.session)).find(d=>d.id==='library-fit').linkedPlan,null);
+ db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(100,'skills',JSON.stringify({skills:{skills:[{skill_id:1,active_skill_level:2,trained_skill_level:3,skillpoints_in_skill:8000}]},attributes:{intelligence:20,memory:20},queue:[{skill_id:1,finished_level:4}]}),Date.now(),0);
+ const evidence=(await get('/api/document-library?pilot=100')).find(d=>d.id==='library-fit').readiness;assert.equal(evidence.state,'inactive');assert.equal(evidence.total,1);assert.equal(evidence.rows,undefined);
+ const detail=await get('/api/documents/library-fit');assert.equal(detail.readiness[0].rows[0].source,'Fitting minimum');assert.equal(detail.readiness[0].rows[0].queued,true);
+}, {...fakeCat,named:()=>99,type:id=>id===99?{id:99,name:'Test ship',category_id:6,attributes:{182:1,277:3}}:fakeCat.type(id)}));
