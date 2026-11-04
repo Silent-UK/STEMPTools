@@ -12,3 +12,7 @@ The user requires all new and updated pages to be tight, clean and compact by de
 ## Fitting engine source offer
 
 Fitting calculations integrate VYRAJ under AGPL-3.0-only. Preserve vendor/vyraj/LICENSE and NOTICE.md. Keep the in-app attribution and corresponding-source download accessible. `npm test` rebuilds lib/fitting-source.zip before checks; regenerate it after any final code, documentation or package changes before release. Never include .env files, private databases, data/, node_modules or reference checkouts in the source archive.
+
+## Release versions
+
+Bump the version for every release. Keep package.json, package-lock.json, the sidebar version in public/app.js and the /health version in server.mjs aligned in both editions.
