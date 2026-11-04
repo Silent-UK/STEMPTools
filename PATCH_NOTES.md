@@ -1,3 +1,9 @@
+# STEMP Tools v0.38.1
+
+- Moon Scans: import three additional scan batches (973 rows), adding 668 moons across Geminate, Metropolis and The Forge. Collection now contains 21,574 unique moons.
+- Resolve every added moon to its CCP SDE moon ID, region and constellation. Preserve existing compositions, higher precision and incomplete percentages.
+- Retain source provenance and conflicting alternatives. Flag missing percentages and show import corrections in source details; unsafe estimates remain unavailable.
+
 # STEMP Tools v0.38.0
 
 - Industry: combined outstanding jobs across mains and alts, character summaries, clickable ready/running/24-hour/paused totals, next completion and progress bars.
