@@ -17,7 +17,7 @@ import {fittingImportRoutes} from './lib/fitting-import-routes.mjs';
 import {managementRoutes} from './lib/management-routes.mjs';
 import {managementStore,preferences,grants,CORPORATE_PAGES} from './lib/management.mjs';
 import miningRecipes from './lib/mining-recipes.json' with {type:'json'};
-import {whitelistService} from "./lib/whitelist.mjs";
+import {whitelistService,characterAffiliation} from "./lib/whitelist.mjs";
 import {surveyList} from './lib/moon-surveys.mjs';
 import {assetMatches} from "./public/asset-tree.mjs";
 import {corporationService} from "./lib/corp-management.mjs";
@@ -64,7 +64,7 @@ export function createApp(config) {
   managementStore(db);
   sitePagesStore(db);
   const recruitment=recruitmentService(db,eve,cat,config);
-  const whitelist=whitelistService(db,config.membershipLookup || (async id=>(await eve.request("/characters/"+id)).data),id=>eve.publicGet("/corporations/"+id));
+  const whitelist=whitelistService(db,config.membershipLookup || (id=>characterAffiliation(eve,id)),id=>eve.publicGet("/corporations/"+id));
   const discord=discordService(db,box,config,whitelist);
   const usersReview=usersReviewService(db,whitelist,config);
   const recruitMembership=recruitMembershipService(db,whitelist,{onJoined:(user,now)=>db.prepare("UPDATE user_whitelist_reviews SET status='allowed',checked=?,message='Membership confirmed; normal member access' WHERE user_id=?").run(now,user)});
@@ -162,7 +162,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.42.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.42.2" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");

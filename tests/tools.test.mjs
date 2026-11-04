@@ -2068,3 +2068,13 @@ test('members using recruit signup go straight to normal access without a new ap
  token=await login();const application=db.prepare('SELECT * FROM recruitment_applications WHERE user_id=?').get(uid);assert.equal(application.status,'joined');assert(application.joined_at>0);assert.equal(application.notes,'Keep history');
  const me=await(await request('/api/me',{session:token})).json();assert.equal(me.recruit,false);assert.equal(me.admin,false);assert.equal((await request('/api/groups',{session:token})).status,200);assert.equal((await request('/api/admin/users',{session:token})).status,403);
 }));
+
+test('real membership lookup uses affiliation rather than a stale character profile for recruit promotion',async()=>{
+ let mode='wrong-pilot';const calls=[];
+ await fixture(async({user,db,request})=>{
+  const recruit=user(300,'New corp member');db.prepare("INSERT INTO recruitment_applications(user_id,created,consented) VALUES(?,1,2)").run(recruit.uid);
+  let response=await request('/api/me',{session:recruit.session});assert.equal(response.status,503);assert.equal(db.prepare('SELECT status FROM recruitment_applications WHERE user_id=?').get(recruit.uid).status,'applied');
+  mode='joined';response=await request('/api/me',{session:recruit.session});assert.equal(response.status,200);const me=await response.json();assert.equal(me.recruit,false);assert.equal(me.admin,false);assert.equal(db.prepare('SELECT status FROM recruitment_applications WHERE user_id=?').get(recruit.uid).status,'joined');assert.equal((await request('/api/groups',{session:recruit.session})).status,200);assert.equal((await request('/api/admin/users',{session:recruit.session})).status,403);
+  assert(calls.length>=2);assert(calls.every(call=>call.path==='/characters/affiliation'&&call.method==='POST'&&call.character===null));
+ },fakeCat,{membershipLookup:undefined,eve:{request:async(path,character,method,ids)=>{calls.push({path,character,method});assert.deepEqual(ids,[300]);if(path==='/characters/affiliation')return {data:[{character_id:mode==='wrong-pilot'?999:300,corporation_id:668298004}]};return {data:{corporation_id:1000169}};},publicGet:async()=>({})}});
+});
