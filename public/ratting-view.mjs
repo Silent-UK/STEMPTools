@@ -3,7 +3,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const isk=n=>Number.isFinite(n)?n.toLocaleString('en-GB',{maximumFractionDigits:2})+' ISK':'Unavailable';
 const date=v=>v&&Number.isFinite(new Date(v).getTime())?new Date(v).toLocaleString('en-GB',{timeZone:'UTC'})+' UTC':'Unavailable';
 const count=n=>Number(n).toLocaleString('en-GB');
-const table=(head,rows)=>`<div class="wallet-scroll"><table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+const table=(head,rows)=>`<div class="wallet-scroll"><table><thead><tr>${head.map(h=>`<th${['Bounties','ESS','Total','Share','Amount','Credited count'].includes(h)?' class="numeric"':''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 export function rattingView(pilots,chars,filters,offset=0,now=Date.now()){
  const a=rattingAnalysis(pilots,chars,filters,now),rows=a.rows,page=Math.min(Math.max(0,offset),Math.max(0,Math.floor((rows.length-1)/100)*100)),coverage=pilots.filter(p=>!filters.pilot||String(p.id)===filters.pilot),missing=coverage.some(p=>!p.data),unavailable=coverage.length===0||coverage.every(p=>!p.data),stale=coverage.some(p=>!p.updated||now-p.updated>7200000||p.error),chart=a.daily.slice(-90),max=Math.max(1,...chart.map(d=>d.total));
  const select=(name,title,choices)=>`<label>${title}<select name="${name}">${choices.map(([v,t])=>`<option value="${esc(v)}" ${String(filters[name])===String(v)?'selected':''}>${esc(t)}</option>`).join('')}</select></label>`;
