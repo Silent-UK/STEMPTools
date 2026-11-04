@@ -1,25 +1,29 @@
+import {rattingPreferences,rattingBounds,rattingAnalysis,rattingCSV} from './ratting-model.mjs';
+import {rattingView} from './ratting-view.mjs';
 import {pageIcons} from './settings-options.mjs';
 import {CORPORATE_PAGE_DESCRIPTIONS} from './corporate-page-descriptions.mjs';
 import {groupIconPicker} from './group-icons.mjs';
 import {THEMES} from './themes.mjs';
-import {rattingDisplayRows,memberGroups,plainEveText} from './detail-models.mjs';
+import {memberGroups,plainEveText} from './detail-models.mjs';
 export function managementUI({setTheme,api,esc,intro,table,num,date,empty,context,refresh,toast}){
- let rattingAlts=false,memberSort='last_active',memberGrouped=false,conditionChoices={roles:[],titles:[]};
- let period='30',inspectPilot=null,contactPage=1,mailBefore=null,mailId=null,editing=null,groups=[],links=[];
+ let rattingFilters=rattingPreferences(),rattingScope='',rattingPilots=[],rattingOffset=0,memberSort='last_active',memberGrouped=false,conditionChoices={roles:[],titles:[]};
+ let inspectPilot=null,contactPage=1,mailBefore=null,mailId=null,editing=null,groups=[],links=[];
  const face=(id,name)=>`<span class="pilot-face"><img class="pilot-avatar" src="https://images.evetech.net/characters/${Number(id)}/portrait?size=64" alt="" loading="lazy"><strong>${esc(name)}</strong></span>`;
  const mailFrom=(row,names={})=>esc(names[row.from]||(row.from?'Character '+row.from:'Unknown sender'));
  const mailTo=(row,names={})=>(row.recipients||[]).map(r=>esc(names[r.recipient_type==='mailing_list'?'mailing_list:'+r.recipient_id:r.recipient_id]||({mailing_list:'Mailing List',corporation:'Corporation',alliance:'Alliance',character:'Character'}[r.recipient_type]||'Recipient')+' '+r.recipient_id)).join(', ')||'Unavailable';
  const currency=n=>n==null?'Unavailable':Number(n).toLocaleString('en-GB',{maximumFractionDigits:2})+' ISK';
  const notice=s=>s?`<p class="notice">${esc(s)}</p>`:'';
  const source=(title,url,s,body)=>`<section class="panel compact"><h2><a href="${url}" target="_blank" rel="noopener noreferrer">${title} ↗</a></h2>${s?.checked?`<small>Checked ${date(s.checked)}</small>`:''}${notice(s?.error)}${s?.data?body(s.data):empty('Data unavailable')}</section>`;
+ function saveRatting(){try{localStorage.setItem(rattingScope,JSON.stringify(rattingFilters));}catch{}}
+ function loadRatting(){const {me}=context(),scope='tools-ratting:'+me.main_id+':'+(me.inspect?.name||'self');if(scope===rattingScope)return;rattingScope=scope;rattingOffset=0;try{rattingFilters=rattingPreferences(JSON.parse(localStorage.getItem(scope)||'{}'));rattingBounds(rattingFilters);}catch{rattingFilters=rattingPreferences();}}
  async function render(page){
   const {me,chars}=context();
   if(page==='settings'){
    const d=await api('/settings');return intro('Settings','Choose your appearance and pages. Disabled features pause their own sync; shared data needed elsewhere continues.')+`<div class="settings-columns"><section class="panel compact settings-list"><h2>Appearance & My Characters</h2><label class="setting-row"><span><strong>Theme</strong><small>Choose your colours. Saved for your account.</small></span><select id="settings-theme" aria-label="Theme" ${me.inspect?'disabled':''}>${Object.entries(THEMES).map(([id,name])=>`<option value="${id}" ${id===(d.preferences.theme||document.documentElement.dataset.theme||'nebula')?'selected':''}>${name}</option>`).join('')}</select></label><label class="setting-row"><span><strong>Font Size</strong><small>Scale text across the site. Normal keeps the current size.</small></span><select id="settings-font-size" aria-label="Font Size" ${me.inspect?'disabled':''}>${Object.entries({normal:'Normal',small:'Small',large:'Large','extra-large':'Extra Large'}).map(([id,name])=>`<option value="${id}" ${id===(d.preferences.font_size||'normal')?'selected':''}>${name}</option>`).join('')}</select></label><label class="setting-row"><span><strong>Side Panel Font Size</strong><small>Saved for your account and applied to the sidebar menu.</small></span><select id="sidebar-font-size" aria-label="Side Panel Font Size" ${me.inspect?'disabled':''}>${Array.from({length:11},(_,i)=>i+10).map(size=>`<option value="${size}" ${size===(d.preferences.sidebar_font_size||12)?'selected':''}>${size}px${size===12?' (Default)':''}</option>`).join('')}</select></label>${Object.entries(d.pages).map(([id,name])=>`<label class="setting-row"><span><strong><span aria-hidden="true">${pageIcons[id]||''}</span> ${name}</strong><small>${id==='ratting'?'Wallet history continues syncing for Wallet.':['industry','blueprints'].includes(id)?'Industry and Blueprints share a sync; it pauses when both pages are disabled.':id==='pi'?'PI shared with other people continues syncing.':'Re-enable to resume on the next sync.'}</small></span><input class="slide-toggle" type="checkbox" role="switch" aria-label="Show ${name}" data-page-toggle="${id}" ${d.preferences[id]!==false?'checked':''} ${me.inspect?'disabled':''}></label>`).join('')}</section>${Object.keys(d.corporate_pages||{}).length?`<section class="panel compact settings-list corporation-settings"><h2>Corporation Management</h2><small>These toggles only hide pages from your sidebar. Corporation data continues syncing.</small>${Object.entries(d.corporate_pages).map(([id,name])=>`<label class="setting-row"><span><strong><span aria-hidden="true">${pageIcons[id]||''}</span> ${name}</strong></span><input class="slide-toggle" type="checkbox" role="switch" aria-label="Show Corporation ${name}" data-page-toggle="${id}" ${d.preferences[id]!==false?'checked':''} ${me.inspect?'disabled':''}></label>`).join('')}</section>`:''}</div>${Object.keys(d.admin_pages||{}).length?`<section class="panel compact settings-list"><h2>Admin</h2><small>Hide menu items for your account. Permissions and background tasks stay unchanged.</small>${Object.entries(d.admin_pages).map(([id,name])=>`<label class="setting-row"><span><strong><span aria-hidden="true">${pageIcons[id]||''}</span> ${name}</strong></span><input class="slide-toggle" type="checkbox" role="switch" aria-label="Show Admin ${name}" data-page-toggle="${id}" ${d.preferences[id]!==false?'checked':''} ${me.inspect?'disabled':''}></label>`).join('')}</section>`:''}`;
   }
   if(page==='ratting'){
-   const d=await api('/ratting?period='+period),rows=rattingDisplayRows(d.rows,chars,rattingAlts),periodName=({day:'Today',week:'This Week',month:'Current Month','30':'Last 30 Days','60':'Last 60 Days','90':'Last 90 Days',all:'All Retained History'})[period];
-   return intro('Ratting','NPC bounties and ESS payouts across your mains and alts. Periods use UTC.')+`<div class="compact-stats"><div><small>Period</small><strong>${periodName}</strong><small>${d.days} day${d.days===1?'':'s'}</small></div><div><small>ISK Earned</small><strong>${currency(d.total)}</strong></div><div><small>Average Per Day</small><strong>${currency(d.average_per_day)}</strong></div></div><section class="panel compact"><div class="panelhead"><label>Period <select id="ratting-period">${[['day','Day'],['week','Week'],['month','In Month'],['30','30 Days'],['60','60 Days'],['90','90 Days'],['all','All Time']].map(([id,label])=>`<option value="${id}" ${id===period?'selected':''}>${label}</option>`).join('')}</select></label><button data-ratting-alts aria-pressed="${rattingAlts}">${rattingAlts?'Hide Alts':'Show Alts'}</button></div>${table(['Character','Earned'],rows.map(r=>`<tr class="${r.alt?'pilot-alt-row':''}"><td>${face(r.id,r.name)}${r.alts?`<small>Includes ${r.alts} earning alt${r.alts===1?'':'s'}</small>`:''}</td><td class="numeric">${currency(r.total)}</td></tr>`))}${!rows.length?empty('No NPC income recorded for this period'):''}<small>${rattingAlts?'Showing individual earning pilots.':'Main totals include their linked alts.'} All Time covers retained wallet history. Daily averages use calendar days in the selected period.</small><details><summary>Wallet Coverage</summary>${d.coverage.map(c=>`<div class="production"><strong>${esc(c.name)}</strong><span>${c.updated?'Last sync '+date(c.updated):'Awaiting wallet history'}${c.error?' · '+esc(c.error):''}</span></div>`).join('')}</details></section>`;
+   loadRatting();if(rattingFilters.pilot&&!chars.some(c=>String(c.id)===rattingFilters.pilot))rattingFilters.pilot='';rattingPilots=await api('/ratting?detail=1');saveRatting();
+   return intro('Ratting','Recorded NPC bounties and ESS payments across your mains and alts. All dates use UTC.')+rattingView(rattingPilots,chars,rattingFilters,rattingOffset);
   }
   if(page==='groups'){
    groups=await api('/groups');return intro('Groups','Apply for access to corporation pages. Restricted groups require one pilot to meet every condition.')+groups.map(g=>`<section class="panel compact"><div class="panelhead"><h2>${esc(g.icon)} ${esc(g.name)}</h2><span>${esc(g.status||'Not Joined')}</span></div><p>${esc(g.description)}</p><small>${g.mode==='auto'?'Auto Accept':g.mode==='approval'?'Admin Approval':'Restricted · '+(g.eligible?'Requirements Met':'Requirements Not Met')}</small>${g.rules.length?`<p>${g.rules.map(ruleLabel).join(' · ')}</p>`:''}${g.status==='approved'?'<small>Membership granted. Restricted access is rechecked against fresh snapshots.</small>':`<button data-group-apply="${g.id}" ${g.status==='pending'||(g.mode==='restricted'&&!g.eligible)||me.inspect?'disabled':''}>${g.status==='pending'?'Awaiting Approval':'Apply'}</button>`}</section>`).join('')+(groups.length?'':empty('No groups available yet'));
@@ -76,14 +80,18 @@ export function managementUI({setTheme,api,esc,intro,table,num,date,empty,contex
    if(e.target.dataset.pageToggle){const id=e.target.dataset.pageToggle,value=e.target.checked;e.target.disabled=true;await api('/settings',{[id]:value});context().me.preferences[id]=value;await refresh(true);}
    if(e.target.id==='member-sort'){memberSort=e.target.value;await refresh();}
    if(e.target.id==='member-group'){memberGrouped=e.target.checked;await refresh();}
-   if(e.target.id==='ratting-period'){period=e.target.value;await refresh();}
+   if(e.target.name==='period'&&e.target.closest('#ratting-filter')){for(const input of e.target.form.querySelectorAll('input[type=date]'))input.disabled=e.target.value!=='custom';}
    if(e.target.id==='inspect-pilot'){inspectPilot=Number(e.target.value);contactPage=1;mailBefore=null;mailId=null;await refresh();}
   }catch(error){toast(error.message);await refresh();}
  });
  document.addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b)return;
   try{
-   if(b.hasAttribute('data-ratting-alts')){rattingAlts=!rattingAlts;await refresh();}
+   if(b.dataset.rattingAction==='alts'){rattingFilters.alts=!rattingFilters.alts;saveRatting();await refresh();}
+   if(b.dataset.rattingAction==='clear'){rattingFilters=rattingPreferences();rattingOffset=0;saveRatting();await refresh();}
+   if(b.dataset.rattingOffset!==undefined){rattingOffset=Math.max(0,Number(b.dataset.rattingOffset)||0);await refresh();}
+   if(b.dataset.rattingAction==='export'){const rows=rattingAnalysis(rattingPilots,context().chars,rattingFilters).rows,url=URL.createObjectURL(new Blob([rattingCSV(rows)],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='tools-ratting-payouts.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+
    if(b.hasAttribute('data-rule-add')){document.getElementById('group-rules').insertAdjacentHTML('beforeend',ruleInputs());return;}
    if(b.hasAttribute('data-rule-remove')){b.closest('.rule-row').remove();return;}
    if(b.dataset.groupEdit){editing=Number(b.dataset.groupEdit);await refresh();}
@@ -102,6 +110,8 @@ export function managementUI({setTheme,api,esc,intro,table,num,date,empty,contex
  });
  document.addEventListener('submit',async e=>{
   const formId=e.target.getAttribute('id');
+  if(formId==='ratting-filter'){e.preventDefault();try{const next=rattingPreferences({...rattingFilters,...Object.fromEntries(new FormData(e.target))});rattingBounds(next);rattingFilters=next;rattingOffset=0;saveRatting();await refresh();}catch(error){toast(error.message);}return;}
+
   if(!['access-group-form','external-link-form'].includes(formId))return;e.preventDefault();
   const f=new FormData(e.target),body=Object.fromEntries(f);
   if(formId==='access-group-form'){

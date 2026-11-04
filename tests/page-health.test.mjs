@@ -8,7 +8,7 @@ import * as corporation from '../lib/corp.mjs';
 import {openStore} from '../lib/store.mjs';
 import {hash,cryptoBox} from '../lib/security.mjs';
 const base='http://127.0.0.1',key='ab'.repeat(32);
-const personal=['/me','/characters','/skills/overview','/characters/100/skills','/characters/100/dashboard','/characters/100/wallet-history','/operations/clones','/operations/wallet-history','/operations/contracts','/operations/standings','/ratting','/operations/market','/operations/mining','/operations/industry','/operations/dens','/operations/pi','/assets','/documents','/groups','/settings','/notifications','/pi/dashboard','/pi/shares','/pi/shared','/material-planner/personal','/recruit/application','/discord'];
+const personal=['/me','/characters','/skills/overview','/characters/100/skills','/characters/100/dashboard','/characters/100/wallet-history','/operations/clones','/operations/wallet-history','/operations/contracts','/operations/standings','/ratting','/ratting?detail=1','/operations/market','/operations/mining','/operations/industry','/operations/dens','/operations/pi','/assets','/documents','/groups','/settings','/notifications','/pi/dashboard','/pi/shares','/pi/shared','/material-planner/personal','/recruit/application','/discord'];
 const corporate=['overview','members','pilots','wallet','contracts','assets','pilot-assets','standings','market','industry','blueprints','structures','harvest','surveys','surveys/browser'].map(s=>'/corporation/'+s);
 const admin=['users','groups','links','pages','esi','corporations','whitelist','recruitment','discord','affiliations','group-conditions'].map(s=>'/admin/'+s);
 async function fixture(fn){
@@ -71,4 +71,11 @@ test('selected wallet history enforces ownership and retains saved records after
  db.prepare('INSERT INTO sync_errors VALUES(?,?,?)').run(200,'wallet-history','Temporary failure');
  const response=await request('/characters/200/wallet-history',{actor:200});assert.equal(response.status,200);const body=await response.json();assert.equal(body.data.journal.length,1);assert.equal(body.error,'Temporary failure');
  assert.equal((await request('/characters/200/wallet-history',{actor:100})).status,404);
+}));
+
+
+test('ratting detail returns only owned positive bounty and ESS history, retaining errors',()=>fixture(async({db,request,typeReads})=>{
+ const now=Date.now();for(const id of [100,200])db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,'wallet-history',JSON.stringify({journal:[{id:1,ref_type:'bounty_prizes',amount:10,reason:'23321: 2',description:'owner-'+id},{id:2,ref_type:'bounty_prizes',amount:0},{id:3,ref_type:'player_donation',amount:99,description:'unrelated-wallet-entry'},{id:4,ref_type:'ess_escrow_transfer',amount:5}],transactions:[{private:'not-ratting'}]}),now,now+10000);
+ db.prepare('INSERT INTO sync_errors VALUES(?,?,?)').run(200,'wallet-history','Temporary failure');
+ const before=typeReads(),response=await request('/ratting?detail=1',{actor:200});assert.equal(response.status,200);const body=await response.json();assert.equal(body.length,1);assert.equal(body[0].id,200);assert.equal(body[0].data.journal.length,2);assert.equal(body[0].error,'Temporary failure');assert.equal(typeReads()-before,1);const text=JSON.stringify(body);assert(!text.includes('owner-100'));assert(!text.includes('unrelated-wallet-entry'));assert(!text.includes('not-ratting'));
 }));

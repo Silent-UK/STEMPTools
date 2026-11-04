@@ -180,6 +180,11 @@ for(const character of [1000001,1000002,1000003]){
  const row=db.prepare("SELECT data FROM snapshots WHERE character_id=? AND kind='industry'").get(character),industry=row?JSON.parse(row.data):{jobs:[]};industry.blueprints=[{...blueprint,item_id:900001+character}];snap('industry',industry);
  snap('assets',{items:[{item_id:character+9000000,type_id:38,quantity:1000,location_id:60003760}],locations:{60003760:'Example Station'}});
 }
+const npcDemo=cat.named('Dread Guristas Killer')||13575;
+for(const [index,id] of [1000001,1000002,1000003].entries()){
+ const journal=Array.from({length:12},(_,i)=>({id:70000+index*100+i,date:new Date(now-i*86400000-index*3600000).toISOString(),ref_type:i%4===0?'ess_escrow_transfer':'bounty_prizes',amount:(index+1)*15000000+i*1750000,description:i%4===0?'ESS payment':'Bounty prizes for pirates in Example System',reason:i%4===0?'':npcDemo+': '+(i+1)+(i===5?',truncated...':''),context_id_type:'system_id',context_id:30000142}));
+ db.prepare('INSERT OR REPLACE INTO snapshots VALUES(?,?,?,?,?,NULL)').run(id,'wallet-history',JSON.stringify({journal,transactions:[],names:{},started_at:now-30*86400000}),now,now+3600000);
+}
 const demoContracts={contracts:[
  {contract_id:101,title:'Doctrine ship delivery',type:'courier',status:'in_progress',availability:'personal',issuer_id:1000001,assignee_id:1000002,acceptor_id:1000002,reward:15000000,collateral:250000000,volume:60000,date_issued:new Date(now-4*86400000).toISOString(),date_accepted:new Date(now-3*86400000).toISOString(),days_to_complete:2,date_expired:new Date(now+86400000).toISOString(),start_location_id:60003760,end_location_id:60000001,observed:now},
  {contract_id:102,title:'Replacement ships',type:'item_exchange',status:'outstanding',availability:'personal',issuer_id:1000002,assignee_id:1000001,price:45000000,date_issued:new Date(now-86400000).toISOString(),date_expired:new Date(now+12*3600000).toISOString(),start_location_id:60003760,items:[{type_id:587,name:'Rifter',quantity:3,is_included:true}],observed:now},
