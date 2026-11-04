@@ -38,6 +38,7 @@ test('CSRF, malformed writes and unknown API paths fail safely',()=>fixture(asyn
 }));
 test('inspection denies every write and keeps admin accounts protected',()=>fixture(async({request})=>{
  assert.equal((await request('/inspect',{actor:100,method:'POST',body:{user_id:2}})).status,200);
+ const module=await request('/../auth-navigation.mjs',{actor:100});assert.equal(module.status,200);assert.match(module.headers.get('content-type'),/javascript/);assert.match(await module.text(),/export function recruitSignup/);assert.equal((await request('/../auth/login',{actor:100})).status,403);
  for(const [path,body] of [['/settings',{theme:'oled'}],['/characters/200/sync',{}],['/sync',{}],['/notifications/dismiss',{keys:[]}]])assert.equal((await request(path,{actor:100,method:'POST',body})).status,403,path);
  assert.equal((await request('/inspect',{actor:200,method:'POST',body:{user_id:1}})).status,403);
 }));

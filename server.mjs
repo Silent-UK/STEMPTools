@@ -151,7 +151,7 @@ export function createApp(config) {
     const target=db.prepare('SELECT u.* FROM inspections i JOIN users u ON u.id=i.target_id WHERE i.session_id=?').get(req.session.id);
     if(!target)return next();
     if(!recruitment.canInspect(req.session,target.id)){db.prepare('DELETE FROM inspections WHERE session_id=?').run(req.session.id);return next();}
-    if(req.path.toLowerCase().startsWith('/auth'))return res.status(403).send('Exit Inspect before connecting characters.');
+    if(req.path.toLowerCase()==='/auth'||req.path.toLowerCase().startsWith('/auth/'))return res.status(403).send('Exit Inspect before connecting characters.');
     if(req.path.toLowerCase().startsWith('/api')&&!['GET','HEAD'].includes(req.method))return res.status(403).json({error:'Inspect is read-only. Exit Inspect to make changes.'});
     const recruitmentOnly=!isSiteAdmin(req.session,config.owner);
     if(recruitmentOnly&&req.path.toLowerCase().startsWith('/api')&&!recruitInspectPath(req.path.toLowerCase()))return res.status(403).json({error:'Recruitment inspection is limited to applicant-owned character data.'});
@@ -159,7 +159,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.37.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.37.2" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
