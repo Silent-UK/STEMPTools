@@ -1,3 +1,4 @@
+import moonRecipes from '../lib/moon-recipes.json' with {type:'json'};
 import {CORP_SCOPES} from '../lib/corp.mjs';
 import {SCOPES} from '../lib/eve.mjs';
 import {pilotAccess} from '../lib/corp-data.mjs';
@@ -13,6 +14,7 @@ import { createApp } from "../server.mjs";
 const dir = mkdtempSync(join(tmpdir(), "tools-preview-")),
   db = openStore(dir),
   cat = catalog("data");
+const previewMoonPrices=[...new Set(Object.values(moonRecipes.recipes.athanor).flatMap(recipe=>recipe.materials.map(m=>m.name)))].map((name,i)=>({type_id:cat.named(name),average_price:name==='Pyerite'?10:name==='Mexallon'?60:(i+1)*100})).filter(p=>p.type_id);
 db.prepare("INSERT INTO users VALUES(1,1000001,?,1)").run(
   "Preview workspace · sample data",
 );
@@ -211,7 +213,7 @@ const { app } = createApp({
   base: "http://127.0.0.1:3014",
   key: "ab".repeat(32),
   owner: 1000001,
-  eve: {get:async path=>path.endsWith('/fittings')?[{fitting_id:1,name:'Preview Saved Rifter',description:'Example saved in-game fitting',ship_type_id:587,items:[{type_id:2048,flag:'LoSlot0',quantity:1}]}]:[],publicGet:async path=>path==="/markets/prices"?[{type_id:16634,average_price:1200},{type_id:16640,average_price:8000}]:{},request:async(path,character,method,body)=>{if(path==='/characters/affiliation')return {pages:1,data:body.map(id=>({character_id:id,corporation_id:668298004}))};if(path==='/universe/names')return {data:body.map(id=>({id,name:id===668298004?'Sacred Templars':'Example '+id}))};const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
+  eve: {get:async path=>path.endsWith('/fittings')?[{fitting_id:1,name:'Preview Saved Rifter',description:'Example saved in-game fitting',ship_type_id:587,items:[{type_id:2048,flag:'LoSlot0',quantity:1}]}]:[],publicGet:async path=>path==="/markets/prices"?previewMoonPrices:{},request:async(path,character,method,body)=>{if(path==='/characters/affiliation')return {pages:1,data:body.map(id=>({character_id:id,corporation_id:668298004}))};if(path==='/universe/names')return {data:body.map(id=>({id,name:id===668298004?'Sacred Templars':'Example '+id}))};const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
 });
 {
  db.prepare('INSERT INTO users VALUES(900,2000001,?,0)').run('Example Recruit');

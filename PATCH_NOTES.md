@@ -1,3 +1,8 @@
+# STEMP Tools v0.38.3
+
+- Moon Scans: show each listed moon’s highest ore tier and compact monthly Athanor / Drill values together. Athanor follows the selected refine percentage; Drill remains at 40%.
+- Reuse cached prices for the selected system. Mark partial coverage and keep invalid or unpriced estimates unavailable.
+
 # STEMP Tools v0.38.2
 
 - Moon Scans: start with all regions collapsed. Expand the relevant region after explicitly selecting a system or moon.
