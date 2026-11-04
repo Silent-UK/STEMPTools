@@ -1,3 +1,7 @@
+# STEMP Tools v0.41.1
+
+- Skill Plans and Fittings: restore the shared themed panel border around the library, with compact spacing matching other pages.
+
 # STEMP Tools v0.41.0
 
 - PI: Storage Attention finds launchpads at least 75% full. Add character, system, planet and product search alongside existing status filters.
