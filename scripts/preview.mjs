@@ -213,11 +213,11 @@ const { app } = createApp({
   owner: 1000001,
   eve: {get:async path=>path.endsWith('/fittings')?[{fitting_id:1,name:'Preview Saved Rifter',description:'Example saved in-game fitting',ship_type_id:587,items:[{type_id:2048,flag:'LoSlot0',quantity:1}]}]:[],publicGet:async path=>path==="/markets/prices"?[{type_id:16634,average_price:1200},{type_id:16640,average_price:8000}]:{},request:async(path,character,method,body)=>{if(path==='/characters/affiliation')return {pages:1,data:body.map(id=>({character_id:id,corporation_id:668298004}))};if(path==='/universe/names')return {data:body.map(id=>({id,name:id===668298004?'Sacred Templars':'Example '+id}))};const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
 });
-if(process.env.PREVIEW_INSPECT==='1'){
+{
  db.prepare('INSERT INTO users VALUES(900,2000001,?,0)').run('Example Recruit');
  db.prepare("INSERT INTO characters VALUES(2000001,900,?,'preview','unused','[]',0,0)").run('Example Recruit');
  db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(900,?,?)').run(now,now);
- db.prepare('INSERT INTO inspections VALUES(?,900)').run(hash('local-preview'));
+ if(process.env.PREVIEW_INSPECT==='1')db.prepare('INSERT INTO inspections VALUES(?,900)').run(hash('local-preview'));
 }
 const server = http.createServer((req, res) => {
   if(process.env.PREVIEW_RECRUIT==='1'){
