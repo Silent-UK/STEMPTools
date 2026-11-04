@@ -1,3 +1,10 @@
+# STEMP Tools v0.38.0
+
+- Industry: combined outstanding jobs across mains and alts, character summaries, clickable ready/running/24-hour/paused totals, next completion and progress bars.
+- Search and filter activity, status and location; sort jobs, optionally group by pilot, and remember the view per account and inspection context.
+- Expand jobs for installation costs and dates; export every filtered job to CSV. Show snapshot coverage and retained sync errors.
+- Keep character stripes, compact rows, and Show alts below the picker. Ready timers are estimates until confirmed by ESI.
+
 # STEMP Tools v0.30.1
 
 - **Fitting Workbench:** Ammo opens a weapon-specific browser using the fitting engine’s charge compatibility rules. Search remains restricted to compatible ammunition, and the filter stays active after loading a charge until cancelled or another weapon is chosen.

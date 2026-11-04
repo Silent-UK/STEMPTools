@@ -13,7 +13,8 @@ import {pageNavigation} from './site-pages-model.mjs';
 import {filterUsers,userRole} from './users-model.mjs';
 import {discordUI} from './discord-view.mjs';
 import {recruitmentUI} from './recruitment-view.mjs';
-import {industryWithJobs} from './industry-model.mjs';
+import {industryPreferences,industryRows,industrySummary,industryCSV} from './industry-dashboard-model.mjs';
+import {industryDashboardView} from './industry-dashboard-view.mjs';
 import {eveClock} from './eve-clock.mjs';
 import {accountEsiStatus} from './admin-esi-status.mjs';
 import {fittingWorkbenchUI} from './fitting-workbench.mjs';
@@ -197,7 +198,7 @@ root.addEventListener('click',async event=>{const button=event.target.closest('[
 function refreshNotificationMenu(){const slot=document.querySelector('#notification-slot');if(!slot)return;const open=slot.querySelector('details')?.open;slot.innerHTML=notificationMenu();if(open&&slot.querySelector('details'))slot.querySelector('details').open=true;}
 function shell() {
   rememberSidebar();
-  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.37.3</small></div></div><div><details class="personal-nav sidebar-section" data-sidebar="personal" ${sidebarOpen('personal')?'open':''}><summary>My Characters</summary><nav>${customNavigation('personal',nav.filter(([id])=>me.recruit?['overview','characters'].includes(id):me.preferences?.[id]!==false&&(!me.inspect?.recruitment_only||!['plans','fittings','pi'].includes(id))))}</nav></details>${me.links?.length?`<details class="links-nav sidebar-section" data-sidebar="links" ${sidebarOpen('links')?'open':''}><summary>Links</summary><nav>${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.slug?'/'+l.slug:l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}${(me.pages||[]).some(p=>p.section==='pages')?`<details class="pages-nav sidebar-section" data-sidebar="pages" ${sidebarOpen('pages')?'open':''}><summary>Pages</summary><nav>${customNavigation('pages')}</nav></details>`:''}<details class="management-nav sidebar-section" data-sidebar="management" ${sidebarOpen('management')?'open':''}><summary>Management</summary><nav>${customNavigation('management',[...(me.recruit||me.inspect?.recruitment_only?[]:[['groups','◇','Groups'],['settings','⚙','Settings']]),...(me.recruiter?[['recruitment','♙','Recruitment']]:[]),...(me.recruit?[['recruit-application','♙','Application']]:[])])}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" data-sidebar="inspect" ${sidebarOpen('inspect')?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-pilot-check','✓','Pilot Check'],['inspect-pilot-combat','⚔','Pilot Combat'],['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${(me.corporation||(me.pages||[]).some(p=>p.section==='corporation'))?`<details class="corp-nav sidebar-section" data-sidebar="corporation" ${sidebarOpen('corporation')?'open':''}><summary>Corporation Management</summary><nav>${customNavigation('corporation',corpNav.filter(([id])=>me.corporate_pages?.includes(id)&&me.preferences?.[id]!==false))}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" data-sidebar="admin" ${sidebarOpen('admin')?'open':''}><summary>Admin</summary><nav>${adminNav.filter(([id])=>me.preferences?.[id]!==false).map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><time class="eve-clock" data-eve-clock title="EVE Time · UTC">${eveClock()}</time></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<span id="notification-slot">${notificationMenu()}</span><span id="page-sync-slot"></span>${page==="overview"?'<button class="primary" data-action="add-character">+ Add character</button>':""}</div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
+  root.innerHTML = `<div class="shell"><aside><div class="brand"><img src="https://images.evetech.net/corporations/668298004/logo?size=128" alt="STEMP"><div>STEMP Tools<small class="brand-version">v0.38.0</small></div></div><div><details class="personal-nav sidebar-section" data-sidebar="personal" ${sidebarOpen('personal')?'open':''}><summary>My Characters</summary><nav>${customNavigation('personal',nav.filter(([id])=>me.recruit?['overview','characters'].includes(id):me.preferences?.[id]!==false&&(!me.inspect?.recruitment_only||!['plans','fittings','pi'].includes(id))))}</nav></details>${me.links?.length?`<details class="links-nav sidebar-section" data-sidebar="links" ${sidebarOpen('links')?'open':''}><summary>Links</summary><nav>${(me.links||[]).map(l=>`<a class="external-nav" href="${esc(l.slug?'/'+l.slug:l.url)}" title="${esc(l.description)}" target="_blank" rel="noopener noreferrer"><span>↗</span>${esc(l.name)}</a>`).join('')}</nav></details>`:''}${(me.pages||[]).some(p=>p.section==='pages')?`<details class="pages-nav sidebar-section" data-sidebar="pages" ${sidebarOpen('pages')?'open':''}><summary>Pages</summary><nav>${customNavigation('pages')}</nav></details>`:''}<details class="management-nav sidebar-section" data-sidebar="management" ${sidebarOpen('management')?'open':''}><summary>Management</summary><nav>${customNavigation('management',[...(me.recruit||me.inspect?.recruitment_only?[]:[['groups','◇','Groups'],['settings','⚙','Settings']]),...(me.recruiter?[['recruitment','♙','Recruitment']]:[]),...(me.recruit?[['recruit-application','♙','Application']]:[])])}</nav></details>${me.inspect?`<details class="inspect-nav sidebar-section" data-sidebar="inspect" ${sidebarOpen('inspect')?'open':''}><summary>Inspect Only</summary><nav>${[['inspect-pilot-check','✓','Pilot Check'],['inspect-pilot-combat','⚔','Pilot Combat'],['inspect-mail','✉','Mail'],['inspect-contacts','♙','Contacts']].map(navigationButton).join('')}</nav></details>`:''}${(me.corporation||(me.pages||[]).some(p=>p.section==='corporation'))?`<details class="corp-nav sidebar-section" data-sidebar="corporation" ${sidebarOpen('corporation')?'open':''}><summary>Corporation Management</summary><nav>${customNavigation('corporation',corpNav.filter(([id])=>me.corporate_pages?.includes(id)&&me.preferences?.[id]!==false))}</nav></details>`:''}</div>${me.admin ? `<details class="admin-nav sidebar-section" data-sidebar="admin" ${sidebarOpen('admin')?'open':''}><summary>Admin</summary><nav>${adminNav.filter(([id])=>me.preferences?.[id]!==false).map(([id,icon,name])=>`<button data-nav="${id}" class="${page===id?"active":""}"><span>${icon}</span>${name}</button>`).join("")}</nav></details>`:""}<div class="account"><div class="account-person"><img class="portrait" src="https://images.evetech.net/characters/${Number(me.main_id)}/portrait?size=64" alt="${esc(me.name)}"><strong>${esc(me.name)}</strong></div><div class="account-controls"><time class="eve-clock" data-eve-clock title="EVE Time · UTC">${eveClock()}</time></div></div></aside><main>${me.inspect?`<div class="inspect-banner"><strong>Inspecting ${esc(me.inspect.name)} · Read-only</strong><button data-action="exit-inspect">Exit Inspect</button></div>`:''}<header class="topbar"><div class="page-heading"></div><div class="actions"><button data-action="update-view" hidden>New data available · Update view</button>${(page === "overview" || page === "pi") ? '<button data-action="sync">↻ Refresh all characters</button>' : ""}<span id="notification-slot">${notificationMenu()}</span><span id="page-sync-slot"></span>${page==="overview"?'<button class="primary" data-action="add-character">+ Add character</button>':""}</div></header><div id="content"></div><footer class="footer">EVE Online data provided by CCP Games. Not affiliated with CCP. Cached snapshots · all times UTC.</footer></main></div>`;
   document.documentElement.style.setProperty('--font-scale',FONT_SIZES[me.preferences?.font_size]||1);
   const fontSize=Number(me.preferences?.sidebar_font_size)||12;root.querySelector('.shell>aside')?.style.setProperty('--sidebar-font-size',Math.max(10,Math.min(20,fontSize))*(FONT_SIZES[me.preferences?.font_size]||1)+'px');
 }
@@ -583,61 +584,17 @@ async function mining(){
  const heading=isAll?`<div class="panelhead mining-heading"><div><strong>Combined mining · all characters and alts</strong><small>${combined.connected} / ${combined.total} pilots have imported ledgers · oldest snapshot ${date(combined.updated)}</small></div><button data-action="sync">↻ Refresh all characters</button></div>${combined.missing.length?`<p class="notice">Not yet included: ${esc(combined.missing.join(', '))}. Select each pilot to connect mining access.</p>`:''}${combined.failed.length?`<p class="notice error">Latest sync failed for ${esc(combined.failed.join(', '))}. Available previous ledgers are included.</p>`:''}`:c?`<div class="panelhead mining-heading">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><a class="button" href="/auth/login?link=1&mining=1&character=${c.id}">Connect mining access</a><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error?`<p class="notice error">${esc(c.error)}${c.data?' Last successful ledger retained.':''}</p>`:''}`:'';
  return intro('Mining','Combined mining across all mains and alts. Select a pilot for their breakdown. All characters always includes alts.')+picker+altFilter()+heading+miningDashboardView(miningSource,chars,miningFilters,miningOffset,refining);
 }
-let industryPilot=null;
-async function industry() {
-  const source=await api('/operations/industry'),all=industryWithJobs(source);
-  if(myPilotFocus?.page==='industry'){const focus=source.find(c=>c.id===myPilotFocus.id);if(focus&&!all.some(c=>c.id===focus.id))all.push(focus);}
-  const visible=visibleCharacters(all);
-  if(industryPilot!==null&&!visible.some(c=>c.id===industryPilot))industryPilot=null;
-  const rows=industryPilot===null?all:visible;
-  const picker=`<div class="training-overview character-picker"><button class="training-card" data-industry-all="1" aria-pressed="${industryPilot===null}"><span><strong>All Characters</strong><small>${all.length} pilots · including alts</small></span></button>${visible.map(c=>`<button class="training-card" data-industry-pilot="${c.id}" aria-pressed="${industryPilot===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt=""><span><strong>${esc(c.name)}</strong><small>${c.data?c.data.jobs.length+' jobs':'Awaiting Sync'}</small></span></button>`).join('')}</div>`;
-  const activities = {
-    1: "Manufacturing",
-    3: "TE research",
-    4: "ME research",
-    5: "Copying",
-    7: "Reverse engineering",
-    8: "Invention",
-    9: "Reaction",
-    11: "Reaction",
-  };
-  return (
-    intro(
-      "Industry",
-      "Active, paused and undelivered jobs across your characters. Updated hourly.",
-    ) +
-    altFilter() + picker + `<div class="compact-stats"><div><small>View</small><strong>${industryPilot===null?'All Characters':esc(all.find(c=>c.id===industryPilot)?.name)}</strong></div><div><small>Jobs</small><strong>${rows.filter(c=>industryPilot===null||c.id===industryPilot).reduce((n,c)=>n+(c.data?.jobs.length||0),0)}</strong></div></div>` +
-    rows.map(
-        (c) =>
-          `<section class="panel compact industry-character" data-industry-char="${c.id}" ${industryPilot===null||c.id===industryPilot?'':'hidden'}><div class="panelhead">${portrait(c)}<div class="actions"><small>${date(c.updated)}</small><button data-sync-char="${c.id}">↻ Sync character</button></div></div>${c.error ? `<div class="notice error">${esc(c.error)} <a href="/auth/login?link=1">Reconnect character</a></div>` : ""}${
-            !c.data
-              ? empty("Awaiting Industry sync")
-              : `<h3>Jobs · ${c.data.jobs.length}</h3>${
-                  c.data.jobs.length
-                    ? table(
-                        [
-                          "Product / blueprint",
-                          "Activity",
-                          "Runs",
-                          "Status",
-                          "Finishes",
-                          "Location",
-                        ],
-                        c.data.jobs
-                          .sort(
-                            (a, b) =>
-                              Date.parse(a.end_date) - Date.parse(b.end_date),
-                          )
-                          .map(
-                            (j) =>
-                              `<tr><td><span class="icon-label">${industryJobIcon(j)}${esc(j.name)}</span></td><td>${esc(activities[j.activity_id] || "Activity " + j.activity_id)}</td><td>${num(j.runs)}</td><td>${esc(j.status === "active" && Date.parse(j.end_date) <= Date.now() ? "Ready (estimated)" : j.status)}</td><td>${date(j.end_date)}<small>${j.status === "active" ? eta(j.end_date) : ""}</small></td><td>${esc(j.location)}</td></tr>`,
-                          ),
-                      )
-                    : "<small>No current jobs</small>"
-                }`
-          }</section>`,
-      ).join('') + (!all.length?empty('No active or undelivered industry jobs.'): '')
-  );
+let industryPilot=null,industryFilters=industryPreferences(),industryScope='',industrySource=[],industryOffset=0;
+function saveIndustryView(){try{localStorage.setItem(industryScope,JSON.stringify({...industryFilters,pilot:industryPilot,pickerAlts:pageAlts.industry}));}catch{}}
+function loadIndustryView(){const scope='tools-industry:'+me.main_id+':'+(me.inspect?.name||'self');if(scope===industryScope)return;industryScope=scope;industryFilters=industryPreferences();industryPilot=null;industryOffset=0;try{const raw=JSON.parse(localStorage.getItem(scope)||'{}');industryFilters=industryPreferences(raw);industryPilot=Number.isSafeInteger(raw.pilot)&&raw.pilot>0?raw.pilot:null;pageAlts.industry=raw.pickerAlts===true;}catch{}}
+root.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;const action=b.dataset.industryAction;if(b.dataset.industryStatus!==undefined){industryFilters.status=industryFilters.status===b.dataset.industryStatus?'':b.dataset.industryStatus;industryOffset=0;saveIndustryView();await render();}if(b.dataset.industryOffset!==undefined){industryOffset=Number(b.dataset.industryOffset);await render();}if(action==='clear'){industryFilters=industryPreferences();industryOffset=0;saveIndustryView();await render();}if(action==='export'){if(document.querySelector('#content')?.getAttribute('aria-busy')==='true')return;const url=URL.createObjectURL(new Blob([industryCSV(industryRows(industrySource,industryFilters))],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='tools-industry.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}});
+async function industry(){
+ loadIndustryView();const source=await api('/operations/industry');
+ if(myPilotFocus?.page==='industry'){industryPilot=myPilotFocus.id;pageAlts.industry=true;myPilotFocus=null;}
+ const visible=visibleCharacters(source);if(industryPilot!==null&&!visible.some(c=>c.id===industryPilot))industryPilot=null;
+ industrySource=industryPilot===null?source:source.filter(c=>c.id===industryPilot);saveIndustryView();
+ const picker=`<div class="training-overview character-picker industry-picker"><button class="training-card" data-industry-all="1" aria-pressed="${industryPilot===null}"><span><strong>All Characters</strong><small>${source.length} pilots · including all alts</small></span></button>${visible.map(c=>{const stats=industrySummary(industryRows([c]));return `<button class="training-card" data-industry-pilot="${c.id}" aria-pressed="${industryPilot===c.id}"><img class="portrait" src="https://images.evetech.net/characters/${c.id}/portrait?size=64" alt="" loading="lazy"><span><strong>${esc(c.name)}</strong><small>${c.data?stats.running+' running · '+stats.ready+' ready'+(stats.paused?' · '+stats.paused+' paused':''):'Awaiting sync'}</small><small>${stats.next?'Next: '+jobTime(stats.next.end_date):''}${c.error?' · Refresh issue':''}</small></span></button>`;}).join('')}</div>`;
+ return intro('Industry','Outstanding manufacturing, research, copying, invention and reaction jobs. All Characters includes alts.',industryPilot?`<button data-sync-char="${industryPilot}">↻ Sync character</button>`:'<div class="actions"><button data-action="sync">↻ Refresh all characters</button></div>')+picker+altFilter()+industryDashboardView(industrySource,industryFilters,industryOffset);
 }
 function assetCharacterGroups(items) {
  const owners=chars.filter(c=>items.some(a=>a.character_id===c.id));
@@ -798,7 +755,7 @@ root.addEventListener("click", async (e) => {
     } else if(b.dataset.myTarget){
       selected=Number(b.dataset.myPilot);if(b.dataset.myTarget==='skills')skillsExplicitSelected=selected;myPilotFocus={id:selected,page:b.dataset.myTarget};
       if(Object.hasOwn(pageAlts,b.dataset.myTarget))pageAlts[b.dataset.myTarget]=true;
-      if(b.dataset.myTarget==='industry')industryPilot=selected;
+      if(b.dataset.myTarget==='industry'){loadIndustryView();industryPilot=selected;industryFilters=industryPreferences();industryOffset=0;saveIndustryView();}
       if(b.dataset.myTarget==='contracts'){contractsOffset=0;loadContractsView();contractsPilot=String(selected);contractsFilters=contractPreferences({status:'outstanding'});saveContractsView();}
       if(b.dataset.myTarget==='mining'){loadMiningView();miningPilot=selected;miningOffset=0;miningFilters=miningPreferences();saveMiningView();}
       if(b.dataset.myTarget==='assets'){assetFilters={q:'',character:String(selected),location:''};assetSearchAll=false;assetOffset=0;}
@@ -816,7 +773,7 @@ root.addEventListener("click", async (e) => {
     } else if (b.dataset.piFilter) {
       const key=b.dataset.piFilter;piStatusFilters.has(key)?piStatusFilters.delete(key):piStatusFilters.add(key);applyPIStatusFilters();
     } else if (b.dataset.action === "page-alts" && Object.hasOwn(pageAlts,page)) {
-      pageAlts[page]=!pageAlts[page];if(page==='wallet')saveWalletView();if(page==='mining')saveMiningView();assetOffset=0;await render();
+      pageAlts[page]=!pageAlts[page];if(page==='wallet')saveWalletView();if(page==='mining')saveMiningView();if(page==='industry')saveIndustryView();assetOffset=0;await render();
     } else if(b.dataset.action==='pi-shared') {
       myPilotFocus=null;piShared=!piShared;await render();
     } else if(b.dataset.piEditShare) {
@@ -880,7 +837,7 @@ This wipes their saved data, fittings, plans, settings, group memberships, ESI t
     } else if (b.dataset.miningOffset!==undefined) {
       miningOffset=Math.max(0,Number(b.dataset.miningOffset));await render();
     } else if (b.dataset.industryAll||b.dataset.industryPilot) {
-      industryPilot=b.dataset.industryAll?null:Number(b.dataset.industryPilot);selected=industryPilot||selected;await render();
+      industryPilot=b.dataset.industryAll?null:Number(b.dataset.industryPilot);if(industryPilot!==null&&chars.find(c=>c.id===industryPilot)?.parent_id!==industryPilot)pageAlts.industry=true;selected=industryPilot||selected;industryOffset=0;saveIndustryView();await render();
     } else if (b.dataset.selectChar) {
       selected=Number(b.dataset.selectChar);if(page==='skills'){skillsView.selected=selected;saveSkillsView();}if(page==='characters'){myCharacterView.selected=selected;myCharacterView.alts=chars.find(c=>c.id===selected)?.parent_id!==selected||pageAlts.characters;saveMyCharacterView();}miningOffset=0;
       if(page==='characters'&&chars.find(c=>c.id===selected)?.parent_id!==selected)pageAlts.characters=true;
@@ -992,6 +949,7 @@ root.addEventListener("submit", async (e) => {
   if(e.target.id==='contracts-filter'){e.preventDefault();const next=contractPreferences(Object.fromEntries(new FormData(e.target)));if(next.from&&next.to&&next.from>next.to){toast('The start date must be before the end date.');return;}contractsFilters=next;contractsOffset=0;saveContractsView();await render();return;}
   if(e.target.id==='wallet-filter'){e.preventDefault();try{const form=new FormData(e.target),next={...walletFilters,...Object.fromEntries(form)},changed=next.mode!==walletFilters.mode;if(changed)next.type='';next.exclude_own=!changed&&next.mode==='journal'?form.has('exclude_own'):walletFilters.exclude_own;next.personal_only=!changed&&next.mode==='transactions'?form.has('personal_only'):walletFilters.personal_only;validateWalletFilters(next);walletFilters=walletPreferences(next);walletOffset=0;saveWalletView();await render();}catch(error){toast(error.message);}return;}
   if(e.target.id==='skill-compare-form'){e.preventDefault();const f=new FormData(e.target);compareIds=f.getAll('pilot').map(Number);await render();return;}
+  if(e.target.id==='industry-filter'){e.preventDefault();industryFilters=industryPreferences({...Object.fromEntries(new FormData(e.target)),grouped:e.target.elements.grouped.checked});industryOffset=0;saveIndustryView();await render();return;}
   if(e.target.id==='mining-filter'){e.preventDefault();try{const next=miningPreferences({...miningFilters,...Object.fromEntries(new FormData(e.target))});miningBounds(next);miningFilters=next;miningOffset=0;saveMiningView();await render();}catch(error){toast(error.message);}return;}
   if(e.target.id==='whitelist-add'){e.preventDefault();const f=new FormData(e.target);try{await api('/admin/whitelist',{kind:f.get('kind'),entity_id:Number(f.get('entity_id'))});await render();}catch(error){toast(error.message);}return;}
   if(e.target.id==='corp-industry-filter'){e.preventDefault();const f=new FormData(e.target);corpIndustryFilters={q:String(f.get('q')||''),status:String(f.get('status')||'')};render();}
