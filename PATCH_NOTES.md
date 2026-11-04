@@ -1,3 +1,10 @@
+# STEMP Tools v0.39.0
+
+- Blueprint library: accurate packaged original totals, copy runs, unique types and locations.
+- Saved filters for research, duplicate originals, pilot, location, efficiency and outstanding jobs; group by location, type or character.
+- Match saved jobs by blueprint item ID; expose snapshots, output per run and compact expandable details.
+- Export all filtered rows to CSV; paginate large inventories and clarify pooled material stock coverage.
+
 # STEMP Tools v0.38.4
 
 - Moon Scans: select multiple highest ore tiers alongside the existing search. No tier selection shows all moons. Colour-code R4, R8, R16, R32 and R64 in filters, moon entries and ore composition.
