@@ -162,7 +162,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.42.0" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.42.1" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -258,7 +258,8 @@ export function createApp(config) {
       if(req.session.main_id===config.owner)db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(corpInfo.id,corpInfo.name,id.id,id.name,id.owner,box.seal(token),Date.now(),corpInfo.role);
       return res.redirect("/#corp-structures");
     }
-    if(!flow.user_id){try{await whitelist.check(id.id,true);}catch(e){const applicant=db.prepare("SELECT a.status FROM recruitment_applications a JOIN users u ON u.id=a.user_id WHERE u.main_id=? AND a.status NOT IN ('rejected','withdrawn','joined')").get(id.id);if(e.status!==403||!(flow.invite==='recruit'||applicant))throw e;}}
+    let memberLogin=false;
+    if(!flow.user_id){try{await whitelist.check(id.id,true);memberLogin=true;}catch(e){const applicant=db.prepare("SELECT a.status FROM recruitment_applications a JOIN users u ON u.id=a.user_id WHERE u.main_id=? AND a.status NOT IN ('rejected','withdrawn','joined')").get(id.id);if(e.status!==403||!(flow.invite==='recruit'||applicant))throw e;}}
     let automaticCorp=null,automaticDenied=false;
     if(id.scopes.includes('esi-characters.read_corporation_roles.v1')){
       try{
@@ -324,9 +325,10 @@ export function createApp(config) {
         }
         db.prepare("INSERT INTO character_groups VALUES(?,?)").run(id.id,parent);
       }
-      if(flow.invite==='recruit')db.prepare("INSERT OR IGNORE INTO recruitment_applications(user_id,created,consented) VALUES(?,?,?)").run(uid,Date.now(),Date.now());
+      if(flow.invite==='recruit'&&!memberLogin)db.prepare("INSERT OR IGNORE INTO recruitment_applications(user_id,created,consented) VALUES(?,?,?)").run(uid,Date.now(),Date.now());
       return uid;
     });
+    if(memberLogin)recruitMembership.verified(user,id.id);
     if(automaticCorp){
       const reference=box.seal({linked_character_id:id.id});
       transaction(db,()=>{
@@ -357,7 +359,7 @@ export function createApp(config) {
       maxAge: 7 * 86400000,
     });
     if(!flow.user_id)db.prepare("INSERT INTO user_logins VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_login=excluded.last_login").run(user,Date.now());
-    res.redirect(miningFlow?"/#mining":flow.invite==='recruit'?"/Recruit":"/");
+    res.redirect(miningFlow?"/#mining":flow.invite==='recruit'&&!memberLogin?"/Recruit":"/");
   });
   app.use("/api", (req, res, next) => {
     if (!req.session)

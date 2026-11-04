@@ -2054,3 +2054,17 @@ test('a recruit becomes a full member without logging out, loses the recruit fla
   assert.equal(db.prepare("SELECT COUNT(*) n FROM group_members WHERE user_id=?").get(applicant.uid).n,0);
  },fakeCat,{membershipLookup:async id=>{if(id===300&&outage)throw Error('ESI unavailable');return {corporation_id:id===300&&!eligible?999:668298004};}});
 });
+
+test('members using recruit signup go straight to normal access without a new application',()=>fixture(async({request,db,identity})=>{
+ async function login(){
+  identity({id:900,name:'Member',owner:'member-owner',scopes:[],expires:Date.now()+3600000});
+  const begin=await request('/auth/login?recruit=1&consent=1'),state=new URL(begin.headers.get('location')).searchParams.get('state'),cookie=begin.headers.get('set-cookie').split(';')[0];
+  const result=await request('/auth/callback?code=test&state='+state,{cookie});assert.equal(result.status,302);assert.equal(result.headers.get('location'),'/');
+  return /tools_session=([^;]+)/.exec(result.headers.get('set-cookie'))[1];
+ }
+ let token=await login();assert.equal(db.prepare('SELECT COUNT(*) n FROM recruitment_applications').get().n,0);
+ const uid=db.prepare('SELECT id FROM users WHERE main_id=900').get().id;
+ db.prepare("INSERT INTO recruitment_applications(user_id,status,created,consented,notes) VALUES(?,'reviewing',1,2,'Keep history')").run(uid);
+ token=await login();const application=db.prepare('SELECT * FROM recruitment_applications WHERE user_id=?').get(uid);assert.equal(application.status,'joined');assert(application.joined_at>0);assert.equal(application.notes,'Keep history');
+ const me=await(await request('/api/me',{session:token})).json();assert.equal(me.recruit,false);assert.equal(me.admin,false);assert.equal((await request('/api/groups',{session:token})).status,200);assert.equal((await request('/api/admin/users',{session:token})).status,403);
+}));
