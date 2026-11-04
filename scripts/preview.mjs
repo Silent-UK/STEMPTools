@@ -206,7 +206,7 @@ seedCorp('contracts',{contracts:[{contract_id:1,title:'Doctrine ship delivery',t
 seedCorp('market',{active:[{order_id:1,type_id:34,name:'Tritanium',is_buy_order:true,volume_remain:500000,volume_total:1000000,price:4.5,location_id:60003760,issued:new Date(now-86400000).toISOString(),status:'active'}],history:[{order_id:2,type_id:587,name:'Rifter',is_buy_order:false,volume_remain:0,volume_total:10,price:500000,location_id:60003760,issued:new Date(now-7*86400000).toISOString(),status:'fulfilled',state:'expired'}],locations:{60003760:'Example Station'}});
 const { app,recruitMembership } = createApp({
  corpNetwork:async url=>{const p=new URL(url).pathname;return new Response(JSON.stringify(p.endsWith('/members')?[1000001,1000002,1000003,1000011,1000014,1000099]:p.endsWith('/membertracking')?[1000001,1000002,1000003,1000011,1000014,1000099].map((id,i)=>({character_id:id,logon_date:new Date(Date.now()-i*3600000).toISOString(),location_id:124,ship_type_id:587})):[]),{headers:{'content-type':'application/json','cache-control':'max-age=3600'}});},
- membershipLookup:async()=>({corporation_id:668298004}),
+ membershipLookup:async id=>({corporation_id:process.env.PREVIEW_RECRUIT_GROUPS==='1'&&id===2000001?999:668298004}),
   verifyCorporation:async()=>({id:668298004,role:"Director"}),
   db,
   cat,
@@ -221,6 +221,11 @@ const { app,recruitMembership } = createApp({
  db.prepare("INSERT INTO characters VALUES(2000001,900,?,'preview','unused','[]',0,0)").run('Example Recruit');
  db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(900,?,?)').run(now,now);
  if(process.env.PREVIEW_INSPECT==='1')db.prepare('INSERT INTO inspections VALUES(?,900)').run(hash('local-preview'));
+}
+if(process.env.PREVIEW_GROUPS==='1'||process.env.PREVIEW_RECRUIT_GROUPS==='1'){
+ db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages,recruit_visible) VALUES('Main members','◇','Member-only group','approval','[]','[]',0)").run();
+ db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages,recruit_visible) VALUES('Recruit introduction','◇','A group available during recruitment.','approval','[]','[]',1)").run();
+ if(process.env.PREVIEW_RECRUIT_GROUPS==='1')db.prepare('UPDATE sessions SET user_id=900 WHERE id=?').run(hash('local-preview'));
 }
 if(process.env.PREVIEW_JOINED==='1')await recruitMembership.tick();
 db.prepare('INSERT INTO external_links(name,description,url,slug) VALUES(?,?,?,?)').run('Member Portal','Fictional preview link','https://example.com/','MemberPortal');

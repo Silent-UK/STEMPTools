@@ -1848,7 +1848,7 @@ test('recruit signup requires consent, preserves normal membership rules and res
   const token=/tools_session=([^;]+)/.exec(sessionCookie||callback.headers.get('set-cookie'))[1];
   const me=await (await request('/api/me',{session:token})).json();assert.equal(me.recruit,true);assert.equal(me.admin,false);assert.equal(me.corporation,false);
   assert.equal((await request('/api/characters',{session:token})).status,200);
-  for(const path of ['/api/admin/users','/api/corporation/wallet','/api/groups','/api/recruitment'])assert.equal((await request(path,{session:token})).status,403,path);
+  for(const path of ['/api/admin/users','/api/corporation/wallet','/api/recruitment'])assert.equal((await request(path,{session:token})).status,403,path);
   assert.equal(db.prepare('SELECT count(*) n FROM recruitment_applications').get().n,1);
  },fakeCat,{membershipLookup:async()=>({corporation_id:999})});
 });
@@ -2097,3 +2097,27 @@ test('individual pilot whitelist entries are cleaned on verified membership, rej
   assert.deepEqual(db.prepare('SELECT * FROM login_whitelist').all(),corporations);assert(db.prepare("SELECT 1 FROM login_whitelist_entities WHERE kind='alliance' AND entity_id=12345").get());
  },fakeCat,{membershipLookup:async id=>({corporation_id:id===600||id===700||(id===300&&!joined)?999:668298004,alliance_id:23456})});
 });
+
+test('recruits see and apply only to opted-in groups without acquiring corporation or staff access',()=>fixture(async({db,user,request})=>{
+ const owner=user(100,'Owner'),recruit=user(300,'Applicant'),member=user(400,'Member'),other=user(500,'Other applicant');
+ for(const account of [recruit,other])db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(?,1,2)').run(account.uid);
+ const save=body=>request('/api/admin/groups',{session:owner.session,method:'POST',body}),base={icon:'◇',description:'Group description',mode:'auto',rules:[],pages:[]};
+ assert.equal((await save({...base,name:'Main group'})).status,200);
+ assert.equal((await save({...base,name:'Recruit group',recruit_visible:true,pages:['recruitment','corp-wallet']})).status,200);
+ assert.equal((await save({...base,name:'Approval recruit group',recruit_visible:true,mode:'approval'})).status,200);
+ assert.equal((await save({...base,name:'Bad visibility',recruit_visible:'true'})).status,400);
+ const groups=db.prepare('SELECT * FROM access_groups ORDER BY id').all(),[hidden,visible,approval]=groups;
+ assert.equal(hidden.recruit_visible,0);assert.equal(visible.recruit_visible,1);
+ const list=async session=>{const response=await request('/api/groups',{session});assert.equal(response.status,200);return response.json();};
+ assert.deepEqual((await list(recruit.session)).map(g=>g.name),['Approval recruit group','Recruit group']);assert.equal((await list(member.session)).length,3);
+ assert.equal((await request('/api/groups/'+hidden.id+'/apply',{session:recruit.session,method:'POST',body:{}})).status,404);
+ assert.equal((await request('/api/groups/'+visible.id+'/apply',{session:recruit.session,method:'POST',body:{}})).status,200);
+ assert.equal((await request('/api/groups/'+approval.id+'/apply',{session:recruit.session,method:'POST',body:{}})).status,200);
+ assert.equal(db.prepare('SELECT status FROM group_members WHERE group_id=? AND user_id=?').get(visible.id,recruit.uid).status,'approved');assert.equal(db.prepare('SELECT status FROM group_members WHERE group_id=? AND user_id=?').get(approval.id,recruit.uid).status,'pending');
+ const me=await(await request('/api/me',{session:recruit.session})).json();assert.equal(me.recruit,true);assert.equal(me.recruiter,false);assert.equal(me.corporation,false);assert.deepEqual(me.corporate_pages,[]);
+ for(const path of ['/api/admin/groups','/api/recruitment','/api/corporation/wallet'])assert.equal((await request(path,{session:recruit.session})).status,403,path);
+ assert.equal((await request('/api/inspect',{session:recruit.session,method:'POST',body:{user_id:other.uid}})).status,403);
+ assert.equal((await save({...base,id:visible.id,name:'Recruit group',recruit_visible:false})).status,200);
+ assert.deepEqual((await list(recruit.session)).map(g=>g.name),['Approval recruit group']);assert.equal((await request('/api/groups/'+visible.id+'/apply',{session:recruit.session,method:'POST',body:{}})).status,404);
+ assert.equal((await request('/api/inspect',{session:owner.session,method:'POST',body:{user_id:recruit.uid}})).status,200);assert.deepEqual((await list(owner.session)).map(g=>g.name),['Approval recruit group']);assert.equal((await request('/api/groups/'+approval.id+'/apply',{session:owner.session,method:'POST',body:{}})).status,403);
+},fakeCat,{membershipLookup:async id=>({corporation_id:[300,500].includes(id)?999:668298004})}));

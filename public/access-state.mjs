@@ -4,5 +4,5 @@ export function accessChanged(before,after){
  return state(before)!==state(after);
 }
 export function managementNavigation(account){
- return [...(account.recruit||account.inspect?.recruitment_only?[]:[['groups','◇','Groups'],['settings','⚙','Settings']]),...(account.recruiter?[['recruitment','♙','Recruitment']]:[]),...(account.recruit?[['recruit-application','♙','Application']]:[])];
+ return [...(account.inspect?.recruitment_only?[]:[['groups','◇','Groups'],...(!account.recruit?[['settings','⚙','Settings']]:[])]),...(account.recruiter?[['recruitment','♙','Recruitment']]:[]),...(account.recruit?[['recruit-application','♙','Application']]:[])];
 }

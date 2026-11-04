@@ -14,7 +14,7 @@ test('restricted groups require ship and active skill on one pilot, fresh comple
  assert.equal(eligible(db,1,rules,now),false);
  snapshot(101,'skills',{skills:{skills:[{skill_id:3347,active_skill_level:4,trained_skill_level:5}]}});assert.equal(eligible(db,1,rules,now),false);
  snapshot(101,'skills',{skills:{skills:[{skill_id:3347,active_skill_level:5}]}});assert.equal(eligible(db,1,rules,now),true);
- db.prepare("INSERT INTO access_groups VALUES(1,'Titan','T','','restricted',?,'[\"corp-moons\"]')").run(JSON.stringify(rules));
+ db.prepare("INSERT INTO access_groups(id,name,icon,description,mode,rules,pages) VALUES(1,'Titan','T','','restricted',?,'[\"corp-moons\"]')").run(JSON.stringify(rules));
  assert.deepEqual(grants(db,1),[]);db.prepare("INSERT INTO group_members VALUES(1,1,'approved')").run();assert.deepEqual(grants(db,1),['corp-moons']);
  snapshot(101,'assets',{items:[{group_id:30,quantity:1}]},now-86400001);assert.equal(eligible(db,1,rules,now),false);assert.deepEqual(grants(db,1),[]);
  snapshot(101,'assets',{items:[{group_id:30,quantity:1}]});db.prepare("INSERT INTO sync_errors VALUES(101,'assets','Failed')").run();assert.equal(eligible(db,1,rules,now),false);
