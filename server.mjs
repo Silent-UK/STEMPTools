@@ -6,7 +6,7 @@ import {sitePagesStore,sitePageRoutes,visibleSitePages} from './lib/site-pages.m
 import {usersReviewService} from './lib/users-review.mjs';
 import {discordService,discordRoutes} from './lib/discord.mjs';
 import {recruitmentService,recruitmentRoutes} from './lib/recruitment.mjs';
-import {recruitAccount,restrictedRecruitPath,recruitInspectPath} from './lib/recruitment-store.mjs';
+import {recruitAccount,restrictedRecruitPath,recruitInspectPath,recruitLinksHidden} from './lib/recruitment-store.mjs';
 import {whitelistRoutes} from './lib/whitelist-routes.mjs';
 import {materialRoutes} from './lib/material-routes.mjs';
 import {fittingWorkbenchRoutes} from './lib/fitting-workbench-routes.mjs';
@@ -120,7 +120,7 @@ export function createApp(config) {
       res.set("Cache-Control", "no-store");
     next();
   });
-  app.get(/^\/([A-Za-z][A-Za-z0-9_-]{0,59})$/, (req,res,next)=>{const slug=req.params[0];if(['recruit','health'].includes(slug.toLowerCase()))return next();const link=db.prepare("SELECT url FROM external_links WHERE slug=? COLLATE NOCASE AND slug<>''").get(slug);return link?res.redirect(302,link.url):next();});
+  app.get(/^\/([A-Za-z][A-Za-z0-9_-]{0,59})$/, async(req,res,next)=>{const slug=req.params[0];if(['recruit','health'].includes(slug.toLowerCase()))return next();const link=db.prepare("SELECT url FROM external_links WHERE slug=? COLLATE NOCASE AND slug<>''").get(slug);if(!link)return next();if(req.session){const inspected=db.prepare('SELECT target_id FROM inspections WHERE session_id=?').get(req.session.id);if(inspected&&recruitAccount(db,inspected.target_id))return res.status(403).send('Links are available to members only.');if(recruitAccount(db,req.session.user_id)){try{await whitelist.check(req.session.main_id);}catch(error){return res.status(error.status||503).send('Links are available to members only.');}}}return res.redirect(302,link.url);});
   app.post('/api/inspect', (req,res)=>{
     if(!req.session)return res.sendStatus(401);
     if(!recruitment.canReview(req.session))return res.sendStatus(403);
@@ -160,7 +160,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.41.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.41.2" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -381,7 +381,7 @@ export function createApp(config) {
   recruitmentRoutes(app,{db,recruitment,config});
   managementRoutes(app,{db,eve,corp,cat,config,whitelist,discord});
   materialRoutes(app,{db,cat,corp,grants,admin:req=>isSiteAdmin(req.session,config.owner)});
-  app.get("/api/me", async (req,res)=>{const director=req.inspect?.recruitment_only?false:await corp.access(req.session.user_id),pages=req.inspect?.recruitment_only?[]:grants(db,req.session.user_id).filter(p=>Object.hasOwn(CORPORATE_PAGES,p));res.json({pages:visibleSitePages(db,req,config),recruit:Boolean(req.recruit),recruiter:!req.inspect&&recruitment.canReview(req.session),name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:isSiteAdmin(req.session,config.owner)||director||pages.length>0,corporate_pages:isSiteAdmin(req.session,config.owner)||director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:req.recruit?[]:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
+  app.get("/api/me", async (req,res)=>{const director=req.inspect?.recruitment_only?false:await corp.access(req.session.user_id),pages=req.inspect?.recruitment_only?[]:grants(db,req.session.user_id).filter(p=>Object.hasOwn(CORPORATE_PAGES,p));res.json({pages:visibleSitePages(db,req,config),recruit:Boolean(req.recruit),recruiter:!req.inspect&&recruitment.canReview(req.session),name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:isSiteAdmin(req.session,config.owner)||director||pages.length>0,corporate_pages:isSiteAdmin(req.session,config.owner)||director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:recruitLinksHidden(db,req)?[]:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
   app.use("/api/corporation",async(req,res,next)=>{
     const director=await corp.access(req.session.user_id),route=req.path.split('/')[1],required=({overview:'corp-overview',members:'corp-members',pilots:'corp-pilots',assets:'corp-assets','pilot-assets':'corp-search-pilots',wallet:'corp-wallet',standings:'corp-standings',contracts:'corp-contracts',market:'corp-market',blueprints:'corp-blueprints',materials:'corp-industry',industry:'corp-industry',structures:'corp-structures',harvest:'corp-moons',surveys:'corp-surveys'})[route];
     if(!director&&(!['GET','HEAD'].includes(req.method)||!required||(!isSiteAdmin(req.session,config.owner)&&!grants(db,req.session.user_id).includes(required))))return res.status(403).json({error:"You do not have permission to view this corporation page."});

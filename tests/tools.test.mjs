@@ -2016,3 +2016,17 @@ test('document library keeps private documents and pilot evidence account scoped
  const evidence=(await get('/api/document-library?pilot=100')).find(d=>d.id==='library-fit').readiness;assert.equal(evidence.state,'inactive');assert.equal(evidence.total,1);assert.equal(evidence.rows,undefined);
  const detail=await get('/api/documents/library-fit');assert.equal(detail.readiness[0].rows[0].source,'Fitting minimum');assert.equal(detail.readiness[0].rows[0].queued,true);
 }, {...fakeCat,named:()=>99,type:id=>id===99?{id:99,name:'Test ship',category_id:6,attributes:{182:1,277:3}}:fakeCat.type(id)}));
+
+test('Links stay hidden from recruits and recruit inspection while members retain access',()=>fixture(async({db,user,request})=>{
+ const owner=user(100,'Owner'),member=user(200,'Member'),recruit=user(300,'Recruit');
+ for(const account of [member,recruit])db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(?,?,?)').run(account.uid,Date.now(),Date.now());
+ db.prepare('INSERT INTO external_links(name,description,url,slug) VALUES(?,?,?,?)').run('Member Link','Member resources','https://example.com/','MemberLink');
+ const me=async session=>(await request('/api/me',{session})).json();
+ assert.equal((await me(recruit.session)).recruit,true);assert.deepEqual((await me(recruit.session)).links,[]);
+ assert.equal((await request('/api/links',{session:recruit.session})).status,403);assert.equal((await request('/MemberLink',{session:recruit.session})).status,403);
+ assert.equal((await me(member.session)).recruit,false);assert.equal((await me(member.session)).links.length,1);assert.equal((await request('/api/links',{session:member.session})).status,200);assert.equal((await request('/MemberLink',{session:member.session})).status,302);
+ assert.equal((await request('/MemberLink')).status,302,'existing public short links retain their public redirect');
+ assert.equal((await request('/api/inspect',{session:owner.session,method:'POST',body:{user_id:recruit.uid}})).status,200);
+ assert.deepEqual((await me(owner.session)).links,[]);assert.equal((await request('/api/links',{session:owner.session})).status,403);assert.equal((await request('/MemberLink',{session:owner.session})).status,403);
+ assert.equal((await request('/api/inspect',{session:owner.session,method:'POST',body:{exit:true}})).status,200);assert.equal((await me(owner.session)).links.length,1);
+},fakeCat,{membershipLookup:async id=>({corporation_id:id===300?999:668298004})}));

@@ -1,3 +1,8 @@
+# STEMP Tools v0.41.2
+
+- Hide Links when viewing recruits in Inspect, as well as normal recruit sessions. Add an explicit recruit guard to the sidebar.
+- Apply the recruit restriction to the link list API and signed-in short-link requests, preserving normal member access and existing public short links.
+
 # STEMP Tools v0.41.1
 
 - Skill Plans and Fittings: restore the shared themed panel border around the library, with compact spacing matching other pages.
