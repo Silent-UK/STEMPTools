@@ -214,7 +214,10 @@ const { app } = createApp({
   eve: {get:async path=>path.endsWith('/fittings')?[{fitting_id:1,name:'Preview Saved Rifter',description:'Example saved in-game fitting',ship_type_id:587,items:[{type_id:2048,flag:'LoSlot0',quantity:1}]}]:[],publicGet:async path=>path==="/markets/prices"?[{type_id:16634,average_price:1200},{type_id:16640,average_price:8000}]:{},request:async(path,character,method,body)=>{if(path==='/characters/affiliation')return {pages:1,data:body.map(id=>({character_id:id,corporation_id:668298004}))};if(path==='/universe/names')return {data:body.map(id=>({id,name:id===668298004?'Sacred Templars':'Example '+id}))};const type=Number(new URL('https://esi.evetech.net'+path).searchParams.get('type_id'));return {pages:1,expires:Date.now()+3600000,data:[{type_id:type,location_id:60003760,is_buy_order:false,volume_remain:10000,price:type===9848?85000:1500000}]};}},
 });
 const server = http.createServer((req, res) => {
-  req.headers.cookie = "tools_session=local-preview";
+  if(process.env.PREVIEW_RECRUIT==='1'){
+    delete req.headers.cookie;
+    if(req.url.startsWith('/auth/login?')){const url=new URL(req.url,'http://127.0.0.1:3014');res.writeHead(url.searchParams.get('recruit')==='1'&&url.searchParams.get('consent')==='1'?200:400,{'content-type':'text/html'});res.end('<h1>Test EVE sign-in reached</h1><p>Local preview only. No EVE account was contacted or created.</p>');return;}
+  }else req.headers.cookie = "tools_session=local-preview";
   app(req, res);
 });
 server.listen(3014, "127.0.0.1", () =>
