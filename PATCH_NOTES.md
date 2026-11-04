@@ -1,3 +1,7 @@
+# STEMP Tools v0.38.2
+
+- Moon Scans: start with all regions collapsed. Expand the relevant region after explicitly selecting a system or moon.
+
 # STEMP Tools v0.38.1
 
 - Moon Scans: import three additional scan batches (973 rows), adding 668 moons across Geminate, Metropolis and The Forge. Collection now contains 21,574 unique moons.
