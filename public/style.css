@@ -1489,3 +1489,4 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .document-library button{font-size:calc(12px * var(--font-scale,1));padding:4px 7px}.document-pilots button{font-size:calc(11px * var(--font-scale,1));padding:4px 6px}
 
 .document-library .dl-link{text-align:left}
+.den-view-controls{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:8px 0;font-size:calc(12px * var(--font-scale,1))}.den-view-controls label{display:flex;align-items:center;gap:5px}.den-view-controls small{color:var(--muted)}.den-view-controls button[aria-pressed=true]{border-color:var(--purple);color:var(--purple);background:var(--theme-active)}.den-attention-reasons{display:block;color:var(--purple);font-size:calc(11px * var(--font-scale,1));white-space:normal;max-width:240px}

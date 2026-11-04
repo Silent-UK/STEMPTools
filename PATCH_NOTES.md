@@ -1,3 +1,9 @@
+# STEMP Tools v0.40.1
+
+- Mercenary Dens: Needs Attention filters reinforcement, MTOs expiring within 12 hours, workforce reductions, anarchy near level 2 and incomplete MTO snapshots.
+- Priority sorting keeps character groups together and ranks reinforced dens, urgent operations and workforce impact first. Remember filter and sort preferences per account.
+- Keep summary totals over the full inventory, show filtered counts and reveal matching alts when attention filtering is active.
+
 # STEMP Tools v0.40.0
 
 - Skill Plans and Fittings: searchable libraries with saved visibility, tag, hull, pilot readiness and sort preferences; compact summaries and paginated themed rows.

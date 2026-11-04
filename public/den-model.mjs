@@ -35,3 +35,19 @@ export function denAlerts(pilots,now=Date.now()){
  }
  return alerts;
 }
+export function denAttention(den,now=Date.now()) {
+ const level=denLevel(den.evolution?.anarchy?.level),amount=den.evolution?.anarchy?.amount,impact=workforceImpact(den)||0;
+ const reinforced=/reinforc/i.test(den.state||'')||Number.isFinite(Date.parse(den.reinforcement_timer?.end))&&Date.parse(den.reinforcement_timer.end)>now;
+ const urgent=den.operations_error?[]:activeOperations(den,now).filter(o=>Date.parse(o.expires)-now<=43200000);
+ const near=level===1&&Number.isFinite(amount)&&amount>=35;
+ const reasons=[...(reinforced?['Reinforced']:[]),...(urgent.length?['Operation expires within 12h']:[]),...(impact?['Workforce −'+impact+'%']:near?['Anarchy close to level 2']:[]),...(den.operations_error?['MTO data incomplete']:[])];
+ const deadline=urgent.length?Math.min(...urgent.map(o=>Date.parse(o.expires))):Infinity;
+ return {needed:reasons.length>0,reasons,priority:reinforced?0:urgent.length?1:impact?2:near?3:den.operations_error?4:5,deadline,impact,level:level??-1};
+}
+export function compareDenPriority(a,b,now=Date.now()) {const x=denAttention(a,now),y=denAttention(b,now);return x.priority-y.priority||(Number.isFinite(x.deadline)||Number.isFinite(y.deadline)?x.deadline-y.deadline:0)||y.impact-x.impact||y.level-x.level||String(a.planet?.name||'').localeCompare(String(b.planet?.name||''))||Number(a.id)-Number(b.id);}
+export function filterDens(rows,attention=false,sort='priority',now=Date.now()) {const list=rows.filter(d=>!attention||denAttention(d,now).needed);return sort==='priority'?list.sort((a,b)=>compareDenPriority(a,b,now)):list;}
+export function sortDenGroups(groups,sort='priority',now=Date.now()) {
+ if(sort!=='priority')return groups;
+ const best=g=>[g.main,...g.alts].filter(Boolean).flatMap(c=>c.data||[]).sort((a,b)=>compareDenPriority(a,b,now))[0];
+ return [...groups].sort((a,b)=>{const x=best(a),y=best(b);return x&&y?compareDenPriority(x,y,now):x?-1:y?1:0;});
+}
