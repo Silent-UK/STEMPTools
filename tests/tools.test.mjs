@@ -47,7 +47,7 @@ async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
     expires: Date.now() + 3600000,
     scopes: [],
   };
-  const { app, corp, usersReview } = createApp({
+  const { app, corp, usersReview, recruitMembership } = createApp({
     fittingSimulator:()=>({}),
     base: "http://127.0.0.1",
     data: dir,
@@ -105,7 +105,7 @@ async function fixture(fn, fixtureCat = fakeCat, overrides = {}) {
     return { uid, session };
   };
   try {
-    await fn({ db, request, user, corp, usersReview, identity: (v) => (identity = v) });
+    await fn({ db, request, user, corp, usersReview, recruitMembership, identity: (v) => (identity = v) });
   } finally {
     await new Promise((r) => server.close(r));
     db.close();
@@ -2030,3 +2030,27 @@ test('Links stay hidden from recruits and recruit inspection while members retai
  assert.deepEqual((await me(owner.session)).links,[]);assert.equal((await request('/api/links',{session:owner.session})).status,403);assert.equal((await request('/MemberLink',{session:owner.session})).status,403);
  assert.equal((await request('/api/inspect',{session:owner.session,method:'POST',body:{exit:true}})).status,200);assert.equal((await me(owner.session)).links.length,1);
 },fakeCat,{membershipLookup:async id=>({corporation_id:id===300?999:668298004})}));
+
+test('a recruit becomes a full member without logging out, loses the recruit flag and delegated recruit inspection, and retains all account data',async()=>{
+ let eligible=false,outage=false;
+ await fixture(async({db,user,request,recruitMembership})=>{
+  const owner=user(100,'Owner'),staff=user(200,'Recruiter'),applicant=user(300,'Applicant');
+  db.prepare("INSERT INTO recruitment_applications(user_id,status,created,consented,notes) VALUES(?,'accepted',1,2,'Keep these notes')").run(applicant.uid);
+  db.prepare("INSERT INTO characters VALUES(301,?,'Alt','alt-owner','unused','[]',0,0)").run(applicant.uid);db.prepare('INSERT INTO character_groups VALUES(301,300)').run();
+  db.prepare('INSERT INTO external_links(name,description,url,slug) VALUES(?,?,?,?)').run('Member portal','Members','https://example.com/','Portal');
+  const group=Number(db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages) VALUES('Recruiters','◇','','auto','[]','[\"recruitment\"]')").run().lastInsertRowid);db.prepare("INSERT INTO group_members VALUES(?,?,'approved')").run(group,staff.uid);
+  const me=async session=>(await request('/api/me',{session})).json();assert.equal((await me(applicant.session)).recruit,true);assert.equal((await request('/api/links',{session:applicant.session})).status,403);
+  assert.equal((await request('/api/inspect',{session:staff.session,method:'POST',body:{user_id:applicant.uid}})).status,200);
+  outage=true;await recruitMembership.tick();assert.equal(db.prepare('SELECT status FROM recruitment_applications WHERE user_id=?').get(applicant.uid).status,'accepted');outage=false;
+  eligible=true;
+  // The background checker waits between failed checks; move its clock forward instead of bypassing verification.
+  const future=Date.now()+300001,original=Date.now;Date.now=()=>future;try{await recruitMembership.tick();}finally{Date.now=original;}
+  const member=await me(applicant.session);assert.equal(member.recruit,false);assert.equal(member.admin,false);assert.equal(member.owner,false);assert.equal(member.links.length,1);
+  assert.equal((await request('/api/documents',{session:applicant.session})).status,200);assert.equal((await request('/api/admin/users',{session:applicant.session})).status,403);
+  const app=db.prepare('SELECT * FROM recruitment_applications WHERE user_id=?').get(applicant.uid);assert.equal(app.status,'joined');assert(app.joined_at>0);assert.equal(app.notes,'Keep these notes');assert.equal(db.prepare('SELECT COUNT(*) n FROM characters WHERE user_id=?').get(applicant.uid).n,2);assert.equal(db.prepare('SELECT parent_id FROM character_groups WHERE character_id=301').get().parent_id,300);
+  const users=await(await request('/api/admin/users',{session:owner.session})).json();assert.equal(users.find(u=>u.id===applicant.uid).recruit,false);
+  assert.equal((await request('/api/inspect/pilot-check?character=300',{session:staff.session})).status,403);assert.equal((await request('/api/inspect',{session:staff.session,method:'POST',body:{user_id:applicant.uid}})).status,403);
+  assert.equal((await request('/api/recruitment/'+applicant.uid,{session:staff.session,method:'POST',body:{status:'reviewing',notes:'Reopen'}})).status,409);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM group_members WHERE user_id=?").get(applicant.uid).n,0);
+ },fakeCat,{membershipLookup:async id=>{if(id===300&&outage)throw Error('ESI unavailable');return {corporation_id:id===300&&!eligible?999:668298004};}});
+});

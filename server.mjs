@@ -1,3 +1,4 @@
+import {recruitMembershipService} from './lib/recruit-membership.mjs';
 import {documentLibraryRoutes,skillEvidence} from './lib/document-library.mjs';
 import {characterDashboard} from './lib/character-dashboard.mjs';
 import {personalAlerts} from './public/personal-alerts.mjs';
@@ -66,6 +67,7 @@ export function createApp(config) {
   const whitelist=whitelistService(db,config.membershipLookup || (async id=>(await eve.request("/characters/"+id)).data),id=>eve.publicGet("/corporations/"+id));
   const discord=discordService(db,box,config,whitelist);
   const usersReview=usersReviewService(db,whitelist,config);
+  const recruitMembership=recruitMembershipService(db,whitelist,{onJoined:(user,now)=>db.prepare("UPDATE user_whitelist_reviews SET status='allowed',checked=?,message='Membership confirmed; normal member access' WHERE user_id=?").run(now,user)});
   const ownerUser=db.prepare("SELECT id FROM users WHERE main_id=?").get(config.owner);
   const legacy=db.prepare("SELECT * FROM corporation_connections WHERE corporation_id=?").get(STEMP_ID);
   if(ownerUser&&legacy)db.prepare("INSERT OR IGNORE INTO corp_authorizations VALUES(?,?,?,?,?,?,?,?,?,?)").run(ownerUser.id,legacy.character_id,legacy.character_name,legacy.owner_hash,STEMP_ID,legacy.tokens,JSON.stringify(["esi-characters.read_corporation_roles.v1"]),0,legacy.role,0);
@@ -137,7 +139,7 @@ export function createApp(config) {
   app.use(async(req,res,next)=>{
     const path=req.path.toLowerCase();
     if(!req.session || !(path.startsWith('/api/')||path.startsWith('/auth/')) || path==='/api/logout')return next();
-    try {await whitelist.check(req.session.main_id);
+    try {await whitelist.check(req.session.main_id);recruitMembership.verified(req.session.user_id,req.session.main_id);
       if(path.startsWith('/api/'))db.prepare('INSERT INTO user_activity VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_seen=excluded.last_seen WHERE user_activity.last_seen<excluded.last_seen-60000').run(req.session.user_id,Date.now());
       next();}
     catch(e) {
@@ -160,7 +162,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.41.2" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.42.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -256,7 +258,7 @@ export function createApp(config) {
       if(req.session.main_id===config.owner)db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(corpInfo.id,corpInfo.name,id.id,id.name,id.owner,box.seal(token),Date.now(),corpInfo.role);
       return res.redirect("/#corp-structures");
     }
-    if(!flow.user_id){try{await whitelist.check(id.id,true);}catch(e){const applicant=db.prepare("SELECT a.status FROM recruitment_applications a JOIN users u ON u.id=a.user_id WHERE u.main_id=? AND a.status NOT IN ('rejected','withdrawn')").get(id.id);if(e.status!==403||!(flow.invite==='recruit'||applicant))throw e;}}
+    if(!flow.user_id){try{await whitelist.check(id.id,true);}catch(e){const applicant=db.prepare("SELECT a.status FROM recruitment_applications a JOIN users u ON u.id=a.user_id WHERE u.main_id=? AND a.status NOT IN ('rejected','withdrawn','joined')").get(id.id);if(e.status!==403||!(flow.invite==='recruit'||applicant))throw e;}}
     let automaticCorp=null,automaticDenied=false;
     if(id.scopes.includes('esi-characters.read_corporation_roles.v1')){
       try{
@@ -972,7 +974,7 @@ export function createApp(config) {
         : message,
     });
   });
-  return { app, db, cat, sync, corp, recruitment, discord, usersReview };
+  return { app, db, cat, sync, corp, recruitment, discord, usersReview, recruitMembership };
 }
 if (
   process.argv[1] &&
@@ -987,12 +989,14 @@ if (
     owner: Number(process.env.OWNER_CHARACTER_ID || 122543287),
     contact: process.env.ESI_CONTACT || "tools.areyouaspy.co.uk",
   };
-  const { app, sync, corp, recruitment, discord, usersReview } = createApp(config);
+  const { app, sync, corp, recruitment, discord, usersReview, recruitMembership } = createApp(config);
   app.listen(Number(process.env.PORT || 3014), "127.0.0.1", () =>
     console.log("Tools listening on " + (process.env.PORT || 3014)),
   );
   setInterval(()=>discord.tick().catch(()=>console.error("Discord sync failed")),15000).unref();
   setInterval(()=>usersReview.tick().catch(()=>console.error("Whitelist review failed")),1000).unref();
+  recruitMembership.tick().catch(()=>console.error('Recruit membership check failed'));
+  setInterval(()=>recruitMembership.tick().catch(()=>console.error('Recruit membership check failed')),15000).unref();
   recruitment.schedule();
   setInterval(()=>recruitment.schedule(),3600000).unref();
   setInterval(()=>recruitment.tick().catch(()=>console.error("Recruitment sync failed")),3000).unref();

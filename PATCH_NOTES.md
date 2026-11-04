@@ -1,3 +1,10 @@
+# STEMP Tools v0.42.0
+
+- Automatically mark recruits as Joined after successful membership verification, removing the recruit flag and restoring normal member navigation and Links.
+- Recheck active applicants in bounded background batches, with five-minute retry spacing. ESI failures never promote an account.
+- Refresh open recruit sessions automatically after membership is confirmed; preserve linked pilots, snapshots, consent and staff notes.
+- Keep completed applications as history with their join date. End delegated applicant-only inspection once someone is a member; existing admin and corporation-role rules remain in force.
+
 # STEMP Tools v0.41.2
 
 - Hide Links when viewing recruits in Inspect, as well as normal recruit sessions. Add an explicit recruit guard to the sidebar.

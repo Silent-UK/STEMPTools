@@ -204,7 +204,7 @@ seedCorp('blueprints-v2',{rows:[{...blueprint,location:'Example Trade Station',r
 seedCorp('standings',{rows:[{from_id:1000035,name:'Caldari Navy',from_type:'npc_corp',standing:4.8},{from_id:500004,name:'Gallente Federation',from_type:'faction',standing:-2}]});
 seedCorp('contracts',{contracts:[{contract_id:1,title:'Doctrine ship delivery',type:'courier',status:'outstanding',issuer_id:1000001,assignee_id:1000002,reward:10000000,collateral:100000000,date_issued:new Date(now-86400000).toISOString(),date_expired:new Date(now+3*86400000).toISOString(),start_location_id:60003760,end_location_id:60003760,observed:now}],names:{1000001:'Example Main',1000002:'Example Industrial'},locations:{60003760:'Example Station'}});
 seedCorp('market',{active:[{order_id:1,type_id:34,name:'Tritanium',is_buy_order:true,volume_remain:500000,volume_total:1000000,price:4.5,location_id:60003760,issued:new Date(now-86400000).toISOString(),status:'active'}],history:[{order_id:2,type_id:587,name:'Rifter',is_buy_order:false,volume_remain:0,volume_total:10,price:500000,location_id:60003760,issued:new Date(now-7*86400000).toISOString(),status:'fulfilled',state:'expired'}],locations:{60003760:'Example Station'}});
-const { app } = createApp({
+const { app,recruitMembership } = createApp({
  corpNetwork:async url=>{const p=new URL(url).pathname;return new Response(JSON.stringify(p.endsWith('/members')?[1000001,1000002,1000003,1000011,1000014,1000099]:p.endsWith('/membertracking')?[1000001,1000002,1000003,1000011,1000014,1000099].map((id,i)=>({character_id:id,logon_date:new Date(Date.now()-i*3600000).toISOString(),location_id:124,ship_type_id:587})):[]),{headers:{'content-type':'application/json','cache-control':'max-age=3600'}});},
  membershipLookup:async()=>({corporation_id:668298004}),
   verifyCorporation:async()=>({id:668298004,role:"Director"}),
@@ -222,6 +222,7 @@ const { app } = createApp({
  db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(900,?,?)').run(now,now);
  if(process.env.PREVIEW_INSPECT==='1')db.prepare('INSERT INTO inspections VALUES(?,900)').run(hash('local-preview'));
 }
+if(process.env.PREVIEW_JOINED==='1')await recruitMembership.tick();
 db.prepare('INSERT INTO external_links(name,description,url,slug) VALUES(?,?,?,?)').run('Member Portal','Fictional preview link','https://example.com/','MemberPortal');
 const planId='preview-skill-plan',fitId='preview-fleet-fitting';
 db.prepare('INSERT INTO documents VALUES(?,?,?,?,?,?,?)').run(planId,1,'plan','Fleet Gunnery Foundation',JSON.stringify([{id:cat.named('Gunnery'),level:5},{id:cat.named('Small Projectile Turret'),level:4}]),1,Date.now());
