@@ -11,7 +11,7 @@ import {recruitAccount,restrictedRecruitPath,recruitInspectPath,recruitLinksHidd
 import {whitelistRoutes} from './lib/whitelist-routes.mjs';
 import {materialRoutes} from './lib/material-routes.mjs';
 import {fittingWorkbenchRoutes} from './lib/fitting-workbench-routes.mjs';
-import {wipeAccount} from './lib/accounts.mjs';
+import {wipeAccount,removePilotWhitelist} from './lib/accounts.mjs';
 import {isSiteAdmin} from './lib/admin.mjs';
 import {fittingImportRoutes} from './lib/fitting-import-routes.mjs';
 import {managementRoutes} from './lib/management-routes.mjs';
@@ -139,7 +139,7 @@ export function createApp(config) {
   app.use(async(req,res,next)=>{
     const path=req.path.toLowerCase();
     if(!req.session || !(path.startsWith('/api/')||path.startsWith('/auth/')) || path==='/api/logout')return next();
-    try {await whitelist.check(req.session.main_id);recruitMembership.verified(req.session.user_id,req.session.main_id);
+    try {const membership=await whitelist.check(req.session.main_id);if(membership!==null)recruitMembership.verified(req.session.user_id,req.session.main_id);
       if(path.startsWith('/api/'))db.prepare('INSERT INTO user_activity VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_seen=excluded.last_seen WHERE user_activity.last_seen<excluded.last_seen-60000').run(req.session.user_id,Date.now());
       next();}
     catch(e) {
@@ -162,7 +162,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.42.2" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.42.3" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -258,8 +258,8 @@ export function createApp(config) {
       if(req.session.main_id===config.owner)db.prepare("INSERT INTO corporation_connections VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(corporation_id) DO UPDATE SET name=excluded.name,character_id=excluded.character_id,character_name=excluded.character_name,owner_hash=excluded.owner_hash,tokens=excluded.tokens,verified=excluded.verified,role=excluded.role").run(corpInfo.id,corpInfo.name,id.id,id.name,id.owner,box.seal(token),Date.now(),corpInfo.role);
       return res.redirect("/#corp-structures");
     }
-    let memberLogin=false;
-    if(!flow.user_id){try{await whitelist.check(id.id,true);memberLogin=true;}catch(e){const applicant=db.prepare("SELECT a.status FROM recruitment_applications a JOIN users u ON u.id=a.user_id WHERE u.main_id=? AND a.status NOT IN ('rejected','withdrawn','joined')").get(id.id);if(e.status!==403||!(flow.invite==='recruit'||applicant))throw e;}}
+    let memberLogin=false,corporateLogin=false;
+    if(!flow.user_id){try{const membership=await whitelist.check(id.id,true);memberLogin=true;corporateLogin=membership!==null;}catch(e){const applicant=db.prepare("SELECT a.status FROM recruitment_applications a JOIN users u ON u.id=a.user_id WHERE u.main_id=? AND a.status NOT IN ('rejected','withdrawn','joined')").get(id.id);if(e.status!==403||!(flow.invite==='recruit'||applicant))throw e;}}
     let automaticCorp=null,automaticDenied=false;
     if(id.scopes.includes('esi-characters.read_corporation_roles.v1')){
       try{
@@ -328,7 +328,7 @@ export function createApp(config) {
       if(flow.invite==='recruit'&&!memberLogin)db.prepare("INSERT OR IGNORE INTO recruitment_applications(user_id,created,consented) VALUES(?,?,?)").run(uid,Date.now(),Date.now());
       return uid;
     });
-    if(memberLogin)recruitMembership.verified(user,id.id);
+    if(corporateLogin)recruitMembership.verified(user,id.id);
     if(automaticCorp){
       const reference=box.seal({linked_character_id:id.id});
       transaction(db,()=>{
@@ -475,6 +475,7 @@ export function createApp(config) {
     transaction(db,()=>{
       db.prepare('DELETE FROM corp_authorizations WHERE user_id=? AND character_id=?').run(req.session.user_id,c.id);
       db.prepare('DELETE FROM corporation_connections WHERE character_id=? AND owner_hash=?').run(c.id,c.owner_hash);
+      removePilotWhitelist(db,[c.id]);
       db.prepare("DELETE FROM characters WHERE id=?").run(c.id);
     });
     corp.invalidate(req.session.user_id);

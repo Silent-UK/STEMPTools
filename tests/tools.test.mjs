@@ -2078,3 +2078,22 @@ test('real membership lookup uses affiliation rather than a stale character prof
   assert(calls.length>=2);assert(calls.every(call=>call.path==='/characters/affiliation'&&call.method==='POST'&&call.character===null));
  },fakeCat,{membershipLookup:undefined,eve:{request:async(path,character,method,ids)=>{calls.push({path,character,method});assert.deepEqual(ids,[300]);if(path==='/characters/affiliation')return {data:[{character_id:mode==='wrong-pilot'?999:300,corporation_id:668298004}]};return {data:{corporation_id:1000169}};},publicGet:async()=>({})}});
 });
+
+test('individual pilot whitelist entries are cleaned on verified membership, rejection and pilot/account deletion',async t=>{
+ let joined=false;
+ await fixture(async({db,user,request,recruitMembership})=>{
+  const owner=user(100,'Owner'),applicant=user(300,'Applicant'),oldMember=user(400,'Already joined'),unrelated=user(500,'Unrelated exception'),rejected=user(600,'Rejected'),oldRejected=user(700,'Previously rejected');
+  db.prepare('UPDATE sessions SET expires=?').run(Date.now()+10000000);
+  const add=id=>db.prepare("INSERT INTO login_whitelist_entities VALUES('pilot',?,'Temporary pilot')").run(id),has=id=>Boolean(db.prepare("SELECT 1 FROM login_whitelist_entities WHERE kind='pilot' AND entity_id=?").get(id));
+  for(const id of [300,400,500,600,700])add(id);
+  for(const [account,status] of [[applicant,'applied'],[oldMember,'joined'],[rejected,'applied'],[oldRejected,'rejected']])db.prepare('INSERT INTO recruitment_applications(user_id,status,created,consented) VALUES(?,?,1,2)').run(account.uid,status);
+  const corporations=db.prepare('SELECT * FROM login_whitelist').all();db.prepare("INSERT INTO login_whitelist_entities VALUES('alliance',12345,'Unrelated alliance')").run();
+  assert.equal((await request('/api/me',{session:applicant.session})).status,200);assert.equal(db.prepare('SELECT status FROM recruitment_applications WHERE user_id=?').get(applicant.uid).status,'applied','a pilot exception alone must not prove corp membership');
+  await recruitMembership.tick();assert(has(300));assert(!has(400),'clean up existing joined applications too');assert(!has(700));assert(has(500));
+  joined=true;const future=Date.now()+300001;t.mock.method(Date,'now',()=>future);await recruitMembership.tick();assert(!has(300));assert.equal(db.prepare('SELECT status FROM recruitment_applications WHERE user_id=?').get(applicant.uid).status,'joined');const me=await(await request('/api/me',{session:applicant.session})).json();assert.equal(me.recruit,false);assert.equal(me.admin,false);
+  assert.equal((await request('/api/recruitment/'+rejected.uid,{session:owner.session,method:'POST',body:{status:'rejected',notes:'Application rejected'}})).status,200);assert(!has(600));assert(db.prepare('SELECT 1 FROM users WHERE id=?').get(rejected.uid));assert.equal((await request('/api/me',{session:rejected.session})).status,403);
+  db.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,0)').run(301,applicant.uid,'Alt','alt-owner','sealed','[]',Date.now()+60000);add(301);assert.equal((await request('/api/characters/301',{session:applicant.session,method:'DELETE',body:{}})).status,200);assert(!has(301));assert(has(500));
+  db.prepare('INSERT INTO characters VALUES(?,?,?,?,?,?,?,0)').run(501,unrelated.uid,'Other alt','other-owner','sealed','[]',Date.now()+60000);add(501);assert.equal((await request('/api/admin/users/'+unrelated.uid,{session:owner.session,method:'DELETE',body:{confirm_main_id:500}})).status,200);assert(!has(500));assert(!has(501));
+  assert.deepEqual(db.prepare('SELECT * FROM login_whitelist').all(),corporations);assert(db.prepare("SELECT 1 FROM login_whitelist_entities WHERE kind='alliance' AND entity_id=12345").get());
+ },fakeCat,{membershipLookup:async id=>({corporation_id:id===600||id===700||(id===300&&!joined)?999:668298004,alliance_id:23456})});
+});
