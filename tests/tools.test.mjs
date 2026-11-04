@@ -1017,7 +1017,9 @@ test('PI settings and stock summaries are private to the account',()=>fixture(as
  const a=user(100,'A'),b=user(200,'B');
  const get=async session=>(await(await request('/api/pi/dashboard',{session})).json());
  assert.equal((await get(a.session)).settings.perfect,18000);
- const body={perfect:20000,critical:17000,targets:[9848]};
+ const body={perfect:20000,critical:17000,targets:[9848],show_goals:false};
+ db.prepare('INSERT INTO pi_settings VALUES(?,?)').run(b.uid,JSON.stringify({perfect:21000,critical:17000,targets:[]}));
+ assert.equal((await get(b.session)).settings.show_goals,true);
  assert.equal((await request('/api/pi/settings',{session:a.session,method:'POST',body})).status,200);
  assert.deepEqual((await get(a.session)).settings,body);assert.deepEqual((await get(b.session)).settings.targets,[]);
  const snapshot=id=>JSON.stringify([{pins:[{type_id:99,contents:[{type_id:3689,amount:id},{type_id:9836,amount:id}]}]}]);
@@ -1345,7 +1347,8 @@ test("PI sharing selects only owned pilots, isolates recipients and revokes imme
   assert.equal((await share(a.session,b.uid,[100,101])).status,200);
   assert.deepEqual((await shared(b.session)).map(r=>r.id),[100,101]);
   assert.deepEqual(await shared(c.session),[]);
-  const row=(await shared(b.session))[0];
+  db.prepare('INSERT INTO sync_errors VALUES(?,?,?)').run(100,'pi','PI refresh failed');
+  const row=(await shared(b.session))[0];assert.equal(row.error,'PI refresh failed');
   assert.equal(row.owner_name,'Alice');assert.equal(row.tokens,undefined);assert.equal(row.scopes,undefined);
   assert.equal((await share(a.session,b.uid,[200])).status,404);
   assert.equal((await shared(b.session)).length,2,'invalid replacement leaves current grants intact');

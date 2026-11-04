@@ -1,3 +1,10 @@
+# STEMP Tools v0.41.0
+
+- PI: Storage Attention finds launchpads at least 75% full. Add character, system, planet and product search alongside existing status filters.
+- Remember search, filters and alt visibility per account, inspection and personal/shared view.
+- Show clear saved-snapshot dates and warnings for PI data older than two hours or with failed refreshes, including shared PI.
+- Add Show Production Goals to PI Settings. Preserve selected targets when hidden and skip their background price lookup. Existing accounts keep goals visible by default.
+
 # STEMP Tools v0.40.1
 
 - Mercenary Dens: Needs Attention filters reinforcement, MTOs expiring within 12 hours, workforce reductions, anarchy near level 2 and incomplete MTO snapshots.

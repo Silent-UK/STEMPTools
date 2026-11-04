@@ -72,7 +72,7 @@ for (const [id, name] of [
   let factoryId=40;
   const factory=(schematic)=>({pin_id:factoryId++,type_id:2470,schematic_id:schematic,last_cycle_start:new Date().toISOString()});
   const pi=[
-   {planet_id:40000001,solar_system_id:30000142,info:{name:'Example system I'},planet_type:'barren',pins:[ex(1,2267,9500),ex(2,2270,7200),factory(126),factory(127),factory(73),pad([[3689,805]])]},
+   {planet_id:40000001,solar_system_id:30000142,info:{name:'Example system I'},planet_type:'barren',pins:[ex(1,2267,9500),ex(2,2270,7200),factory(126),factory(127),factory(73),pad([[3689,id===1000001?12000:805]])]},
    {planet_id:40000002,solar_system_id:30000142,info:{name:'Example system II'},planet_type:'lava',pins:[ex(1,2272,8000),ex(2,2306,6000),factory(128),factory(129),factory(76),pad([[9836,750]])]},
    {planet_id:40000003,solar_system_id:30000142,info:{name:'Example system III'},planet_type:'barren',pins:[ex(1,2267,7500),factory(126),pad([[2398,800]])]},
    {planet_id:40000004,solar_system_id:30000142,info:{name:'Example system IV'},planet_type:'gas',pins:[ex(1,2267,6800),pad([[2267,100000]])]},
@@ -134,6 +134,7 @@ for (const [id, name] of [
       Date.now() + 3600000,
     );
 }
+db.prepare("UPDATE snapshots SET updated=? WHERE character_id=1000002 AND kind='pi'").run(Date.now()-3*3600000);
 db.prepare("INSERT INTO pi_settings VALUES(1,?)").run(JSON.stringify({perfect:18000,critical:16000,targets:[9848,2876]}));
 db.prepare("INSERT INTO sessions VALUES(?,1,?)").run(
   hash("local-preview"),

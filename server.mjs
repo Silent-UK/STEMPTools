@@ -160,7 +160,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.40.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.41.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -542,7 +542,7 @@ export function createApp(config) {
     res.json(s);
   });
   const piRecipes=()=>cat.piRecipes?.()||[];
-  const piSettings=user=>JSON.parse(db.prepare("SELECT data FROM pi_settings WHERE user_id=?").get(user)?.data||"null")||defaultPISettings();
+  const piSettings=user=>({...defaultPISettings(),...JSON.parse(db.prepare("SELECT data FROM pi_settings WHERE user_id=?").get(user)?.data||"null")});
   const pricePI=jitaPricing(db,eve),marketPI=jitaPricing(db,eve,true);
   app.get('/api/mining/refining',async(req,res)=>{
     const saved=db.prepare("SELECT s.data FROM snapshots s JOIN characters c ON c.id=s.character_id WHERE c.user_id=? AND s.kind='mining'").all(req.session.user_id);
@@ -585,8 +585,8 @@ export function createApp(config) {
     }catch(e){res.status(e.status||400).json({error:e.message});}
   });
   app.get("/api/pi/shared",(req,res)=>{
-    const rows=db.prepare("SELECT c.id,c.name,u.name owner_name,s.data,s.updated,g.owner_id FROM pi_shares g JOIN characters c ON c.id=g.character_id AND c.user_id=g.owner_id JOIN users u ON u.id=g.owner_id LEFT JOIN snapshots s ON s.character_id=c.id AND s.kind='pi' WHERE g.recipient_id=? ORDER BY u.name COLLATE NOCASE,c.name COLLATE NOCASE").all(req.session.user_id);
-    res.json(rows.map(r=>({id:r.id,name:r.name,owner_name:r.owner_name,updated:r.updated||null,data:r.data?piSummary(JSON.parse(r.data),cat):null,settings:{perfect:piSettings(r.owner_id).perfect,critical:piSettings(r.owner_id).critical}})));
+    const rows=db.prepare("SELECT c.id,c.name,u.name owner_name,s.data,s.updated,g.owner_id,(SELECT message FROM sync_errors WHERE character_id=c.id AND kind='pi') error FROM pi_shares g JOIN characters c ON c.id=g.character_id AND c.user_id=g.owner_id JOIN users u ON u.id=g.owner_id LEFT JOIN snapshots s ON s.character_id=c.id AND s.kind='pi' WHERE g.recipient_id=? ORDER BY u.name COLLATE NOCASE,c.name COLLATE NOCASE").all(req.session.user_id);
+    res.json(rows.map(r=>({id:r.id,name:r.name,owner_name:r.owner_name,updated:r.updated||null,error:r.error||null,data:r.data?piSummary(JSON.parse(r.data),cat):null,settings:{perfect:piSettings(r.owner_id).perfect,critical:piSettings(r.owner_id).critical}})));
   });
   app.get("/api/pi/prices",async(req,res)=>res.json(await pricePI(piSettings(req.session.user_id).targets)));
   app.get("/api/pi/dashboard",(req,res)=>{
