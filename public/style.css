@@ -1461,3 +1461,5 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .ratting-page td.ratting-contributors{min-width:120px;max-width:260px;overflow-wrap:anywhere;color:var(--muted)}
 
 .ratting-page .ratting-special-npc{color:var(--purple);font-weight:600}
+
+.ratting-history table{table-layout:fixed;min-width:820px;width:100%}.ratting-history th:nth-child(1){width:170px}.ratting-history th:nth-child(2){width:145px}.ratting-history th:nth-child(3){width:105px}.ratting-history th:nth-child(4){width:140px}.ratting-page .ratting-history td,.ratting-page .ratting-history th{padding:4px 6px;line-height:16px;vertical-align:top}.ratting-page .ratting-history td details{margin:0;min-width:0;max-width:none}.ratting-page .ratting-history td summary{margin:0;padding:0;font-size:inherit;line-height:16px}.ratting-history td:nth-child(1),.ratting-history td:nth-child(3){white-space:nowrap}
