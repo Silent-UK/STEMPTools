@@ -6,3 +6,17 @@ node_modules/
 
 # Local upstream reference; never part of the application.
 .reference-vyraj/
+
+# Private environment variants and local development clutter.
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.venv/
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+
+# Separate local checkout, maintained in its own GitHub repository.
+/narvi-tools/

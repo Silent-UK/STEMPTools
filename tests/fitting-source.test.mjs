@@ -12,7 +12,7 @@ test('corresponding source contains simulator/build code and excludes private da
  assert.ok(entries.has('tools-source/lib/fitting-simulation.mjs'));
  assert.ok(entries.has('tools-source/scripts/build-fitting-engine.mjs'));
  assert.ok(entries.has('tools-source/LICENSE'));
- assert.ok(entries.has('tools-source/HEALTHCHECK.md'));
+ assert.ok(entries.has('tools-source/docs/HEALTHCHECK.md'));
  for(const name of entries.keys())assert.ok(!name.startsWith('tools-source/data/')&&!name.includes('/node_modules/')&&!name.includes('/.reference-')&&!name.includes('/narvi-tools/')&&!name.endsWith('/.env')&&!/\.sqlite(?:-|$)/.test(name),name);
  const source=inflateRawSync(entries.get('tools-source/lib/fitting-simulation.mjs')).toString();
  assert.equal(source,readFileSync(new URL('../lib/fitting-simulation.mjs',import.meta.url),'utf8').replace(/\r\n/g,'\n'));

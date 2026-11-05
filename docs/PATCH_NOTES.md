@@ -1,3 +1,9 @@
+# STEMP Tools v0.45.9
+
+- Remove superseded frontend modules and unused assets.
+- Consolidate guides in docs, refresh the README and preserve earlier release documentation.
+- Ignore temporary development files and keep the corresponding-source download aligned.
+
 # STEMP Tools v0.42.0
 
 - Automatically mark recruits as Joined after successful membership verification, removing the recruit flag and restoring normal member navigation and Links.
