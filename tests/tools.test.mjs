@@ -2156,7 +2156,7 @@ test('sidebar switches cover personal, corporate, Links and only accessible cust
  assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{'page-1':true,'links-section':true}})).status,200);
 }));
 
-test('existing sessions tolerate one separate ESI membership failure, survive restart, and reset after recovery',async t=>{
+test('existing sessions survive repeated ESI membership failures and restart, then reset after recovery',async t=>{
  const {whitelistService}=await import('../lib/whitelist.mjs'),dir=mkdtempSync(join(tmpdir(),'whitelist-grace-')),db=openStore(dir);let now=1000000,calls=0,fail=false,corporation=668298004;
  t.mock.method(Date,'now',()=>now);const lookup=async()=>{calls++;if(fail)throw Error('ESI downtime');return {corporation_id:corporation};};let service=whitelistService(db,lookup);const check=()=>service.check(100,false,{allowGrace:true});
  try{
@@ -2165,23 +2165,23 @@ test('existing sessions tolerate one separate ESI membership failure, survive re
   for(let n=0;n<3;n++)assert.equal(await check(),null);assert.equal(calls,2);
   service=whitelistService(db,lookup);assert.equal(await check(),null);assert.equal(calls,2);
   await assert.rejects(service.check(100,true),e=>e.status===503);await assert.rejects(service.check(100,true,{membershipOnly:true,allowGrace:true}),e=>e.status===503);
-  now+=1200001;await assert.rejects(check(),e=>e.status===503);assert.equal(db.prepare('SELECT failures FROM login_membership_checks').get().failures,2);assert.equal(db.prepare('SELECT retry_at FROM login_membership_checks').get().retry_at,now+60000);const secondCalls=calls;await assert.rejects(check(),e=>e.status===503);assert.equal(calls,secondCalls);
+  now+=1200001;assert.equal(await check(),null);assert.equal(db.prepare('SELECT failures FROM login_membership_checks').get().failures,2);assert.equal(db.prepare('SELECT retry_at FROM login_membership_checks').get().retry_at,now+1200000);const secondCalls=calls;assert.equal(await check(),null);assert.equal(calls,secondCalls);
   now+=1200001;fail=false;assert.equal(await check(),668298004);assert.equal(db.prepare('SELECT failures FROM login_membership_checks').get().failures,0);
   now+=300001;fail=true;assert.equal(await check(),null);
   now+=1200001;fail=false;corporation=999;await assert.rejects(check(),e=>e.status===403);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });
-test('membership outage grace requires a recent verified result and still honours removed whitelist rules',async t=>{
+test('membership outage access requires previous verification and still honours removed whitelist rules',async t=>{
  const {whitelistService}=await import('../lib/whitelist.mjs'),dir=mkdtempSync(join(tmpdir(),'whitelist-grace-bounds-')),db=openStore(dir);let now=1000000,fail=false;t.mock.method(Date,'now',()=>now);
  const lookup=async()=>{if(fail)throw Error('offline');return {corporation_id:668298004};},service=whitelistService(db,lookup);
  try{
-  await service.check(100);now+=2*60*60*1000+1;fail=true;await assert.rejects(service.check(100,false,{allowGrace:true}),e=>e.status===503);
+  await service.check(100);now+=7*86400000;fail=true;assert.equal(await service.check(100,false,{allowGrace:true}),null);
   await assert.rejects(service.check(200,false,{allowGrace:true}),e=>e.status===503);
   fail=false;await service.check(300);db.prepare('DELETE FROM login_whitelist WHERE corporation_id=?').run(668298004);now+=300001;fail=true;await assert.rejects(service.check(300,false,{allowGrace:true}),e=>e.status===503);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });
 
-test('membership downtime keeps the verified browser session usable for twenty minutes without promoting recruits on stale proof',async t=>{
+test('membership downtime keeps existing sessions usable through repeated failures without promoting recruits on stale proof',async t=>{
  let now=Date.now(),failed=false;t.mock.method(Date,'now',()=>now);
  await fixture(async({db,user,request})=>{
   const a=user(200,'Verified member');db.prepare('UPDATE sessions SET expires=? WHERE user_id=?').run(now+86400000,a.uid);assert.equal((await request('/api/me',{session:a.session})).status,200);
@@ -2189,7 +2189,7 @@ test('membership downtime keeps the verified browser session usable for twenty m
   now+=90*60000;failed=true;for(let i=0;i<3;i++)assert.equal((await request('/api/me',{session:a.session})).status,200);
   assert.equal(db.prepare('SELECT status FROM recruitment_applications WHERE user_id=?').get(a.uid).status,'applied');
   now+=19*60000;assert.equal((await request('/api/me',{session:a.session})).status,200);
-  now+=60001;assert.equal((await request('/api/me',{session:a.session})).status,503);assert.ok(db.prepare('SELECT 1 FROM sessions WHERE user_id=?').get(a.uid));
+  now+=60001;assert.equal((await request('/api/me',{session:a.session})).status,200);now+=3*3600000;assert.equal((await request('/api/me',{session:a.session})).status,200);assert.ok(db.prepare('SELECT 1 FROM sessions WHERE user_id=?').get(a.uid));
  },fakeCat,{membershipLookup:async()=>{if(failed)throw Error('ESI downtime');return {corporation_id:668298004};}});
 });
 
