@@ -141,7 +141,7 @@ export function createApp(config) {
   app.use(async(req,res,next)=>{
     const path=req.path.toLowerCase();
     if(!req.session || !(path.startsWith('/api/')||path.startsWith('/auth/')) || path==='/api/logout')return next();
-    try {const membership=await whitelist.check(req.session.main_id);if(membership!==null)recruitMembership.verified(req.session.user_id,req.session.main_id);
+    try {const membership=await whitelist.check(req.session.main_id,false,{allowGrace:true});if(membership!==null)recruitMembership.verified(req.session.user_id,req.session.main_id);
       if(path.startsWith('/api/'))db.prepare('INSERT INTO user_activity VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET last_seen=excluded.last_seen WHERE user_activity.last_seen<excluded.last_seen-60000').run(req.session.user_id,Date.now());
       next();}
     catch(e) {
@@ -164,7 +164,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.44.4" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.44.5" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
