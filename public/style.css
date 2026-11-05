@@ -1499,3 +1499,7 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .settings-column{min-width:0;display:flex;flex-direction:column;gap:10px}.settings-column>.settings-list{margin:0}.settings-column>.corporation-settings{margin-top:0}
 
 .users-directory .users-column-head,.users-directory .admin-user>summary{grid-template-columns:minmax(150px,1.2fr) minmax(140px,1fr) 64px 136px 34px 136px 168px 44px;gap:6px;min-width:960px}.users-directory .admin-user>summary{padding:2px;min-height:26px;line-height:1.2}.users-directory .users-pilot img{width:20px;height:20px}.users-directory .users-role{grid-column:auto;grid-row:auto;white-space:nowrap;font-size:calc(11px * var(--font-scale,1));color:var(--muted)}.users-directory .users-delete-actions{min-height:22px}.users-directory .users-column-head{padding:3px 2px}
+
+.overview-refresh-notice{margin:6px 0;padding:6px 8px;border-left:3px solid var(--accent,var(--purple));background:var(--theme-active);font-size:calc(12px * var(--font-scale,1))}.overview-refresh-notice p{margin:4px 0;line-height:1.45}.overview-refresh-pilots{overflow-wrap:anywhere}
+
+.moon-recorded-table table{min-width:600px;width:100%}.moon-recorded-table th{font-size:10px;white-space:normal}

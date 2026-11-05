@@ -1,3 +1,5 @@
+import {overviewAttention} from '../public/overview-model.mjs';
+import {overviewAttentionView} from '../public/overview-attention-view.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {overviewPreferences,overviewIssues,overviewRefresh,overviewMatches,overviewTotals,overviewGroups} from '../public/overview-model.mjs';
@@ -37,4 +39,14 @@ test('saved overview preferences are bounded and tolerate corrupt values',()=>{
  assert.equal(overviewPreferences(null).sort,'manual');
  assert.equal(overviewPreferences({q:'x'.repeat(200),filter:'bad',sort:'bad',groups:[1,'bad'],totals:'yes'}).q.length,120);
  assert.deepEqual(overviewPreferences({groups:[1,'bad']}).groups,[1]);
+});
+
+test('temporary refresh failures share one notice without hiding reconnects or other failures',()=>{
+ const a={id:1,parent_id:1,name:'Alpha',errors:[{message:'ESI unavailable (HTTP 504)'}]},b={id:2,parent_id:2,name:'Beta',reconnect:true,errors:[{message:'ESI is cooling down'}]},c={id:3,parent_id:3,name:'Gamma',errors:[{message:'HTTP 503'},{message:'Missing data permission'}]};
+ const result=overviewAttention([a,b,c],now);assert.equal(result.temporary.length,3);assert.equal(result.affected,3);assert.equal(result.checks,3);assert.equal(result.issues.filter(i=>i.kind==='reconnect').length,1);assert.equal(result.issues.filter(i=>i.kind==='refresh').length,1);
+ const esc=s=>String(s).replaceAll('<','&lt;'),html=overviewAttentionView(result,esc);assert.equal((html.match(/ESI refresh issue/g)||[]).length,1);assert.ok(html.includes('Alpha, Beta, Gamma'));assert.ok(!html.includes('Temporary refresh failure'));assert.ok(html.includes('Reconnect required'));assert.ok(html.includes('Some data could not refresh'));
+ const recovered=overviewAttention([{...a,errors:[]},{...b,errors:[],reconnect:false}],now);assert.equal(recovered.checks,0);assert.equal(recovered.affected,0);assert.ok(!overviewAttentionView(recovered,esc).includes('ESI refresh issue'));
+});
+test('rate limiting groups by character, with names escaped and counts independent of endpoint failures',()=>{
+ const rows=[{id:1,name:'<unsafe>',errors:[{message:'HTTP 429'},{message:'Timed out'}]},{id:2,name:'Second',errors:[{message:'HTTP 420'}]}],result=overviewAttention(rows,now);assert.equal(result.affected,2);assert.equal(result.checks,1);assert.equal(result.issues.length,0);const html=overviewAttentionView(result,s=>String(s).replaceAll('<','&lt;'));assert.ok(html.includes('&lt;unsafe>'));assert.ok(!html.includes('<unsafe>'));assert.ok(html.includes('2 characters affected'));
 });
