@@ -1503,3 +1503,7 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .overview-refresh-notice{margin:6px 0;padding:6px 8px;border-left:3px solid var(--accent,var(--purple));background:var(--theme-active);font-size:calc(12px * var(--font-scale,1))}.overview-refresh-notice p{margin:4px 0;line-height:1.45}.overview-refresh-pilots{overflow-wrap:anywhere}
 
 .moon-recorded-table table{min-width:600px;width:100%}.moon-recorded-table th{font-size:10px;white-space:normal}
+
+.moon-income{margin:8px 0;font-size:12px}.moon-income>details{border-top:1px solid var(--border);padding:5px 0}.moon-income>details>summary{display:grid;grid-template-columns:minmax(120px,1fr) 1fr 1fr 1fr;gap:6px;cursor:pointer}.moon-income>small{display:block;margin:4px 0 8px}.moon-income td{padding:4px 6px}@media(max-width:800px){.moon-income>details>summary{grid-template-columns:1fr 1fr}}
+
+.moon-income>details>summary>strong:first-child::before{content:'▸ '}.moon-income>details[open]>summary>strong:first-child::before{content:'▾ '}
