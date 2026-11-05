@@ -2224,3 +2224,16 @@ test('a stalled alt affiliation lookup cannot hold the workspace or grant unveri
 test('admin workspace navigation does not wait for unrelated director verification',()=>fixture(async({user,request,corp})=>{
  const owner=user(100,'Owner');let calls=0;corp.access=async()=>{calls++;return false;};const response=await request('/api/me',{session:owner.session});assert.equal(response.status,200);const me=await response.json();assert.equal(me.admin,true);assert.ok(me.corporate_pages.includes('corp-moons'));assert.equal(calls,0);
 }));
+
+
+test('slow ESI verification stops blocking existing sessions but persists confirmed removal when it completes',async()=>{
+ const {whitelistService}=await import('../lib/whitelist.mjs'),dir=mkdtempSync(join(tmpdir(),'whitelist-slow-')),db=openStore(dir);let release,slow=false;
+ const service=whitelistService(db,async()=>slow?await new Promise(resolve=>{release=resolve;}):{corporation_id:668298004});
+ try{
+  await service.check(100);service.invalidate();slow=true;
+  assert.equal(await service.check(100,false,{allowGrace:true}),null);
+  assert.equal(db.prepare('SELECT corporation_id FROM login_membership_checks WHERE character_id=100').get().corporation_id,668298004);
+  release({corporation_id:999});await new Promise(resolve=>setImmediate(resolve));
+  await assert.rejects(service.check(100,false,{allowGrace:true}),e=>e.status===403);
+ }finally{db.close();rmSync(dir,{recursive:true,force:true});}
+});
