@@ -2192,3 +2192,19 @@ test('membership downtime keeps the verified browser session usable for twenty m
   now+=60001;assert.equal((await request('/api/me',{session:a.session})).status,503);assert.ok(db.prepare('SELECT 1 FROM sessions WHERE user_id=?').get(a.uid));
  },fakeCat,{membershipLookup:async()=>{if(failed)throw Error('ESI downtime');return {corporation_id:668298004};}});
 });
+
+test('admins manually add registered accounts to hidden groups while self-service discovery and applications stay blocked',()=>fixture(async({db,user,request})=>{
+ const owner=user(100,'Owner'),member=user(200,'Member'),recruit=user(300,'Recruit');db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(?,1,2)').run(recruit.uid);
+ const body={name:'Private Staff',icon:'◇',description:'Admin-managed group',mode:'approval',rules:[],pages:['corp-moons'],hidden:true,recruit_visible:true},save=b=>request('/api/admin/groups',{session:owner.session,method:'POST',body:b});
+ assert.equal((await save({...body,hidden:'yes'})).status,400);assert.equal((await save(body)).status,200);const group=db.prepare('SELECT * FROM access_groups').get();assert.equal(group.is_hidden,1);
+ for(const session of [member.session,recruit.session]){assert.deepEqual(await(await request('/api/groups',{session})).json(),[]);assert.equal((await request('/api/groups/'+group.id+'/apply',{session,method:'POST',body:{}})).status,404);assert.equal((await request('/api/admin/groups/'+group.id+'/member',{session,method:'POST',body:{user_id:member.uid,status:'approved'}})).status,403);}
+ const admin=await(await request('/api/admin/groups',{session:owner.session})).json();assert.equal(admin.groups[0].hidden,true);assert.ok(admin.users.some(u=>u.id===member.uid));
+ const add=(uid,status='approved')=>request('/api/admin/groups/'+group.id+'/member',{session:owner.session,method:'POST',body:{user_id:uid,status}});
+ assert.equal((await add(member.uid)).status,200);assert.equal((await add(member.uid)).status,200);assert.equal(db.prepare('SELECT count(*) n FROM group_members WHERE group_id=? AND user_id=?').get(group.id,member.uid).n,1);
+ assert.deepEqual(await(await request('/api/groups',{session:member.session})).json(),[]);assert.ok((await(await request('/api/me',{session:member.session})).json()).corporate_pages.includes('corp-moons'));
+ assert.equal((await add(999999)).status,404);assert.equal((await add(String(member.uid))).status,400);
+ const {hidden,...legacy}=body;assert.equal((await save({...legacy,id:group.id})).status,200);assert.equal(db.prepare('SELECT is_hidden FROM access_groups WHERE id=?').get(group.id).is_hidden,1);
+ assert.equal((await add(member.uid,'rejected')).status,200);assert.ok(!(await(await request('/api/me',{session:member.session})).json()).corporate_pages.includes('corp-moons'));
+ assert.equal((await save({...body,id:group.id,hidden:false})).status,200);assert.ok((await(await request('/api/groups',{session:member.session})).json()).some(g=>g.id===group.id));
+ assert.equal((await save({...body,id:group.id,mode:'restricted',rules:[{kind:'skill',id:1,level:5}]})).status,200);assert.equal((await add(member.uid)).status,400);assert.equal(db.prepare('SELECT status FROM group_members WHERE group_id=? AND user_id=?').get(group.id,member.uid).status,'rejected');
+},fakeCat,{membershipLookup:async id=>({corporation_id:id===300?999:668298004})}));
