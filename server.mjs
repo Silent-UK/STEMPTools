@@ -164,7 +164,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.45.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.45.2" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -380,7 +380,7 @@ export function createApp(config) {
     }
     next();
   });
-  app.use('/api',async(req,res,next)=>{if(!req.inspect)await groupEnrolment.check(req.session.user_id);next();});
+  app.use('/api',(req,res,next)=>{if(!req.inspect)groupEnrolment.schedule(req.session.user_id);next();});
   fittingImportRoutes(app,{db,eve,cat});
   fittingWorkbenchRoutes(app,{db,eve,cat,simulate:config.fittingSimulator});
   sitePageRoutes(app,{db,config});
@@ -388,7 +388,7 @@ export function createApp(config) {
   recruitmentRoutes(app,{db,recruitment,config});
   managementRoutes(app,{db,eve,corp,cat,config,whitelist,discord,groupEnrolment});
   materialRoutes(app,{db,cat,corp,grants,admin:req=>isSiteAdmin(req.session,config.owner)});
-  app.get("/api/me", async (req,res)=>{const director=req.recruit||req.inspect?.recruitment_only?false:await corp.access(req.session.user_id),pages=req.recruit||req.inspect?.recruitment_only?[]:grants(db,req.session.user_id).filter(p=>Object.hasOwn(CORPORATE_PAGES,p));res.json({pages:visibleSitePages(db,req,config),recruit:Boolean(req.recruit),recruiter:!req.inspect&&recruitment.canReview(req.session),name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:isSiteAdmin(req.session,config.owner)||director||pages.length>0,corporate_pages:isSiteAdmin(req.session,config.owner)||director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:recruitLinksHidden(db,req)?[]:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
+  app.get("/api/me", async (req,res)=>{const director=req.recruit||req.inspect?.recruitment_only||isSiteAdmin(req.session,config.owner)?false:await corp.access(req.session.user_id),pages=req.recruit||req.inspect?.recruitment_only?[]:grants(db,req.session.user_id).filter(p=>Object.hasOwn(CORPORATE_PAGES,p));res.json({pages:visibleSitePages(db,req,config),recruit:Boolean(req.recruit),recruiter:!req.inspect&&recruitment.canReview(req.session),name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:isSiteAdmin(req.session,config.owner)||director||pages.length>0,corporate_pages:isSiteAdmin(req.session,config.owner)||director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:recruitLinksHidden(db,req)?[]:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
   app.use("/api/corporation",async(req,res,next)=>{
     const director=await corp.access(req.session.user_id),route=req.path.split('/')[1],required=({overview:'corp-overview',members:'corp-members',pilots:'corp-pilots',assets:'corp-assets','pilot-assets':'corp-search-pilots',wallet:'corp-wallet',standings:'corp-standings',contracts:'corp-contracts',market:'corp-market',blueprints:'corp-blueprints',materials:'corp-industry',industry:'corp-industry',structures:'corp-structures',harvest:'corp-moons',surveys:'corp-surveys'})[route];
     if(!director&&(!['GET','HEAD'].includes(req.method)||!required||(!isSiteAdmin(req.session,config.owner)&&!grants(db,req.session.user_id).includes(required))))return res.status(403).json({error:"You do not have permission to view this corporation page."});
