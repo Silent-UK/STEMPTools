@@ -236,6 +236,7 @@ if(process.env.PREVIEW_GROUPS==='1'||process.env.PREVIEW_RECRUIT_GROUPS==='1'){
 }
 if(process.env.PREVIEW_JOINED==='1')await recruitMembership.tick();
 db.prepare('INSERT INTO external_links(name,description,url,slug) VALUES(?,?,?,?)').run('Member Portal','Fictional preview link','https://example.com/','MemberPortal');
+if(process.env.PREVIEW_PAGE_TOGGLES==='1')for(const [name,position] of [['FAQ',1],['Rules and Regulations',2]])db.prepare("INSERT INTO site_pages(name,body,section,after_page,position,published,visibility,updated) VALUES(?,?,'pages','end',?,1,'all',?)").run(name,'Sample page for sidebar visibility checks.',position,Date.now());
 const planId='preview-skill-plan',fitId='preview-fleet-fitting';
 db.prepare('INSERT INTO documents VALUES(?,?,?,?,?,?,?)').run(planId,1,'plan','Fleet Gunnery Foundation',JSON.stringify([{id:cat.named('Gunnery'),level:5},{id:cat.named('Small Projectile Turret'),level:4}]),1,Date.now());
 db.prepare('INSERT INTO documents VALUES(?,?,?,?,?,?,?)').run(fitId,1,'fitting','Rifter · Fleet Tackle',JSON.stringify('[Rifter, Fleet Tackle]\nDamage Control II\n200mm AutoCannon II, Barrage S'),0,Date.now());

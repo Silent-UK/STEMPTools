@@ -1451,7 +1451,7 @@ test('settings, group approval and corporate grants enforce account, admin and e
  const post=(path,session,body)=>request(path,{session,body,method:'POST'});
  assert.equal((await post('/api/settings',a.session,{pi:false})).status,200);
  assert.equal((await(await request('/api/settings',{session:b.session})).json()).preferences.pi,undefined);
- assert.equal((await post('/api/settings',a.session,{wallet:false})).status,400);
+ assert.equal((await post('/api/settings',a.session,{'unknown-page':false})).status,400);
  const group={name:'Moon Manager',icon:'☾',description:'Manage moons',mode:'approval',rules:[],pages:['corp-moons']};
  assert.equal((await post('/api/admin/groups',a.session,group)).status,403);
  assert.equal((await post('/api/admin/groups',admin.session,group)).status,200);
@@ -2139,3 +2139,19 @@ test('Auto Enrol is admin configured, verifies the edition corporation, grants w
  assert.equal((await request('/api/admin/groups/'+group.id+'/member',{session:owner.session,method:'POST',body:{user_id:member.uid,status:'approved'}})).status,200);
  assert.ok((await(await request('/api/me',{session:member.session})).json()).corporate_pages.includes('corp-moons'));
 },fakeCat,{membershipLookup:async id=>({corporation_id:id===300?999:668298004})}));
+
+test('sidebar switches cover personal, corporate, Links and only accessible custom pages without changing access or sync',()=>fixture(async({db,user,request})=>{
+ const a=user(200,'Display owner'),b=user(300,'Other');
+ db.prepare("INSERT INTO site_pages VALUES(1,'FAQ','Visible text','pages','end',1,1,'all',1)").run();
+ db.prepare("INSERT INTO site_pages VALUES(2,'Private page','Private text','pages','end',2,1,'groups',1)").run();
+ db.prepare("INSERT INTO access_groups(id,name,icon,description,mode,rules,pages) VALUES(1,'Roster readers','◇','','auto','[]','[\"corp-members\",\"corp-pilots\"]')").run();db.prepare("INSERT INTO group_members VALUES(1,?,'approved')").run(a.uid);
+ const available=await(await request('/api/settings',{session:a.session})).json();assert.deepEqual(available.display_pages,['clones','wallet','contracts','plans','fittings']);assert.deepEqual(available.custom_pages.map(p=>p.id),[1]);assert.deepEqual(Object.keys(available.corporate_pages),['corp-members','corp-pilots']);
+ const changes={clones:false,wallet:false,contracts:false,plans:false,fittings:false,'corp-members':false,'corp-pilots':false,'links-section':false,'page-1':false};
+ assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:changes})).status,200);
+ const me=await(await request('/api/me',{session:a.session})).json();for(const [key,value] of Object.entries(changes))assert.equal(me.preferences[key],value);assert.ok(me.corporate_pages.includes('corp-members'));assert.ok(me.pages.some(p=>p.id===1));
+ assert.equal((await request('/api/pages/1',{session:a.session})).status,200);assert.equal((await request('/api/links',{session:a.session})).status,200);
+ for(const body of [{'page-2':false},{'page-9999':false},{'links-section':'off'}])assert.equal((await request('/api/settings',{session:a.session,method:'POST',body})).status,400);
+ const other=await(await request('/api/settings',{session:b.session})).json();assert.deepEqual(other.preferences,{});
+ const {syncEnabled}=await import('../lib/management.mjs');for(const kind of ['wallet','wallet-history','clones','contracts','skills','assets'])assert.equal(syncEnabled(db,a.uid,kind),true);
+ assert.equal((await request('/api/settings',{session:a.session,method:'POST',body:{'page-1':true,'links-section':true}})).status,200);
+}));
