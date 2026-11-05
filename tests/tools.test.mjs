@@ -2121,3 +2121,21 @@ test('recruits see and apply only to opted-in groups without acquiring corporati
  assert.deepEqual((await list(recruit.session)).map(g=>g.name),['Approval recruit group']);assert.equal((await request('/api/groups/'+visible.id+'/apply',{session:recruit.session,method:'POST',body:{}})).status,404);
  assert.equal((await request('/api/inspect',{session:owner.session,method:'POST',body:{user_id:recruit.uid}})).status,200);assert.deepEqual((await list(owner.session)).map(g=>g.name),['Approval recruit group']);assert.equal((await request('/api/groups/'+approval.id+'/apply',{session:owner.session,method:'POST',body:{}})).status,403);
 },fakeCat,{membershipLookup:async id=>({corporation_id:[300,500].includes(id)?999:668298004})}));
+
+test('Auto Enrol is admin configured, verifies the edition corporation, grants without applying and cannot bypass manual rejection',()=>fixture(async({db,user,request})=>{
+ const owner=user(100,'Owner'),member=user(200,'Silent Uk'),outsider=user(300,'Other Pilot');
+ db.prepare("INSERT INTO login_whitelist_entities(kind,entity_id,name) VALUES('pilot',300,'Other Pilot')").run();
+ const body={name:'Corp Members',description:'Confirmed corp members',icon:'◇',mode:'auto-enrol',rules:[{kind:'corporation',id:123}],pages:['corp-moons']};
+ assert.equal((await request('/api/admin/groups',{session:member.session,method:'POST',body})).status,403);
+ assert.equal((await request('/api/admin/groups',{session:owner.session,method:'POST',body:{...body,rules:[]}})).status,400);
+ assert.equal((await request('/api/admin/groups',{session:owner.session,method:'POST',body})).status,200);
+ const group=db.prepare('SELECT * FROM access_groups').get();assert.equal(JSON.parse(group.rules)[0].id,668298004);assert.equal(JSON.parse(group.rules)[0].name,'Member of STEMP');
+ const me=await(await request('/api/me',{session:member.session})).json();assert.ok(me.corporate_pages.includes('corp-moons'));assert.equal(db.prepare('SELECT status FROM group_members WHERE group_id=? AND user_id=?').get(group.id,member.uid).status,'approved');
+ await request('/api/me',{session:outsider.session});assert.equal(db.prepare('SELECT status FROM group_members WHERE group_id=? AND user_id=?').get(group.id,outsider.uid),undefined);
+ assert.equal((await request('/api/admin/groups/'+group.id+'/member',{session:owner.session,method:'POST',body:{user_id:member.uid,status:'rejected'}})).status,200);
+ assert.equal((await request('/api/groups/'+group.id+'/apply',{session:member.session,method:'POST',body:{}})).status,403);
+ assert.ok(!(await(await request('/api/me',{session:member.session})).json()).corporate_pages.includes('corp-moons'));
+ const list=await(await request('/api/admin/groups',{session:owner.session})).json();assert.ok(list.requests.some(r=>r.name==='Silent Uk'&&JSON.parse(r.pilot_names).includes('Silent Uk')));
+ assert.equal((await request('/api/admin/groups/'+group.id+'/member',{session:owner.session,method:'POST',body:{user_id:member.uid,status:'approved'}})).status,200);
+ assert.ok((await(await request('/api/me',{session:member.session})).json()).corporate_pages.includes('corp-moons'));
+},fakeCat,{membershipLookup:async id=>({corporation_id:id===300?999:668298004})}));

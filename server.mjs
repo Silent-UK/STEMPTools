@@ -1,3 +1,4 @@
+import {groupEnrolmentService} from './lib/group-enrolment.mjs';
 import {recruitMembershipService} from './lib/recruit-membership.mjs';
 import {documentLibraryRoutes,skillEvidence} from './lib/document-library.mjs';
 import {characterDashboard} from './lib/character-dashboard.mjs';
@@ -65,6 +66,7 @@ export function createApp(config) {
   sitePagesStore(db);
   const recruitment=recruitmentService(db,eve,cat,config);
   const whitelist=whitelistService(db,config.membershipLookup || (id=>characterAffiliation(eve,id)),id=>eve.publicGet("/corporations/"+id));
+  const groupEnrolment=groupEnrolmentService(db,whitelist);
   const discord=discordService(db,box,config,whitelist);
   const usersReview=usersReviewService(db,whitelist,config);
   const recruitMembership=recruitMembershipService(db,whitelist,{onJoined:(user,now)=>db.prepare("UPDATE user_whitelist_reviews SET status='allowed',checked=?,message='Membership confirmed; normal member access' WHERE user_id=?").run(now,user)});
@@ -162,7 +164,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.43.1" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.44.0" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -378,12 +380,13 @@ export function createApp(config) {
     }
     next();
   });
+  app.use('/api',async(req,res,next)=>{if(!req.inspect)await groupEnrolment.check(req.session.user_id);next();});
   fittingImportRoutes(app,{db,eve,cat});
   fittingWorkbenchRoutes(app,{db,eve,cat,simulate:config.fittingSimulator});
   sitePageRoutes(app,{db,config});
   discordRoutes(app,{discord,config});
   recruitmentRoutes(app,{db,recruitment,config});
-  managementRoutes(app,{db,eve,corp,cat,config,whitelist,discord});
+  managementRoutes(app,{db,eve,corp,cat,config,whitelist,discord,groupEnrolment});
   materialRoutes(app,{db,cat,corp,grants,admin:req=>isSiteAdmin(req.session,config.owner)});
   app.get("/api/me", async (req,res)=>{const director=req.recruit||req.inspect?.recruitment_only?false:await corp.access(req.session.user_id),pages=req.recruit||req.inspect?.recruitment_only?[]:grants(db,req.session.user_id).filter(p=>Object.hasOwn(CORPORATE_PAGES,p));res.json({pages:visibleSitePages(db,req,config),recruit:Boolean(req.recruit),recruiter:!req.inspect&&recruitment.canReview(req.session),name:req.session.name,main_id:req.session.main_id,inspect:req.inspect||null,admin:isSiteAdmin(req.session,config.owner),owner:req.session.main_id===config.owner,director,corporation:isSiteAdmin(req.session,config.owner)||director||pages.length>0,corporate_pages:isSiteAdmin(req.session,config.owner)||director?Object.keys(CORPORATE_PAGES):pages,preferences:preferences(db,req.session.user_id),links:recruitLinksHidden(db,req)?[]:db.prepare("SELECT * FROM external_links ORDER BY name").all()});});
   app.use("/api/corporation",async(req,res,next)=>{
@@ -977,7 +980,7 @@ export function createApp(config) {
         : message,
     });
   });
-  return { app, db, cat, sync, corp, recruitment, discord, usersReview, recruitMembership };
+  return { app, db, cat, sync, corp, recruitment, discord, usersReview, recruitMembership, groupEnrolment };
 }
 if (
   process.argv[1] &&
@@ -992,12 +995,14 @@ if (
     owner: Number(process.env.OWNER_CHARACTER_ID || 122543287),
     contact: process.env.ESI_CONTACT || "tools.areyouaspy.co.uk",
   };
-  const { app, sync, corp, recruitment, discord, usersReview, recruitMembership } = createApp(config);
+  const { app, sync, corp, recruitment, discord, usersReview, recruitMembership, groupEnrolment } = createApp(config);
   app.listen(Number(process.env.PORT || 3014), "127.0.0.1", () =>
     console.log("Tools listening on " + (process.env.PORT || 3014)),
   );
   setInterval(()=>discord.tick().catch(()=>console.error("Discord sync failed")),15000).unref();
   setInterval(()=>usersReview.tick().catch(()=>console.error("Whitelist review failed")),1000).unref();
+  groupEnrolment.tick().catch(()=>console.error('Group enrolment check failed'));
+  setInterval(()=>groupEnrolment.tick().catch(()=>console.error('Group enrolment check failed')),15000).unref();
   recruitMembership.tick().catch(()=>console.error('Recruit membership check failed'));
   setInterval(()=>recruitMembership.tick().catch(()=>console.error('Recruit membership check failed')),15000).unref();
   recruitment.schedule();

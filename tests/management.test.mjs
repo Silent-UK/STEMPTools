@@ -1,3 +1,5 @@
+import {groupEnrolmentService} from '../lib/group-enrolment.mjs';
+import {matchingMemberships,groupMembershipView} from '../public/group-management-view.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,rmSync} from 'node:fs';
@@ -46,3 +48,27 @@ test('role/title conditions require matching corporation and the same fresh pilo
  save(101,'titles',{corporation_id:668298004,titles:[{title_id:5}]});assert.equal(eligible(db,1,rules,now),true);
  save(101,'roles',{corporation_id:668298004,roles:['Director']},now-86400001);assert.equal(eligible(db,1,rules,now),false);
 }));
+
+async function enrolStore(fn){const dir=mkdtempSync(join(tmpdir(),'tools-enrol-')),db=openStore(dir);try{db.prepare("INSERT INTO users VALUES(1,101,'Main Pilot',0)").run();for(const id of [101,102])db.prepare("INSERT INTO characters VALUES(?,1,'Pilot','owner','encrypted','[]',0,0)").run(id);await fn(db);}finally{db.close();rmSync(dir,{recursive:true,force:true});}}
+test('auto enrolment verifies corporation, removes lost access, restores eligibility and preserves an admin veto',()=>enrolStore(async db=>{
+ let corporation=668298004,failed=false,calls=0;
+ const service=groupEnrolmentService(db,{async membership(){calls++;if(failed)throw Error('ESI unavailable');return {id:corporation,expires:Date.now()+300000};}});
+ db.prepare("INSERT INTO access_groups(id,name,icon,description,mode,rules,pages) VALUES(1,'Corp Members','◇','','auto-enrol',?,'[\"corp-moons\"]')").run(JSON.stringify([{kind:'corporation',id:668298004}]));
+ assert.deepEqual(grants(db,1),[]);await Promise.all([service.check(1),service.check(1)]);assert.deepEqual(grants(db,1),['corp-moons']);assert.equal(calls,2);
+ await service.check(1);assert.equal(calls,2);
+ corporation=123;db.prepare('UPDATE group_affiliations SET expires=0').run();assert.deepEqual(grants(db,1),[]);await service.check(1);assert.equal(db.prepare('SELECT status FROM group_members').get().status,'ineligible');assert.deepEqual(grants(db,1),[]);
+ corporation=668298004;db.prepare('UPDATE group_affiliations SET expires=0').run();await service.check(1);assert.deepEqual(grants(db,1),['corp-moons']);
+ db.prepare("UPDATE group_members SET status='rejected'").run();await service.check(1);assert.equal(db.prepare('SELECT status FROM group_members').get().status,'rejected');assert.deepEqual(grants(db,1),[]);
+ db.prepare("UPDATE group_members SET status='approved'").run();db.prepare('UPDATE group_affiliations SET expires=0').run();failed=true;await service.check(1);assert.deepEqual(grants(db,1),[]);const prior=calls;await service.check(1);assert.equal(calls,prior);
+}));
+test('corporation and skill auto-enrol requirements must be met by the same pilot',()=>enrolStore(async db=>{
+ const rules=[{kind:'corporation',id:668298004},{kind:'skill',id:3347,level:5}],now=Date.now();
+ db.prepare('INSERT INTO group_affiliations VALUES(101,668298004,?)').run(now+300000);db.prepare('INSERT INTO group_affiliations VALUES(102,999,?)').run(now+300000);
+ db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(102,'skills',JSON.stringify({skills:{skills:[{skill_id:3347,active_skill_level:5}]}}),now,now+3600000);assert.equal(eligible(db,1,rules),false);
+ db.prepare('UPDATE group_affiliations SET corporation_id=668298004 WHERE character_id=102').run();assert.equal(eligible(db,1,rules),true);
+}));
+test('membership search finds a pilot by their main or alt across groups and keeps ordinary categories collapsed',()=>{
+ const d={groups:[{id:1,name:'Corp Members',icon:'◇',mode:'auto-enrol'},{id:2,name:'Capital Pilots',icon:'◇',mode:'approval'}],requests:[{group_id:1,user_id:1,name:'Silent Uk',pilot_names:'["Silent Uk","Monna Sei"]',group_name:'Corp Members',status:'approved'},{group_id:2,user_id:1,name:'Silent Uk',pilot_names:'["Monna Sei"]',group_name:'Capital Pilots',status:'approved'},{group_id:1,user_id:2,name:'Other Pilot',group_name:'Corp Members',status:'pending'}]};
+ assert.equal(matchingMemberships(d,'SILENT UK').length,2);assert.equal(matchingMemberships(d,'monna').length,2);assert.equal(matchingMemberships(d,'no match').length,0);
+ const esc=s=>String(s??'').replaceAll('<','&lt;');assert.ok(!groupMembershipView(d,'',esc).includes('class="group-membership" open'));const html=groupMembershipView(d,'silent',esc);assert.ok(html.includes('Corp Members'));assert.ok(html.includes('Capital Pilots'));assert.ok(!html.includes('Other Pilot'));assert.ok(html.includes('class="group-membership" open'));
+});

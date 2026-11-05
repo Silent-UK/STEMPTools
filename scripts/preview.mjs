@@ -222,6 +222,13 @@ const { app,recruitMembership } = createApp({
  db.prepare('INSERT INTO recruitment_applications(user_id,created,consented) VALUES(900,?,?)').run(now,now);
  if(process.env.PREVIEW_INSPECT==='1')db.prepare('INSERT INTO inspections VALUES(?,900)').run(hash('local-preview'));
 }
+if(process.env.PREVIEW_GROUP_MANAGEMENT==='1'){
+ const corpGroup=Number(db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages) VALUES('Corp Members','◇','Automatically enrol confirmed corporation members.','auto-enrol',?,'[]')").run(JSON.stringify([{kind:'corporation',id:668298004,name:'Member of Site Corporation'}])).lastInsertRowid);
+ const fleetGroup=Number(db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages) VALUES('Fleet Pilots','◇','Fleet access applications.','approval','[]','[]')").run().lastInsertRowid);
+ db.prepare("INSERT INTO group_members VALUES(?,2,'approved')").run(corpGroup);
+ db.prepare("INSERT INTO group_members VALUES(?,2,'approved')").run(fleetGroup);
+ db.prepare("INSERT INTO group_members VALUES(?,3,'pending')").run(fleetGroup);
+}
 if(process.env.PREVIEW_GROUPS==='1'||process.env.PREVIEW_RECRUIT_GROUPS==='1'){
  db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages,recruit_visible) VALUES('Main members','◇','Member-only group','approval','[]','[]',0)").run();
  db.prepare("INSERT INTO access_groups(name,icon,description,mode,rules,pages,recruit_visible) VALUES('Recruit introduction','◇','A group available during recruitment.','approval','[]','[]',1)").run();

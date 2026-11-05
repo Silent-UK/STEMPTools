@@ -1,4 +1,4 @@
-export const adminNav=[["admin-users","♙","Users"],["admin-groups","◇","Groups"],["admin-links","↗","Links"],["admin-pages","▤","Pages"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"],["admin-recruitment","✓","Recruitment Settings"],["admin-discord","◉","Discord"]];
+export const adminNav=[["admin-users","♙","Users"],["admin-groups","◇","Group Setup"],["admin-group-management","♙","Group Management"],["admin-links","↗","Links"],["admin-pages","▤","Pages"],["admin-esi","↻","ESI Status"],["admin-corp","▣","Corp ESI"],["admin-whitelist","⚙","Whitelist"],["admin-recruitment","✓","Recruitment Settings"],["admin-discord","◉","Discord"]];
 export const pageIcons=Object.fromEntries([...[
   ["overview", "◈", "Overview"],
   ["characters", "♙", "My Characters"],
