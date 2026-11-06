@@ -1506,3 +1506,5 @@ tbody>tr:nth-child(even):not(:hover):not(.contract-outstanding):not(.recruit-dan
 .moon-income{margin:8px 0;font-size:12px}.moon-income>details{border-top:1px solid var(--border);padding:5px 0}.moon-income>details>summary{display:grid;grid-template-columns:minmax(120px,1fr) 1fr 1fr 1fr;gap:6px;cursor:pointer}.moon-income>small{display:block;margin:4px 0 8px}.moon-income td{padding:4px 6px}@media(max-width:800px){.moon-income>details>summary{grid-template-columns:1fr 1fr}}
 
 .moon-income>details>summary>strong:first-child::before{content:'▸ '}.moon-income>details[open]>summary>strong:first-child::before{content:'▾ '}
+
+.asset-safety{font-size:12px}.asset-safety p{margin:6px 0}.asset-safety td{padding:4px 6px;overflow-wrap:anywhere}.asset-safety td small{display:block}.asset-safety table{width:100%;table-layout:fixed}

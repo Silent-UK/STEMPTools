@@ -21,3 +21,14 @@ test('same-type ships with fittings remain distinct and keep their modules',()=>
  const module={item_id:3,type_id:200,name:'Module',location_id:1,root_location_id:99,character_id:1,quantity:1,location_flag:'HiSlot0'};
  const rows=stackAssetRows([ship,{...ship,item_id:2},module,{...module,item_id:4,location_id:2}]);assert.deepEqual(rows.map(x=>[x.item_id,x.depth]),[[1,0],[3,1],[2,0],[4,1]]);
 });
+
+
+test('exact item search ignores case and trims the query while retaining parent context',()=>{
+ const rows=assetMatches(items,'  EXPANDED CARGOHOLD  ','station',{exact:true});
+ assert.deepEqual(rows.map(a=>[a.item_id,a.context]),[[1,true],[2,false]]);
+ assert.equal(assetMatches(items,'expanded','',{exact:true}).length,0);
+ assert.equal(assetMatches(items,'expanded','').filter(a=>!a.context).length,1);
+ assert.equal(assetMatches(items,'Bestower','elsewhere',{exact:true}).length,0);
+ assert.equal(assetMatches(items,'','',{exact:true}).length,items.length);
+ assert.equal(assetMatches(items,'Bestower','',{exact:true}).length,3);
+});

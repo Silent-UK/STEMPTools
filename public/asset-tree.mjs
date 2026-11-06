@@ -7,9 +7,10 @@ export function assetTree(items) {
  const walk=(rows,depth)=>{for(const a of [...rows].sort((a,b)=>Number(Boolean(a.empty_office))-Number(Boolean(b.empty_office))||a.name.localeCompare(b.name)||String(a.item_id).localeCompare(String(b.item_id)))){const key=String(a.item_id);if(seen.has(key))continue;seen.add(key);result.push({...a,depth});walk(children.get(key)||[],depth+1);}};
  walk(roots,0);walk(items.filter(a=>!seen.has(String(a.item_id))),0);return result;
 }
-export function assetMatches(items,q,location) {
+export function assetMatches(items,q,location,{exact=false}={}) {
+ q=String(q||'').trim().toLowerCase();location=String(location||'').toLowerCase();
  const byId=new Map(items.map(a=>[String(a.item_id),a]));
- const matches=items.filter(a=>a.name.toLowerCase().includes(q)&&a.location.toLowerCase().includes(location));
+ const matches=items.filter(a=>(!q||(exact?a.name.toLowerCase()===q:a.name.toLowerCase().includes(q)))&&a.location.toLowerCase().includes(location));
  const direct=new Set(matches.map(a=>String(a.item_id))),included=new Set(direct);
  for(const item of matches){let parent=byId.get(String(item.location_id));const seen=new Set([String(item.item_id)]);while(parent&&!seen.has(String(parent.item_id))){seen.add(String(parent.item_id));included.add(String(parent.item_id));parent=byId.get(String(parent.location_id));}}
  // When a ship matches, show its fitted modules too; cargo still obeys the search.

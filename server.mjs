@@ -1,3 +1,5 @@
+import systemNames from './lib/system-names.json' with {type:'json'};
+import {safetyInventory} from './lib/asset-safety.mjs';
 import {groupEnrolmentService} from './lib/group-enrolment.mjs';
 import {recruitMembershipService} from './lib/recruit-membership.mjs';
 import {documentLibraryRoutes,skillEvidence} from './lib/document-library.mjs';
@@ -164,7 +166,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.45.17" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.45.18" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -657,7 +659,7 @@ export function createApp(config) {
       offset = Math.max(0, Number(req.query.offset) || 0);
     const rows = [],types=new Map();
     const type=id=>{if(!types.has(id))types.set(id,cat.type(id));return types.get(id);};
-    const sources = [];
+    const sources = [],asset_safety=[];
     for (const c of db
       .prepare("SELECT id,name FROM characters WHERE user_id=?")
       .all(req.session.user_id)) {
@@ -668,7 +670,7 @@ export function createApp(config) {
         )
         .get(c.id);
       sources.push({ id: c.id, name: c.name, updated: s?.updated || null });
-      if (!s) continue;
+      if (!s) {asset_safety.push({id:c.id,name:c.name,items:[],transfers:[],updated:null});continue;}
       const data = JSON.parse(s.data);
       const inventory=data.items.map(item=>({...item,
         name:type(item.type_id)?.name || String(item.type_id),
@@ -676,7 +678,9 @@ export function createApp(config) {
         location_type_id:data.locationTypes?.[item.root_location_id] || null,
         character:c.name,character_id:c.id,
       }));
-      for(const item of assetMatches(inventory,q,location))rows.push(item);
+      const safety=data.asset_safety||{};
+      asset_safety.push({id:c.id,name:c.name,updated:s.updated,notification_updated:safety.updated||null,status:safety.status||'pending',items:safetyInventory(inventory),transfers:(safety.transfers||[]).map(t=>({...t,source:(systemNames[t.system_id]||'System '+(t.system_id||'unknown'))+' · Structure '+(t.structure_id||'unknown'),destination:t.destination_id?(data.locations?.[t.destination_id]||'Station '+t.destination_id):null}))});
+      for(const item of assetMatches(inventory,q,location,{exact:req.query.exact==='true'}))rows.push(item);
     }
     const grouped = new Map();
     for (const row of rows) {
@@ -706,7 +710,7 @@ export function createApp(config) {
       locationCount: locations.length,
       locations: locations.slice(offset, offset + 20),
       items: rows.slice(offset, offset + 100),
-      sources,
+      sources,asset_safety,
     });
   });
   app.get("/api/catalog", (req, res) =>

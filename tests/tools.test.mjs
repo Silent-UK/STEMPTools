@@ -614,6 +614,13 @@ test("asset grouping keeps a station together and respects character ownership",
       await request("/api/assets?location=missing", { session: owner.session })
     ).json();
     assert.equal(filtered.locations.length, 0);
+    assert.deepEqual(result.asset_safety.map(p=>p.id),[100]);
+    const name=result.locations[0].items[0].name;
+    const exact=await (await request('/api/assets?exact=true&q='+encodeURIComponent(name.toUpperCase()),{session:owner.session})).json();
+    assert.equal(exact.total,125);
+    const partial=await (await request('/api/assets?exact=true&q='+encodeURIComponent(name+' extra'),{session:owner.session})).json();
+    assert.equal(partial.total,0);
+
   }));
 
 test("character order is main-first, persistent and shared with operations", () =>
