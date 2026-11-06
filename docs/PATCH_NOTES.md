@@ -1,3 +1,7 @@
+# STEMP Tools v0.45.10
+
+- Add 6YC-TU Goo 7 and Goo 8 recorded hourly moon production, preserving unknown ore percentages and stopped status provenance.
+
 # STEMP Tools v0.45.9
 
 - Remove superseded frontend modules and unused assets.
