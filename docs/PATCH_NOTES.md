@@ -1,3 +1,8 @@
+# Tools v0.45.17
+
+- Resolve Asset Safety locally and skip station requests for non-station IDs.
+- Back off denied/missing universe location lookups for 24 hours, scoped to the requesting pilot and auth context. Keep location IDs in server-only diagnostic failures.
+
 # Tools v0.45.16
 
 - Add bounded server-only ESI request and cooldown tracing. No troubleshooting UI; tokens, query values and response bodies are excluded.

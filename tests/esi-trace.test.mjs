@@ -4,7 +4,7 @@ import {createEsiTrace} from '../lib/esi-trace.mjs';
 test('ESI tracing records trigger headers and prior endpoint failures without secrets or payloads',async()=>{
  let at=100000;const events=[],trace=createEsiTrace({now:()=>at,write:e=>events.push(e)}),options={method:'POST',headers:{Authorization:'Bearer TOKEN_SECRET'},body:'BODY_SECRET'};
  const first=await trace.request(async()=>{at+=50;return new Response('RESPONSE_SECRET',{status:403});},'https://esi.evetech.net/universe/structures/123?token=QUERY_SECRET',options,{source:'character',character_id:42});
- assert.equal(await first.text(),'RESPONSE_SECRET');
+ assert.equal(await first.text(),'RESPONSE_SECRET');assert.equal(events[0].location_id,123);
  await trace.request(async()=>new Response('{}',{headers:{'x-esi-error-limit-remain':'9','x-esi-error-limit-reset':'60','x-esi-request-id':'abc-123'}}),'https://esi.evetech.net/characters/42/skills',{}, {source:'character',character_id:42});
  const trigger=events.find(e=>e.event==='cooldown_trigger'),summary=events.find(e=>e.event==='summary');assert.equal(trigger.status,200);assert.equal(trigger.headers['x-esi-error-limit-remain'],'9');assert.equal(trigger.request_id,'abc-123');assert.equal(summary.endpoints[0].statuses[403],1);assert.equal(summary.endpoints[0].endpoint,'/universe/structures/:id');assert.equal(summary.endpoints[0].total_ms,50);
  const text=JSON.stringify(events);for(const secret of ['TOKEN_SECRET','BODY_SECRET','RESPONSE_SECRET','QUERY_SECRET'])assert.ok(!text.includes(secret));
