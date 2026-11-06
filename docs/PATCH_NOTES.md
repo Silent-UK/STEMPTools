@@ -1,3 +1,7 @@
+# Tools v0.45.12
+
+- Add STEMP 6L78-1 VII Moon 7 (Goo 9) hourly production and monthly estimates.
+
 # Tools v0.45.11
 
 - Refresh age/status ignores paused sync categories; active dependencies still count. Saved paused snapshots and errors remain stored.
