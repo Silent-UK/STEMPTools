@@ -1,3 +1,7 @@
+# Tools v0.45.15
+
+- Use standard control tower fuel rates when sovereignty data is unavailable; existing saved towers immediately gain estimated timers.
+
 # Tools v0.45.14
 
 - Add STEMP TDE4-H VI Moon 17 (Goo 11) hourly production and monthly estimates.

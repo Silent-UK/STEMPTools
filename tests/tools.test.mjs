@@ -2246,3 +2246,11 @@ test('character refresh metadata marks paused syncs and hides only their errors'
  assert.equal(c.snapshots.find(s=>s.kind==='dens').sync_enabled,false);assert.equal(c.snapshots.find(s=>s.kind==='pi').sync_enabled,false);assert.equal(c.snapshots.find(s=>s.kind==='industry').sync_enabled,true);assert.equal(c.snapshots.find(s=>s.kind==='skills').sync_enabled,true);
  assert.deepEqual(c.errors.map(e=>e.kind).sort(),['industry','skills']);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM sync_errors WHERE character_id=200').get().n,6);
 }));
+
+
+test('standard large tower rates are available without sovereignty data and saved stock yields a timer immediately',()=>fixture(async({db,user,request})=>{
+ const {structureRate}=await import('../lib/corp-fuel.mjs'),{fuelDeadlines}=await import('../public/structure-timers.mjs'),owner=user(100,'Owner'),tower={id:999,kind:'POS',type_name:'Minmatar Control Tower',name:'Example tower',state:'online',fuel:16200,inventory_at:Date.now(),rate:null};
+ assert.equal(structureRate(tower,[],()=>null,null),40);assert.equal(structureRate(tower,[],()=>null,false),40);assert.equal(structureRate(tower,[],()=>null,true),30);assert.equal(structureRate({...tower,state:'offline'},[],()=>null,null),null);assert.equal(structureRate({...tower,type_name:'Unknown Tower'},[],()=>null,null),null);
+ db.prepare('INSERT INTO corp_snapshots VALUES(?,?,?)').run(668298004,JSON.stringify([tower]),Date.now());
+ const data=await(await request('/api/corporation/structures',{session:owner.session})).json(),saved=data.structures.find(s=>s.id===999);assert.equal(saved.rate,40);assert.equal(fuelDeadlines(saved)[0].at,tower.inventory_at+405*3600000);assert.equal(saved.fuel,16200);
+}));
