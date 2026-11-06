@@ -7,7 +7,7 @@ export function overviewPreferences(value={}){
  return {q:typeof value.q==='string'?value.q.slice(0,120):'',filter:Object.hasOwn(OVERVIEW_FILTERS,value.filter)?value.filter:'all',sort:Object.hasOwn(OVERVIEW_SORTS,value.sort)?value.sort:'manual',totals:value.totals===true,expanded:value.expanded===true,groups:Array.isArray(value.groups)?value.groups.filter(Number.isSafeInteger):[]};
 }
 export function overviewRefresh(c,now=Date.now()){
- const rows=(c.snapshots||[]).filter(s=>Number.isFinite(s.updated)&&s.updated>0);
+ const rows=(c.snapshots||[]).filter(s=>s.sync_enabled!==false&&Number.isFinite(s.updated)&&s.updated>0);
  return {latest:rows.length?Math.max(...rows.map(s=>s.updated)):null,oldest:rows.length?Math.min(...rows.map(s=>s.updated)):null,older:rows.some(s=>Number.isFinite(s.expires)&&s.expires<=now),temporary:(c.errors||[]).some(temporaryRefreshError)};
 }
 export function overviewIssues(c,chars,now=Date.now()){

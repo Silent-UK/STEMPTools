@@ -2237,3 +2237,12 @@ test('slow ESI verification stops blocking existing sessions but persists confir
   await assert.rejects(service.check(100,false,{allowGrace:true}),e=>e.status===403);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('character refresh metadata marks paused syncs and hides only their errors',()=>fixture(async({db,user,request})=>{
+ const a=user(200,'Member');db.prepare('INSERT INTO page_preferences VALUES(?,?)').run(a.uid,JSON.stringify({dens:false,standings:false,market:false,pi:false,industry:false,blueprints:true}));
+ for(const kind of ['dens','standings','market','pi','industry','skills']){db.prepare('INSERT INTO snapshots VALUES(?,?,?,?,?,NULL)').run(200,kind,'{}',1,2);db.prepare('INSERT INTO sync_errors VALUES(?,?,?)').run(200,kind,'HTTP 503');}
+ const rows=await(await request('/api/characters',{session:a.session})).json(),c=rows.find(c=>c.id===200);
+ assert.equal(c.snapshots.find(s=>s.kind==='dens').sync_enabled,false);assert.equal(c.snapshots.find(s=>s.kind==='pi').sync_enabled,false);assert.equal(c.snapshots.find(s=>s.kind==='industry').sync_enabled,true);assert.equal(c.snapshots.find(s=>s.kind==='skills').sync_enabled,true);
+ assert.deepEqual(c.errors.map(e=>e.kind).sort(),['industry','skills']);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM sync_errors WHERE character_id=200').get().n,6);
+}));

@@ -16,7 +16,7 @@ import {wipeAccount,removePilotWhitelist} from './lib/accounts.mjs';
 import {isSiteAdmin} from './lib/admin.mjs';
 import {fittingImportRoutes} from './lib/fitting-import-routes.mjs';
 import {managementRoutes} from './lib/management-routes.mjs';
-import {managementStore,preferences,grants,CORPORATE_PAGES} from './lib/management.mjs';
+import {managementStore,preferences,syncEnabled,grants,CORPORATE_PAGES} from './lib/management.mjs';
 import miningRecipes from './lib/mining-recipes.json' with {type:'json'};
 import {whitelistService,characterAffiliation} from "./lib/whitelist.mjs";
 import {surveyList} from './lib/moon-surveys.mjs';
@@ -164,7 +164,7 @@ export function createApp(config) {
     req.session={...req.session,user_id:target.id,name:target.name,main_id:target.main_id,admin:0};
     next();
   });
-  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.45.10" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, version: "0.45.11" }));
   app.get("/auth/login", (req, res) => {
     if (!config.client || !config.secret)
       return res.status(503).send("EVE login is not configured yet.");
@@ -445,10 +445,10 @@ export function createApp(config) {
           .prepare(
             "SELECT kind,updated,expires FROM snapshots WHERE character_id=?",
           )
-          .all(c.id),
+          .all(c.id).map(s=>({...s,sync_enabled:syncEnabled(db,req.session.user_id,s.kind)})),
         errors: db
           .prepare("SELECT kind,message FROM sync_errors WHERE character_id=?")
-          .all(c.id),
+          .all(c.id).filter(e=>syncEnabled(db,req.session.user_id,e.kind)),
       })),
     );
   });

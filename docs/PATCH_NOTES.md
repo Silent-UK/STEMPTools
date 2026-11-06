@@ -1,3 +1,7 @@
+# Tools v0.45.11
+
+- Refresh age/status ignores paused sync categories; active dependencies still count. Saved paused snapshots and errors remain stored.
+
 # STEMP Tools v0.45.10
 
 - Add 6YC-TU Goo 7 and Goo 8 recorded hourly moon production, preserving unknown ore percentages and stopped status provenance.
