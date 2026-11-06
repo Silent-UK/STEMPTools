@@ -36,6 +36,7 @@ The preview uses fictional data and a temporary database on `127.0.0.1:3014`. Pr
 - [Custom pages](docs/PAGES.md)
 - [Fitting engine and rebuilding](docs/FITTING_WORKSPACE_REVIEW.md)
 - [Page healthcheck](docs/HEALTHCHECK.md)
+- [Server-only ESI diagnostics](docs/ESI_DIAGNOSTICS.md)
 - [Patch notes](docs/PATCH_NOTES.md)
 - [Earlier release documentation](docs/RELEASE_HISTORY.md) — historical behaviour, not current setup instructions.
 

@@ -1,3 +1,7 @@
+# Tools v0.45.16
+
+- Add bounded server-only ESI request and cooldown tracing. No troubleshooting UI; tokens, query values and response bodies are excluded.
+
 # Tools v0.45.15
 
 - Use standard control tower fuel rates when sovereignty data is unavailable; existing saved towers immediately gain estimated timers.
